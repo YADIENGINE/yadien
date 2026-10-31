@@ -28,7 +28,7 @@ from engine_location import REPOSITORY  # noqa: E402
 
 NOTICES_FILE = REPOSITORY / "Packaging" / "Notices.json"
 OUTPUT_NOTICES = "ThirdPartyNotices.txt"  # Core/Settings/LauncherLayout.h LicenseNoticesFile
-VELOPACK_DLL = "velopack_libc_win_x64_msvc.dll"
+VELOPACK_DLL = "velopack_libc.dll"  # The name <engine>.exe imports (Apps/Ui/CMakeLists.txt copies it so)
 STAMP_FILE = ".fetched"  # fetch_toolchain's marker inside a tool folder; not shipped
 
 
