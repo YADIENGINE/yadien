@@ -2,10 +2,11 @@
 #include "Cli/CommandLine.h"
 #include "Cli/EngineCommand.h"
 #include "Platform/Text.h"
+#include "Settings/ProjectList.h"
 #include "Support/FakeEngine.h"
 #include "Support/TempFolder.h"
 
-TEST_CASE("--project is the launcher's; everything after it goes to the engine unchanged", "[cli]") {
+TEST_CASE("The project option is the launcher's; everything after it goes to the engine unchanged", "[cli]") {
     const ParsedCommandLine spaced = ParseCommandLine({"--project", "C:/Game", "build", "--release"});
     REQUIRE(spaced.project.has_value());
     CHECK(spaced.arguments == std::vector<std::string>{"build", "--release"});

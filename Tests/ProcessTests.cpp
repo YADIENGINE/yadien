@@ -13,9 +13,12 @@ ProcessCommand Cmd(const std::string& script) { return {"cmd.exe", {"/d", "/c", 
 TEST_CASE("Arguments are quoted as Windows programs read them", "[process]") {
     const ProcessCommand command{
         "C:/Tools/py.exe", {"plain", "with space", "quote\"inside", "trail\\", ""}, {}, {}, {}};
-    CHECK(BuildCommandLine(command) == LR"(C:/Tools/py.exe plain "with space" "quote\"inside" trail\ "")");
+    // Raw strings stay outside the assertion macros: MSVC cannot stringify them as macro arguments
+    const std::wstring expected = LR"(C:/Tools/py.exe plain "with space" "quote\"inside" trail\ "")";
+    CHECK(BuildCommandLine(command) == expected);
     const ProcessCommand spaced{"C:/Program Files/x.exe", {"a\\\"b"}, {}, {}, {}};
-    CHECK(BuildCommandLine(spaced) == LR"("C:/Program Files/x.exe" "a\\\"b")");
+    const std::wstring expectedSpaced = LR"("C:/Program Files/x.exe" "a\\\"b")";
+    CHECK(BuildCommandLine(spaced) == expectedSpaced);
 }
 
 TEST_CASE("Captured output arrives line by line with the exit code", "[process]") {
