@@ -24,7 +24,7 @@ Apps/
   Cli/Main.cpp       <engine>.com (console)
   Ui/                <engine>.exe (window): model + screen functions, engine EngineToolUi — UiScreens.md
 Tests/               Catch2 tests (LauncherCoreTests) + Support/
-Scripts/             Developer scripts (stdlib Python): import_engine, fetch_toolchain, dev, package
+Scripts/             Developer scripts (stdlib Python): import_engine, fetch_toolchain, dev, package, brand
 Packaging/           Installer inputs: Notices.json (licenses of the launcher and its tools), Licenses/ — Packaging.md
 Toolchain.lock.json  Bundled tool and library versions / addresses / SHA-256 — Toolchain.md
 ToolCache/           Downloaded tools and libraries (not tracked in git)

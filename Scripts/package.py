@@ -10,6 +10,8 @@ Steps: stage the files the launcher ships, write their license notices, run Velo
                                and its tools (Packaging/Notices.json)
     build/Package/Releases/    vpk's output: <Name>-Setup-<version>.exe and the update files (nupkg, releases.win.json)
 
+The installer's icon and splash are the build's (build/Brand/, drawn by Scripts/brand.py at configure time).
+
 The package's version is the launcher's (LAUNCHER_VERSION in CMakeLists.txt); the Velopack id and title are the
 product name from the engine manifest. Signing is not set up yet (design D19): vpk pack is where it would go.
 Only the standard library; the engine's notice helpers come from the engine checkout dev.py puts on sys.path.
@@ -24,6 +26,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # Scripts/, also when imported as Scripts.package
+from brand import SPLASH_PROGRESS  # noqa: E402
 from engine_location import REPOSITORY  # noqa: E402
 
 NOTICES_FILE = REPOSITORY / "Packaging" / "Notices.json"
@@ -99,14 +102,19 @@ def setup_name(product: str, version: str) -> str:
     return f"{product}-Setup-{version}.exe"
 
 
-def pack(stage_dir: Path, releases: Path, product: str, executable: str, version: str, runner=subprocess.run,
-         vpk: str | None = None) -> Path:
+def pack(stage_dir: Path, releases: Path, brand: Path, product: str, executable: str, version: str,
+         runner=subprocess.run, vpk: str | None = None) -> Path:
+    for name in ("Icon.ico", "Splash.png"):
+        if not (brand / name).is_file():
+            raise PackageFailed(f"{brand / name} is missing; configure the launcher build first")
     vpk = vpk or shutil.which("vpk")
     if vpk is None:
         raise PackageFailed("vpk not found; install it: dotnet tool install -g vpk (Docs/Packaging.md)")
     releases.mkdir(parents=True, exist_ok=True)
     command = [vpk, "pack", "--packId", product, "--packVersion", version, "--packTitle", product, "--packAuthors",
-               product, "--packDir", str(stage_dir), "--mainExe", f"{executable}.exe", "--outputDir", str(releases)]
+               product, "--packDir", str(stage_dir), "--mainExe", f"{executable}.exe", "--outputDir", str(releases),
+               "--icon", str(brand / "Icon.ico"), "--splashImage", str(brand / "Splash.png"), "--splashProgressColor",
+               SPLASH_PROGRESS]
     print(f"> {subprocess.list2cmdline(command)}", flush=True)
     if runner(command).returncode != 0:
         raise PackageFailed("vpk pack failed")
@@ -115,7 +123,7 @@ def pack(stage_dir: Path, releases: Path, product: str, executable: str, version
     return setup
 
 
-def package(engine: Path, build: Path, output: Path, cache: Path = REPOSITORY / "ToolCache",
+def package(engine: Path, build: Path, brand: Path, output: Path, cache: Path = REPOSITORY / "ToolCache",
             engines: Path = REPOSITORY / "Engines", runner=subprocess.run) -> Path:
     """Stages a Release build and packs it; returns the setup executable."""
     from ThirdParty.notices import check_components, compose_notices, engine_notice, load_components
@@ -136,4 +144,4 @@ def package(engine: Path, build: Path, output: Path, cache: Path = REPOSITORY / 
     engine_text = engine_notice(manifest.name, manifest.version, (engine / "LICENSE").read_text(encoding="utf-8"))
     text = compose_notices(components, "Launcher", launcher_part, engine / "ThirdParty", engine_text=engine_text)
     (stage_dir / OUTPUT_NOTICES).write_text(text, encoding="utf-8", newline="\n")
-    return pack(stage_dir, output / "Releases", product, executable, version, runner)
+    return pack(stage_dir, output / "Releases", brand, product, executable, version, runner)

@@ -18,10 +18,10 @@ target_include_directories(LauncherUiPresentation PUBLIC "${CMAKE_CURRENT_SOURCE
 # before user32 / winmm (raylib's CloseWindow, ShowCursor). The engine editor links the same way.
 target_link_libraries(LauncherUiPresentation PUBLIC LauncherCore EngineToolUi Engine raylib ole32 shell32)
 engine_warnings(LauncherUiPresentation)
-# Velopack (installer, design D15): its prebuilt C library from ToolCache (Scripts/fetch_toolchain.py, Toolchain.lock.json
-# "libraries"). The DLL keeps its own runtime, so it does not clash with the static MSVC runtime; only <engine>.exe needs
-# it (Velopack runs the main executable for its install / uninstall hooks), and it is copied beside it under the name
-# its import library asks for (velopack_libc.dll, not the archive's file name).
+# Velopack (installer, design D15): its prebuilt C library from ToolCache (Scripts/fetch_toolchain.py,
+# Toolchain.lock.json "libraries"). The DLL keeps its own runtime, so it does not clash with the static MSVC runtime;
+# only <engine>.exe needs it (Velopack runs the main executable for its install / uninstall hooks), and it is copied
+# beside it under the name its import library asks for (velopack_libc.dll, not the archive's file name).
 set(LAUNCHER_VELOPACK_DIR "${PROJECT_SOURCE_DIR}/ToolCache/velopack" CACHE PATH "Velopack C library (velopack_libc)")
 if(NOT EXISTS "${LAUNCHER_VELOPACK_DIR}/include/Velopack.h")
     message(FATAL_ERROR "No Velopack library at ${LAUNCHER_VELOPACK_DIR}; run: python Scripts/fetch_toolchain.py")
@@ -32,7 +32,7 @@ set_target_properties(Velopack PROPERTIES
     IMPORTED_IMPLIB "${LAUNCHER_VELOPACK_DIR}/lib/velopack_libc_win_x64_msvc.dll.lib"
     INTERFACE_INCLUDE_DIRECTORIES "${LAUNCHER_VELOPACK_DIR}/include")
 
-add_executable(LauncherUi WIN32 Main.cpp LauncherApplication.cpp InstallerHooks.cpp)
+add_executable(LauncherUi WIN32 Main.cpp LauncherApplication.cpp InstallerHooks.cpp "${LAUNCHER_RESOURCES}")
 target_link_libraries(LauncherUi PRIVATE LauncherUiPresentation Velopack)
 set_target_properties(LauncherUi PROPERTIES OUTPUT_NAME "${LAUNCHER_EXECUTABLE_NAME}")
 add_custom_command(TARGET LauncherUi POST_BUILD

@@ -23,8 +23,9 @@ It builds the launcher in Release, then `Scripts/package.py`:
 2. **Writes `ThirdPartyNotices.txt`**: part 1 is the engine (its own license and the components every engine
    program contains, from the engine's `ThirdParty/Notices.json`), part 2 the launcher and its tools
    (`Packaging/Notices.json`; tool versions come from the lock). Settings → Open source licenses opens this file.
-3. **Packs** with `vpk pack` into `build/Package/Releases/`: the installer plus the update files (`*-full.nupkg`,
-   `*-delta.nupkg` when an earlier release is in the folder, `releases.win.json`, `RELEASES`, `assets.win.json`).
+3. **Packs** with `vpk pack` into `build/Package/Releases/`, with the build's icon and splash (`build/Brand/`): the
+   installer plus the update files (`*-full.nupkg`, `*-delta.nupkg` when an earlier release is in the folder,
+   `releases.win.json`, `RELEASES`, `assets.win.json`).
 
 Packing the same version again (a test build) makes vpk ask whether to overwrite the earlier one in
 `build/Package/Releases/`; answer `y`. A real release always raises the version, so the question guards published
@@ -32,6 +33,11 @@ versions.
 
 The version is `LAUNCHER_VERSION` in `CMakeLists.txt`; the Velopack id and title are the product name from the engine
 manifest. A release that ships a new engine, launcher change or tool upgrade raises the launcher's version (D15).
+
+**Icon and splash** are drawn from code (engine D1) by `Scripts/brand.py` when the build is configured: the product
+name's first letter in a 5x7 arcade pixel font on a dark tile (icon, 16-256 px, also the window and taskbar icon via the
+`GLFW_ICON` resource), and the whole name on the splash; colours are the tool UI's. Nothing generated is committed; a
+renamed product gets new images on the next configure.
 
 When a license text changes (a tool or library upgrade), update `Packaging/Notices.json` or `Packaging/Licenses/` in
 the same commit. Velopack's and Ninja's archives have no license file; their texts are in `Packaging/Licenses/`.

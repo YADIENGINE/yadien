@@ -125,7 +125,7 @@ def main(argv: list[str]) -> int:
 
                 build(engine, release=True)
                 try:
-                    setup = package(engine, BUILD / "Release", BUILD / "Package")
+                    setup = package(engine, BUILD / "Release", BUILD / "Brand", BUILD / "Package")
                 except PackageFailed as error:
                     print(f"error: {error}", file=sys.stderr)
                     return 1

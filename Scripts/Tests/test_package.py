@@ -90,12 +90,17 @@ class PackageTests(unittest.TestCase):
             self.write("Releases/MyEngine-win-Setup.exe")
             return SimpleNamespace(returncode=0)
 
-        setup = pack(self.root / "Stage", self.root / "Releases", "MyEngine", "myengine", "1.2.3", runner, vpk="vpk")
+        self.write("Brand/Icon.ico")
+        self.write("Brand/Splash.png")
+        setup = pack(self.root / "Stage", self.root / "Releases", self.root / "Brand", "MyEngine", "myengine", "1.2.3",
+                     runner, vpk="vpk")
         self.assertEqual(setup.name, setup_name("MyEngine", "1.2.3"))
         self.assertTrue(setup.is_file())
         command = calls[0]
         self.assertEqual(command[command.index("--packVersion") + 1], "1.2.3")
         self.assertEqual(command[command.index("--mainExe") + 1], "myengine.exe")
+        self.assertEqual(Path(command[command.index("--icon") + 1]).name, "Icon.ico")
+        self.assertEqual(Path(command[command.index("--splashImage") + 1]).name, "Splash.png")
 
 
 if __name__ == "__main__":
