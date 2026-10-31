@@ -1,4 +1,0 @@
-#pragma once
-// Generated from DeveloperAccess.json at configure time (Core/CMakeLists.txt); empty when the file is absent.
-
-inline constexpr const char* EmbeddedDeveloperAccessJson = R"__access__(@LAUNCHER_DEVELOPER_ACCESS@)__access__";

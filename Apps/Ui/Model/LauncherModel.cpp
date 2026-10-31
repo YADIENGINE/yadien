@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <utility>
 #include "Cli/EngineCommand.h"
-#include "Developer/DeveloperAccess.h"
 #include "Developer/DeveloperGit.h"
 #include "Dialogs/FolderDialog.h"
 #include "Platform/Process.h"
@@ -458,8 +457,6 @@ void LauncherModel::InstallMsvc() {
 
 std::filesystem::path LauncherModel::ProjectsFolder() const { return ProjectsFolderOf(_settings); }
 
-bool LauncherModel::DeveloperModeAvailable() const { return EmbeddedDeveloperAccess().has_value(); }
-
 void LauncherModel::SetOnPath(bool onPath) {
     Queue([this, onPath] {
         const Status changed = onPath ? AddToUserPath(LauncherFolder()) : RemoveFromUserPath(LauncherFolder());
@@ -479,10 +476,8 @@ void LauncherModel::OpenInstallFolder() {
 
 void LauncherModel::AskDeveloperMode() {
     Queue([this] {
-        if (!DeveloperModeAvailable() || _settings.mode == LauncherMode::Developer) return;
-        _confirmation = Confirmation::DeveloperPassword;
-        _confirmationForm.password.clear();
-        _passwordRejected = false;
+        if (_settings.mode == LauncherMode::Developer) return;
+        _confirmation = Confirmation::DeveloperMode;
     });
 }
 
@@ -511,19 +506,14 @@ void LauncherModel::Confirm() {
             ReloadRows();
             _confirmation = Confirmation::None;
             return;
-        case Confirmation::DeveloperPassword: {
-            const std::optional<DeveloperAccessRecord> access = EmbeddedDeveloperAccess();
-            if (!access || _passwordJob) return;
-            _passwordRejected = false;
-            // PBKDF2 takes ~0.3 s: off the UI thread.
-            _passwordJob = std::make_unique<Job<bool>>(
-                "Checking the password", 1,
-                [record = *access, password = _confirmationForm.password](JobContext&) -> Result<bool> {
-                    return CheckDeveloperPassword(record, password);
-                });
-            _confirmationForm.password.clear();
+        case Confirmation::DeveloperMode:
+            _settings.mode = LauncherMode::Developer;
+            _confirmation = Confirmation::None;
+            Save();
+            ReloadRows();
+            _report.reset();
+            StartSystemCheck();
             return;
-        }
         case Confirmation::PublishEngine: {
             if (_job || _confirmationForm.commitMessage.empty()) return;
             const ProjectRow* row = RowFor(_confirmationRoot);
@@ -549,8 +539,6 @@ void LauncherModel::CancelConfirmation() {
     Queue([this] {
         _confirmation = Confirmation::None;
         _confirmationForm = {};
-        _passwordJob.reset();
-        _passwordRejected = false;
     });
 }
 
@@ -618,20 +606,6 @@ void LauncherModel::FinishJobs() {
         else
             _planError = _planJob->Error();
         _planJob.reset();
-    }
-    if (_passwordJob && _passwordJob->Finished()) {
-        const bool accepted = _passwordJob->State() == JobState::Succeeded && _passwordJob->Outcome()->Value();
-        _passwordJob.reset();
-        if (accepted) {
-            _settings.mode = LauncherMode::Developer;
-            _confirmation = Confirmation::None;
-            Save();
-            ReloadRows();
-            _report.reset();
-            StartSystemCheck();
-        } else {
-            _passwordRejected = true;
-        }
     }
 }
 

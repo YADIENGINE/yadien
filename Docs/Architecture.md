@@ -17,16 +17,15 @@ Core/                LauncherCore: headless çekirdek, include kökü (#include 
   Projects/          ProjectInfo (tür), ProjectRow / ProjectDetails (liste satırı, eylemler, yavaş denetimler),
                      ProjectLaunch (Aç, Run), ProjectScan, CopyIntegrity (salt okunur), EngineUpdate, NewProject
   Settings/          LauncherLayout, LauncherSettings (Settings.json), ProjectList
-  Developer/         DeveloperAccess (şifre), DeveloperGit (submodule işleri)
+  Developer/         DeveloperGit (submodule işleri)
   System/            Toolchain (Toolchain.json), SystemCheck (araçlar, vswhere, winget, git), UserPath (PATH)
   Cli/               EngineCommand (devir), CommandLine (<engine>.com)
 Apps/
   Cli/Main.cpp       <engine>.com (konsol)
   Ui/                <engine>.exe (pencere): model + ekran fonksiyonları, engine'in EngineToolUi'ı — UiScreens.md
 Tests/               Catch2 testleri (LauncherCoreTests) + Support/
-Scripts/             Geliştirici betikleri (stdlib Python): import_engine, fetch_toolchain, set_developer_password, dev
+Scripts/             Geliştirici betikleri (stdlib Python): import_engine, fetch_toolchain, dev
 Toolchain.lock.json  Gömülü araçların sürüm / adres / SHA-256'sı — Toolchain.md
-DeveloperAccess.json Developer şifresinin PBKDF2 özeti (yoksa mod açılamaz) — Modes.md
 ToolCache/           İndirilen araçlar (git'e girmez)
 ```
 

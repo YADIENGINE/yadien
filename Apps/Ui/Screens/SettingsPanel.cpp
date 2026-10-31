@@ -32,11 +32,7 @@ void DrawSettingsPanel(LauncherModel& model) {
                 ToolStatusBadge(ICON_FA_CODE " Enabled", ToolToneColor(ToolTone::Accent));
                 if (ToolButton("Leave developer mode")) model.LeaveDeveloperMode();
             } else {
-                ImGui::BeginDisabled(!model.DeveloperModeAvailable());
-                if (ToolButton(ICON_FA_LOCK " Unlock developer mode")) model.AskDeveloperMode();
-                ImGui::EndDisabled();
-                if (!model.DeveloperModeAvailable())
-                    LauncherMutedText("Developer mode is unavailable in this launcher build.");
+                if (ToolButton(ICON_FA_CODE " Enter developer mode")) model.AskDeveloperMode();
             }
         }
         if (ToolSectionHeader("Open source licenses", false)) LauncherMutedText(ToolFontLicense());

@@ -13,10 +13,7 @@ Derleme / çalıştırma / editör her türde çalışır. Kullanıcı modu hiç
 
 ## Developer modu
 
-- Ayarlar'da şifreyle açılır. Repoda şifre değil, PBKDF2-SHA256 özeti durur (`DeveloperAccess.json`); launcher
-  derlenirken gömülür. Şifreyi koymak / değiştirmek: `python Scripts/set_developer_password.py`, sonra launcher'ı
-  yeniden derle. Dosya yoksa mod açılamaz.
-- Şifre yanlışlıkla / meraktan açılmaya karşı bir kapıdır, güvenlik değildir: developer işleri engine reposuna GitHub
-  erişimi olmadan yapılamaz.
+- Ayarlar'da düz bir anahtardır; açarken bir uyarı onayı çıkar ("`main`'deki kararsız engine; engine'e katkı için").
+  Şifre yoktur (engine D19): engine reposu public, göndermeyi GitHub'ın push yetkisi korur.
 - Developer modunda: yeni projede "dev (main)" seçeneği (submodule), `Git` projelerde "Engine'i güncelle" ve "Engine
   değişikliklerini gönder", Sistem kontrolünde git maddesi.

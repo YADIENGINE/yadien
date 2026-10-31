@@ -19,20 +19,20 @@ constexpr ImGuiWindowFlags PopupWindowFlags =
 
 const char* ConfirmationTitle(Confirmation confirmation) {
     switch (confirmation) {
-    case Confirmation::None             : return "";
-    case Confirmation::RemoveProject    : return "Remove project?";
-    case Confirmation::DeveloperPassword: return "Unlock developer mode";
-    case Confirmation::PublishEngine    : return "Publish engine changes";
+    case Confirmation::None         : return "";
+    case Confirmation::RemoveProject: return "Remove project?";
+    case Confirmation::DeveloperMode: return "Enter developer mode?";
+    case Confirmation::PublishEngine: return "Publish engine changes";
     }
     return "";
 }
 
 const char* ConfirmLabel(Confirmation confirmation) {
     switch (confirmation) {
-    case Confirmation::None             : return "";
-    case Confirmation::RemoveProject    : return "Remove";
-    case Confirmation::DeveloperPassword: return "Unlock";
-    case Confirmation::PublishEngine    : return "Publish";
+    case Confirmation::None         : return "";
+    case Confirmation::RemoveProject: return "Remove";
+    case Confirmation::DeveloperMode: return "Enter developer mode";
+    case Confirmation::PublishEngine: return "Publish";
     }
     return "";
 }
@@ -59,7 +59,6 @@ void DrawConfirmation(LauncherModel& model) {
             return;
         }
         const bool focusInput = ImGui::IsWindowAppearing();
-        const bool checking = model.PasswordCheckRunning();
         ImGui::PushFont(ToolFont(ToolFontRole::Heading), ToolMetrics::SectionSize);
         ImGui::TextUnformatted(ConfirmationTitle(pending));
         ImGui::PopFont();
@@ -81,19 +80,11 @@ void DrawConfirmation(LauncherModel& model) {
             case Confirmation::RemoveProject:
                 LauncherMutedText("Remove this project from the launcher list? Your project files stay on disk.");
                 break;
-            case Confirmation::DeveloperPassword:
-                LauncherMutedText("Enter the developer password to enable git engine workflows.");
-                ImGui::TextUnformatted("Password");
-                ImGui::SetNextItemWidth(-1);
-                ImGui::BeginDisabled(checking);
-                if (focusInput) ImGui::SetKeyboardFocusHere();
-                submitted = LauncherInputText("##password", input.password,
-                                              ImGuiInputTextFlags_Password | ImGuiInputTextFlags_EnterReturnsTrue);
-                ImGui::EndDisabled();
-                if (checking)
-                    DrawLauncherActivity("Verifying password...");
-                else if (model.PasswordRejected())
-                    LauncherToneText("Password not accepted. Try again.", ToolTone::Error);
+            case Confirmation::DeveloperMode:
+                LauncherMutedText("Developer mode is for working on the engine itself. New projects can use the "
+                                  "unstable engine straight from its main branch as a git submodule, and git "
+                                  "projects get Update from remote and Publish changes.");
+                LauncherToneText("Publishing needs push access to the engine repository.", ToolTone::Warning);
                 break;
             case Confirmation::PublishEngine:
                 LauncherMutedText(
@@ -107,14 +98,10 @@ void DrawConfirmation(LauncherModel& model) {
             }
         }
         ImGui::EndChild();
-        const bool canConfirm = !checking && (pending == Confirmation::RemoveProject ||
-                                              (pending == Confirmation::DeveloperPassword && !input.password.empty()) ||
-                                              (pending == Confirmation::PublishEngine && !input.commitMessage.empty()));
+        const bool canConfirm = pending != Confirmation::PublishEngine || !input.commitMessage.empty();
         ImGui::Separator();
-        ImGui::BeginDisabled(checking);
         const bool canceled = ToolButton("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape);
-        ImGui::EndDisabled();
-        if (canceled && !checking) {
+        if (canceled) {
             model.CancelConfirmation();
             ImGui::CloseCurrentPopup();
         }

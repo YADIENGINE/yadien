@@ -13,7 +13,7 @@ public:
 
 protected:
     void Update(float realSeconds) override;
-    void DrawWindow() const override;
+    void DrawWindow(Painter& paint) const override;
 
 private:
     std::filesystem::path _output;

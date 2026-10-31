@@ -51,15 +51,8 @@ EngineLibrary engines = EngineLibrary::Scan(layout.Value().enginesFolder);      
 | `RecentProjects(settings)` | ekran sırası: son açılan üstte, hiç açılmamışlar sonda |
 | `ProjectsFolderOf(settings)` / `DefaultProjectsFolder()` | yeni projenin önerilen konumu (`Belgeler\<Ad> Projects`) |
 
-`LauncherMode::User` / `Developer`. Developer modunu açmak:
-
-```cpp
-std::optional<DeveloperAccessRecord> access = EmbeddedDeveloperAccess(); // Developer/DeveloperAccess.h
-// nullopt: bu launcher şifresiz derlendi, mod açılamaz (Ayarlar'da anahtar pasif + açıklama)
-if (access && CheckDeveloperPassword(*access, typed)) settings.mode = LauncherMode::Developer;
-```
-
-`CheckDeveloperPassword` PBKDF2 (600 000 tur) hesaplar, ~0,3 s: worker thread'de. Kapatmak şifre istemez.
+`LauncherMode::User` / `Developer`. Developer modu şifresizdir (engine D19): UI bir uyarı onayından sonra
+`settings.mode = LauncherMode::Developer` yazar.
 
 ## Arka plan işi (`Jobs/`)
 

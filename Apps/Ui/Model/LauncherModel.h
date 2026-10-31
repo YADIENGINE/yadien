@@ -22,9 +22,9 @@
 // drawn over the tab (at most one), a confirmation is a small popup.
 enum class LauncherTab { Projects, Engines };
 enum class LauncherPanel { None, NewProject, Settings, SystemCheck, EngineUpdate, Job };
-// Small confirmations: remove a project from the list, unlock developer mode (password), publish engine changes
+// Small confirmations: remove a project from the list, enter developer mode (warning), publish engine changes
 // (commit message).
-enum class Confirmation { None, RemoveProject, DeveloperPassword, PublishEngine };
+enum class Confirmation { None, RemoveProject, DeveloperMode, PublishEngine };
 // Update: newer stable engine; Repair: the same version back over edits; Replace: a stable engine for an
 // unregistered / missing one.
 enum class EngineChange { Update, Repair, Replace };
@@ -55,7 +55,6 @@ struct EngineChoice {
 
 // Text the confirmation popups edit.
 struct ConfirmationForm {
-    std::string password;      // DeveloperPassword
     std::string commitMessage; // PublishEngine
 };
 
@@ -152,19 +151,15 @@ public:
     // nullopt while it cannot be read.
     [[nodiscard]] std::optional<bool> OnPath() const { return _onPath; }
     [[nodiscard]] std::filesystem::path ProjectsFolder() const;
-    // False: this launcher was built without a developer password; the mode cannot be unlocked.
-    [[nodiscard]] bool DeveloperModeAvailable() const;
     void SetOnPath(bool onPath);
     void OpenInstallFolder();
-    void AskDeveloperMode();   // → Confirmation::DeveloperPassword
-    void LeaveDeveloperMode(); // No password needed
+    void AskDeveloperMode(); // → Confirmation::DeveloperMode (warning, no password: design D19)
+    void LeaveDeveloperMode();
 
     // --- Confirmations ---
     [[nodiscard]] Confirmation Pending() const { return _confirmation; }
     [[nodiscard]] const ProjectRow* PendingProject() const;
     [[nodiscard]] ConfirmationForm& ConfirmationInput() { return _confirmationForm; }
-    [[nodiscard]] bool PasswordCheckRunning() const { return _passwordJob != nullptr; }
-    [[nodiscard]] bool PasswordRejected() const { return _passwordRejected; }
     void Confirm();
     void CancelConfirmation();
 
@@ -228,7 +223,6 @@ private:
     Confirmation _confirmation = Confirmation::None;
     std::filesystem::path _confirmationRoot;
     ConfirmationForm _confirmationForm;
-    bool _passwordRejected = false;
 
     std::vector<std::function<void()>> _requests;
     std::vector<std::string> _jobOutput;
@@ -237,7 +231,6 @@ private:
     std::unique_ptr<Job<std::vector<ProjectDetails>>> _details;
     std::unique_ptr<Job<SystemReport>> _systemJob;
     std::unique_ptr<Job<EngineUpdatePlan>> _planJob;
-    std::unique_ptr<Job<bool>> _passwordJob;
     std::optional<ForegroundJob> _job;
 
 public:

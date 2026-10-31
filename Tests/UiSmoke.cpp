@@ -85,7 +85,8 @@ void UiSmoke::Update(float realSeconds) {
     ++_frame;
 }
 
-void UiSmoke::DrawWindow() const {
+void UiSmoke::DrawWindow(Painter& paint) const {
+    (void)paint; // ToolUi draws natively after the canvas has been presented.
     if (_stage == Stages.size()) return;
     const auto& stage = Stages[_stage];
     auto& model = Populated(stage.view) ? _populated : _empty;

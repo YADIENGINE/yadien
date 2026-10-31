@@ -29,7 +29,7 @@ Apps/Ui/
 | `DrawSystemCheckPanel` | `SystemCheckPanel.cpp` | Maddeler (durum, ayrıntı), MSVC kurulumu, yeniden denetle |
 | `DrawEngineUpdatePanel` | `EngineUpdatePanel.cpp` | Update / Repair / Replace onayı: notlar, kırıcı olabilir, kaybolacak / silinecek dosyalar |
 | `DrawJobPanel` | `JobPanel.cpp` | Ön plan işi: başlık, adım (n / toplam), dönen gösterge, canlı çıktı, Cancel; hata + çıktı + Back |
-| `DrawConfirmation` | `Confirmation.cpp` | Remove? / developer şifresi / engine commit mesajı |
+| `DrawConfirmation` | `Confirmation.cpp` | Remove? / developer modu uyarısı / engine commit mesajı |
 
 ## Model
 
@@ -45,8 +45,8 @@ uygulanır; çizim sırasında (satır döngüsünün içinde bile) çağrılabi
 | New project | `NewProject()` (`name`, `location`, `engine`), `NewProjectEngines()`, `NewProjectProblem()`, `NewProjectFolder()` | `BrowseNewProjectLocation`, `CreateProject` |
 | Engine update | `PendingChange()`, `ChangeProject()`, `PlanRunning()`, `Plan()`, `PlanError()` | `ConfirmEngineChange`, `ClosePanel` |
 | System check | `System()`, `Report()`, `SystemCheckRunning()` | `RunSystemCheck`, `InstallMsvc` |
-| Settings | `OnPath()`, `DeveloperModeAvailable()`, `Mode()` | `SetOnPath`, `OpenInstallFolder`, `AskDeveloperMode`, `LeaveDeveloperMode` |
-| Onay | `Pending()`, `PendingProject()`, `ConfirmationInput()`, `PasswordCheckRunning()`, `PasswordRejected()` | `Confirm`, `CancelConfirmation` |
+| Settings | `OnPath()`, `Mode()` | `SetOnPath`, `OpenInstallFolder`, `AskDeveloperMode`, `LeaveDeveloperMode` |
+| Onay | `Pending()`, `PendingProject()`, `ConfirmationInput()` | `Confirm`, `CancelConfirmation` |
 | İş | `CurrentJob()` (`Title`, `State`, `StepText`, `StepIndex`, `StepCount`, `Error`), `JobFailureTitle()`, `JobOutput()` | `CancelJob`, `DismissJob` |
 
 - Satır metadatası `ProjectRow`'dan: sürüm `Version()`, "Update available" `update` (+ `updateMayBreak`), tür

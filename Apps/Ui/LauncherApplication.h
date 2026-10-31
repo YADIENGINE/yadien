@@ -13,7 +13,7 @@ public:
 
 protected:
     void Update(float realSeconds) override;
-    void DrawWindow() const override;
+    void DrawWindow(Painter& paint) const override;
 
 private:
     // After the base Game has created the window; destroyed before it.
