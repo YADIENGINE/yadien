@@ -81,7 +81,6 @@ public:
     [[nodiscard]] const std::optional<Notice>& CurrentNotice() const { return _notice; }
     // Settings.json could not be read: shown over Projects with "Start with defaults"; nothing is saved until then.
     [[nodiscard]] const std::string& SettingsError() const { return _settingsError; }
-    [[nodiscard]] int UiScalePercent() const;
 
     void SelectTab(LauncherTab tab);
     // NewProject, Settings or SystemCheck (EngineUpdate and Job open through their actions).
@@ -106,9 +105,10 @@ public:
 
     void Select(std::size_t row);
     void SetSort(ProjectSort sort);
-    void Create();              // Opens the New project panel
-    void Import();              // Folder dialog → AddProject
-    void Scan();                // Folder dialog → job → adds every project found
+    void Create();               // Opens the New project panel
+    void Import();               // Folder dialog → AddProject
+    void BrowseProjectsFolder(); // Folder dialog → saves the default projects folder and scans it
+    void SetProjectsFolder(std::filesystem::path folder); // Applies a folder choice and starts discovery
     void Open(std::size_t row); // Job: check, build editor, start it; then the launcher closes
     void Run(std::size_t row);  // Job: the engine's run (until the game closes)
     void ShowInFolder(std::size_t row);
@@ -154,10 +154,8 @@ public:
     [[nodiscard]] std::filesystem::path ProjectsFolder() const;
     // False: this launcher was built without a developer password; the mode cannot be unlocked.
     [[nodiscard]] bool DeveloperModeAvailable() const;
-    void SetUiScalePercent(int percent);
     void SetOnPath(bool onPath);
     void OpenInstallFolder();
-    void BrowseProjectsFolder();
     void AskDeveloperMode();   // → Confirmation::DeveloperPassword
     void LeaveDeveloperMode(); // No password needed
 
@@ -192,6 +190,7 @@ private:
     void FinishJobs();
     void ReloadRows();
     void StartDetails();
+    void StartProjectScan(const std::filesystem::path& folder);
     void StartSystemCheck();
     void Save();
     void ShowNotice(NoticeLevel level, std::string title, std::string message);

@@ -11,6 +11,7 @@ constexpr int WindowHeight = 760;
 constexpr int MinWindowWidth = 900;
 constexpr int MinWindowHeight = 560;
 constexpr int TargetFps = 60;
+constexpr int InterfaceScalePercent = 100;
 
 GameSettings LauncherWindow() {
     static const std::string title = std::string(LAUNCHER_PRODUCT_NAME);
@@ -34,7 +35,8 @@ int RunLauncherWindow(LauncherLayout layout) {
 
 LauncherApplication::LauncherApplication(LauncherLayout layout)
     : Game(LauncherWindow())
-    , _model(std::move(layout)) {}
+    , _model(std::move(layout))
+    , _ui(ToolUiOptions{.keyboardNavigation = true}) {}
 
 LauncherApplication::~LauncherApplication() = default;
 
@@ -45,7 +47,7 @@ void LauncherApplication::Update(float realSeconds) {
 }
 
 void LauncherApplication::DrawWindow() const {
-    _ui.BeginFrame(_model.UiScalePercent());
+    _ui.BeginFrame(InterfaceScalePercent);
     DrawLauncher(_model);
     _ui.EndFrame();
 }

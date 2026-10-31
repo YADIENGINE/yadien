@@ -43,7 +43,7 @@ EngineLibrary engines = EngineLibrary::Scan(layout.Value().enginesFolder);      
 
 | API | İş |
 | --- | --- |
-| `LauncherSettings { mode, projects, projectsFolder, uiScale, projectSort }` | `Settings.json` (`format: 1`) |
+| `LauncherSettings { mode, projects, projectsFolder, projectSort }` | `Settings.json` (`format: 1`) |
 | `SaveLauncherSettings(file, settings)` | atomik yazım; her değişiklikten sonra UI çağırır |
 | `AddProject(settings, root)` | "Var olanı ekle": klasörde `Project.json` olmalı, listede olmamalı |
 | `RemoveProject(settings, root)` | "Listeden kaldır": diske dokunmaz |

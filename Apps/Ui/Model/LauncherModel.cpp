@@ -1,6 +1,5 @@
 #include "Model/LauncherModel.h"
 #include <algorithm>
-#include <cmath>
 #include <utility>
 #include "Cli/EngineCommand.h"
 #include "Developer/DeveloperAccess.h"
@@ -16,8 +15,6 @@
 #include "System/UserPath.h"
 
 namespace {
-constexpr int MinUiScalePercent = 75;
-constexpr int MaxUiScalePercent = 200;
 constexpr const char* DevelopmentBranch = "main";
 
 std::string ProjectName(const ProjectRow& row) { return row.info.name; }
@@ -50,10 +47,6 @@ LauncherModel::~LauncherModel() = default;
 
 const char* LauncherModel::ProductName() { return LAUNCHER_PRODUCT_NAME; }
 const char* LauncherModel::LauncherVersion() { return LAUNCHER_VERSION; }
-
-int LauncherModel::UiScalePercent() const {
-    return std::clamp(static_cast<int>(std::lround(_settings.uiScale * 100.0f)), MinUiScalePercent, MaxUiScalePercent);
-}
 
 void LauncherModel::Tick() {
     std::vector<std::function<void()>> requests;
@@ -157,33 +150,50 @@ void LauncherModel::Import() {
     });
 }
 
-void LauncherModel::Scan() {
+void LauncherModel::BrowseProjectsFolder() {
     Queue([this] {
         if (_job) return;
-        const std::optional<std::filesystem::path> folder =
-            PickFolder("Scan for projects", ProjectsFolderOf(_settings));
-        if (!folder) return;
-        auto job = std::make_unique<Job<std::vector<std::filesystem::path>>>(
-            "Scanning " + PathToUtf8(*folder), 1,
-            [folder = *folder](JobContext& context) -> Result<std::vector<std::filesystem::path>> {
-                context.Step("Looking for projects");
-                std::vector<std::filesystem::path> found = FindProjects(folder, context.CancelFlag());
-                if (context.CancelRequested()) return Result<std::vector<std::filesystem::path>>::Failure("Canceled");
-                for (const std::filesystem::path& root : found)
-                    context.Output(PathToUtf8(root));
-                return found;
-            });
-        auto* scan = job.get();
-        StartJob(std::move(job), "Could not scan for projects", [this, scan] {
-            int added = 0;
-            for (const std::filesystem::path& root : scan->Outcome()->Value())
-                if (AddProject(_settings, root).Ok()) ++added;
-            Save();
-            ReloadRows();
-            _panel = LauncherPanel::None;
-            ShowNotice(NoticeLevel::Info, "Scan finished",
-                       added == 1 ? "Added 1 project" : "Added " + std::to_string(added) + " projects");
+        if (const auto folder = PickFolder("Projects folder", ProjectsFolderOf(_settings))) SetProjectsFolder(*folder);
+    });
+}
+
+void LauncherModel::SetProjectsFolder(std::filesystem::path folder) {
+    Queue([this, folder = std::move(folder)] {
+        if (_job) return;
+        std::error_code error;
+        if (folder.empty() || !folder.is_absolute() || !std::filesystem::is_directory(folder, error)) {
+            ShowNotice(NoticeLevel::Error, "Could not set the projects folder",
+                       "Choose an existing folder with an absolute path.");
+            return;
+        }
+        _settings.projectsFolder = CanonicalRoot(folder);
+        _newProject.location = PathToUtf8(_settings.projectsFolder);
+        Save();
+        StartProjectScan(_settings.projectsFolder);
+    });
+}
+
+void LauncherModel::StartProjectScan(const std::filesystem::path& folder) {
+    auto job = std::make_unique<Job<std::vector<std::filesystem::path>>>(
+        "Scanning " + PathToUtf8(folder), 1,
+        [folder](JobContext& context) -> Result<std::vector<std::filesystem::path>> {
+            context.Step("Looking for projects");
+            std::vector<std::filesystem::path> found = FindProjects(folder, context.CancelFlag());
+            if (context.CancelRequested()) return Result<std::vector<std::filesystem::path>>::Failure("Canceled");
+            for (const std::filesystem::path& root : found)
+                context.Output(PathToUtf8(root));
+            return found;
         });
+    auto* scan = job.get();
+    StartJob(std::move(job), "Could not scan for projects", [this, scan] {
+        int added = 0;
+        for (const std::filesystem::path& root : scan->Outcome()->Value())
+            if (AddProject(_settings, root).Ok()) ++added;
+        Save();
+        ReloadRows();
+        _panel = LauncherPanel::None;
+        ShowNotice(NoticeLevel::Info, "Scan finished",
+                   added == 1 ? "Added 1 project" : "Added " + std::to_string(added) + " projects");
     });
 }
 
@@ -450,13 +460,6 @@ std::filesystem::path LauncherModel::ProjectsFolder() const { return ProjectsFol
 
 bool LauncherModel::DeveloperModeAvailable() const { return EmbeddedDeveloperAccess().has_value(); }
 
-void LauncherModel::SetUiScalePercent(int percent) {
-    Queue([this, percent] {
-        _settings.uiScale = static_cast<float>(std::clamp(percent, MinUiScalePercent, MaxUiScalePercent)) / 100.0f;
-        Save();
-    });
-}
-
 void LauncherModel::SetOnPath(bool onPath) {
     Queue([this, onPath] {
         const Status changed = onPath ? AddToUserPath(LauncherFolder()) : RemoveFromUserPath(LauncherFolder());
@@ -471,17 +474,6 @@ void LauncherModel::OpenInstallFolder() {
     Queue([this] {
         if (Status opened = OpenFolder(LauncherFolder()); !opened.Ok())
             ShowNotice(NoticeLevel::Error, "Could not open the install folder", opened.Error());
-    });
-}
-
-void LauncherModel::BrowseProjectsFolder() {
-    Queue([this] {
-        if (const std::optional<std::filesystem::path> folder =
-                PickFolder("Projects folder", ProjectsFolderOf(_settings))) {
-            _settings.projectsFolder = *folder;
-            _newProject.location = PathToUtf8(*folder);
-            Save();
-        }
     });
 }
 

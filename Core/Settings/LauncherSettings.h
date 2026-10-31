@@ -20,7 +20,6 @@ struct LauncherSettings {
     LauncherMode mode = LauncherMode::User;
     std::vector<ProjectEntry> projects;   // In the order added; the UI sorts
     std::filesystem::path projectsFolder; // Where "New project" proposes; empty → DefaultProjectsFolder()
-    float uiScale = 1.0f;
     ProjectSort projectSort = ProjectSort::LastOpened;
 };
 

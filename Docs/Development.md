@@ -39,3 +39,13 @@ MyGame/
 
 Testler: C++ `Tests/` (Catch2, `[git]` etiketli olanlar yerel git depolarıyla çalışır, git yoksa atlanır); betikler
 `python -m unittest discover -s Scripts/Tests -t .`.
+
+## İsteğe bağlı UI görüntüleri
+
+Mevcut build ağacında `cmake --build build --config Debug --target LauncherUiSmoke` (MSVC ortamında), sonra
+`build/Debug/LauncherUiSmoke.exe build/UiReview`. Normal build/test bu hedefi çalıştırmaz; masaüstü/GPU gerekir.
+Gizli engine penceresi üretim ekranlarını, gömülü fontları ve rlImGui çizicisini kullanır; kullanıcı ayarlarına veya
+projelerine dokunmaz. Geçici boş/dolu listeler, arama, denetçi, formlar ve %75/100/125/150/200 ölçekleri için PNG
+üretir; yatay taşmayı ve kalıcı araç çubuklarının iç kaydırma gerektirmesini hata sayar. Klasör seçimi doğrulaması,
+otomatik keşif, varsayılan klasör kaydı ve yeni proje formunun bu klasörü kullanması geçici verilerle denetlenir.
+Görselleri ayrıca gözle incele.
