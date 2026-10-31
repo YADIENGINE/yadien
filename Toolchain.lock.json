@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "tools": {
+    "python": {
+      "version": "3.13.1",
+      "url": "https://www.python.org/ftp/python/3.13.1/python-3.13.1-embed-amd64.zip",
+      "sha256": "7b7923ff0183a8b8fca90f6047184b419b108cb437f75fc1c002f9d2f8bcec16",
+      "root": null,
+      "executable": "python.exe"
+    },
+    "cmake": {
+      "version": "3.31.2",
+      "url": "https://github.com/Kitware/CMake/releases/download/v3.31.2/cmake-3.31.2-windows-x86_64.zip",
+      "sha256": "109c29a744d648863d3637b4963c90088045c8d92799c68c9b9d8713407776c8",
+      "root": "cmake-3.31.2-windows-x86_64",
+      "executable": "bin/cmake.exe"
+    },
+    "ninja": {
+      "version": "1.12.1",
+      "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip",
+      "sha256": "f550fec705b6d6ff58f2db3c374c2277a37691678d6aba463adcbb129108467a",
+      "root": null,
+      "executable": "ninja.exe"
+    }
+  }
+}

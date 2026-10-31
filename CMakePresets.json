@@ -1,0 +1,28 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "launcher",
+      "displayName": "Launcher (MSVC, Ninja Multi-Config)",
+      "generator": "Ninja Multi-Config",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "launcher", "configuration": "Debug" },
+    { "name": "release", "configurePreset": "launcher", "configuration": "Release" }
+  ],
+  "testPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "launcher",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

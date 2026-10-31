@@ -1,0 +1,6 @@
+/build/
+/ToolCache/
+__pycache__/
+.vs/
+.vscode/
+.idea/
