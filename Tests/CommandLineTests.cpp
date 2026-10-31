@@ -1,4 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
+#include <iostream>
+#include <sstream>
 #include "Cli/CommandLine.h"
 #include "Cli/EngineCommand.h"
 #include "Platform/Text.h"
@@ -45,4 +47,18 @@ TEST_CASE("Engine commands run the project's engine with the launcher's Python",
     WriteFakeProject(temp.Path() / "Future", "Future", {.toolsContract = 99});
     CHECK_FALSE(EngineCommand(toolchain, InspectProject(temp.Path() / "Future"), {"build"}).Ok());
     CHECK_FALSE(SupportsToolsContract(0));
+}
+
+TEST_CASE("launcher version lists every engine the launcher carries", "[cli]") {
+    TempFolder temp;
+    WriteFakeEngine(temp.Path() / "Engines/Engine0.1", {.version = "0.1.1"});
+    WriteFakeEngine(temp.Path() / "Engines/Engine0.2", {.version = "0.2.0"});
+    const LauncherLayout layout{temp.Path() / "Engines", temp.Path() / "Tools", temp.Path()};
+    std::ostringstream captured;
+    std::streambuf* const original = std::cout.rdbuf(captured.rdbuf());
+    const int exitCode = RunCommandLine({"launcher", "version"}, layout, temp.Path());
+    std::cout.rdbuf(original);
+    CHECK(exitCode == 0);
+    CHECK(captured.str().find("engine 0.1.1") != std::string::npos);
+    CHECK(captured.str().find("engine 0.2.0") != std::string::npos);
 }
