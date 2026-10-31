@@ -23,7 +23,7 @@ void DrawSettingsPanel(LauncherModel& model) {
             if (ImGui::Checkbox("Add launcher to PATH", &enabled)) model.SetOnPath(enabled);
             ImGui::EndDisabled();
             if (!onPath) LauncherMutedText("PATH status is unavailable.");
-            LauncherMutedText("Open a new terminal after changing PATH.");
+            LauncherMutedText("Restart your terminal app (Windows Terminal, VS Code) after changing PATH.");
             if (ToolSingleLineButton(ICON_FA_FOLDER_OPEN " Open installation folder")) model.OpenInstallFolder();
         }
         if (ToolSectionHeader("Developer mode", false)) {

@@ -36,7 +36,9 @@ the same commit. Velopack's and Ninja's archives have no license file; their tex
 
 ## Try it
 
-Run the installer, start the launcher from the desktop shortcut, check Settings (PATH on, notices open), then
+Run the installer, start the launcher from the desktop shortcut, check Settings (PATH on, notices open) and
+`<engine> launcher version` in a terminal (restart the terminal's app first: tabs inherit the PATH it started with),
+then
 uninstall from Windows Settings → Apps. Velopack closes every program running from the install folder when a
 version is installed over it (D15): close the launcher and let builds finish first.
 
