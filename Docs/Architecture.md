@@ -24,9 +24,10 @@ Apps/
   Cli/Main.cpp       <engine>.com (console)
   Ui/                <engine>.exe (window): model + screen functions, engine EngineToolUi — UiScreens.md
 Tests/               Catch2 tests (LauncherCoreTests) + Support/
-Scripts/             Developer scripts (stdlib Python): import_engine, fetch_toolchain, dev
-Toolchain.lock.json  Bundled tool versions / addresses / SHA-256 — Toolchain.md
-ToolCache/           Downloaded tools (not tracked in git)
+Scripts/             Developer scripts (stdlib Python): import_engine, fetch_toolchain, dev, package
+Packaging/           Installer inputs: Notices.json (licenses of the launcher and its tools), Licenses/ — Packaging.md
+Toolchain.lock.json  Bundled tool and library versions / addresses / SHA-256 — Toolchain.md
+ToolCache/           Downloaded tools and libraries (not tracked in git)
 ```
 
 ## Layers
@@ -62,10 +63,15 @@ Windows selects `.com` first (D15).
 
 ## Runtime layout
 
-Installed (Stage 4): `<engine>.exe`, `<engine>.com`, `Engines/`, `Tools/` (Toolchain.json + python, cmake, ninja), and
-`Settings.json` under `%LOCALAPPDATA%\<Ad>\`. In development builds, `LauncherLayout.json` beside the executable points
-to the repo's `Engines/` and `ToolCache/` folders and the `build/<Config>/LauncherData/` data folder; installed launcher
-settings are untouched.
+Installed (Stage 4, Velopack): `%LOCALAPPDATA%\<Name>\` holds `Update.exe`, `packages/`, a small `<Name>.exe` that
+the shortcuts start, `Settings.json`, and `current/`: `<engine>.exe` (+ the Velopack DLL), `<engine>.com`, `Engines/`,
+`Tools/` (Toolchain.json + python, cmake, ninja). Every update replaces `current/`, so the settings stay outside it
+(`LauncherLayout`). `<engine>.exe` starts with `RunInstallerHooks()` (`Apps/Ui/InstallerHooks`): after installing,
+Velopack runs it to add `current/` to the user's PATH; before uninstalling, to remove it. The installer itself:
+[Packaging](Packaging.md).
+
+In development builds, `LauncherLayout.json` beside the executable points to the repo's `Engines/` and `ToolCache/`
+folders and the `build/<Config>/LauncherData/` data folder; installed launcher settings are untouched.
 
 ## Code rules
 

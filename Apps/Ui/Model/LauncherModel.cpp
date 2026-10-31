@@ -474,6 +474,18 @@ void LauncherModel::OpenInstallFolder() {
     });
 }
 
+bool LauncherModel::LicenseNoticesAvailable() const {
+    std::error_code error;
+    return std::filesystem::is_regular_file(LauncherFolder() / LicenseNoticesFile, error);
+}
+
+void LauncherModel::OpenLicenseNotices() {
+    Queue([this] {
+        if (Status opened = OpenFile(LauncherFolder() / LicenseNoticesFile); !opened.Ok())
+            ShowNotice(NoticeLevel::Error, "Could not open the license notices", opened.Error());
+    });
+}
+
 void LauncherModel::AskDeveloperMode() {
     Queue([this] {
         if (_settings.mode == LauncherMode::Developer) return;

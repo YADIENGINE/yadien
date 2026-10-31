@@ -37,6 +37,15 @@ class FetchTests(unittest.TestCase):
             fetch(self.lock("0" * 64), self.cache)
         self.assertFalse((self.cache / "tool").exists())
 
+    def test_libraries_are_fetched_but_not_listed_as_tools(self):
+        lock = self.lock(hashlib.sha256(self.archive.read_bytes()).hexdigest())
+        library = {key: value for key, value in lock["tools"]["tool"].items() if key != "executable"}
+        lock["libraries"] = {"lib": {**library, "check": "bin/tool.exe"}}
+        fetch(lock, self.cache)
+        self.assertTrue((self.cache / "lib" / "bin" / "tool.exe").is_file())
+        installed = json.loads((self.cache / "Toolchain.json").read_text(encoding="utf-8"))
+        self.assertEqual(list(installed["tools"]), ["tool"])
+
     def test_pin_records_missing_hashes(self):
         lock_path = self.root / "Toolchain.lock.json"
         lock_path.write_text(json.dumps(self.lock("")), encoding="utf-8")

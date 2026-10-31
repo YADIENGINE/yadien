@@ -35,7 +35,14 @@ void DrawSettingsPanel(LauncherModel& model) {
                 if (ToolButton(ICON_FA_CODE " Enter developer mode")) model.AskDeveloperMode();
             }
         }
-        if (ToolSectionHeader("Open source licenses", false)) LauncherMutedText(ToolFontLicense());
+        if (ToolSectionHeader("Open source licenses", false)) {
+            LauncherMutedText("The launcher, its engines and its bundled tools are open source. The notices file "
+                              "lists every license.");
+            ImGui::BeginDisabled(!model.LicenseNoticesAvailable());
+            if (ToolSingleLineButton(ICON_FA_FILE_LINES " Open third-party notices")) model.OpenLicenseNotices();
+            ImGui::EndDisabled();
+            if (!model.LicenseNoticesAvailable()) LauncherMutedText("Installed launchers include the notices file.");
+        }
     }
     ImGui::EndChild();
     ImGui::Separator();

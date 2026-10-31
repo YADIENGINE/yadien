@@ -13,3 +13,12 @@ Status OpenFolder(const std::filesystem::path& folder) {
     if (result <= 32) return Status::Failure("Cannot open " + PathToUtf8(folder) + " in Explorer");
     return Status::Success();
 }
+
+Status OpenFile(const std::filesystem::path& file) {
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(file, error)) return Status::Failure(PathToUtf8(file) + " does not exist");
+    const auto result =
+        reinterpret_cast<std::intptr_t>(ShellExecuteW(nullptr, L"open", file.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+    if (result <= 32) return Status::Failure("Cannot open " + PathToUtf8(file));
+    return Status::Success();
+}

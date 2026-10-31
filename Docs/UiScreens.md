@@ -6,6 +6,7 @@ saves, notices) lives in one application model (`Model/LauncherModel`); screens 
 
 ```
 Apps/Ui/
+  InstallerHooks                   Velopack's install / uninstall hooks (PATH); runs first in Main.cpp
   Main.cpp, LauncherEntryPoint.h   wWinMain; resolves layout, runs the window (raylib and <windows.h> separate)
   LauncherApplication              engine Game: ToolUiContext + model; Tick → DrawLauncher every frame
   Model/LauncherModel              all state and actions (below)

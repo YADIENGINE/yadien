@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "intro": "Components of the launcher itself and of the tools it ships. Part 1 covers the engine, which the launcher's window is built on.",
+  "components": [
+    { "name": "Launcher", "license": "MIT", "text": "{repo}/LICENSE" },
+    { "name": "Dear ImGui", "license": "MIT", "text": "{engine}/ThirdParty/imgui/LICENSE.txt" },
+    { "name": "rlImGui", "license": "zlib", "text": "{engine}/ThirdParty/rlImGui/LICENSE" },
+    { "name": "Font Awesome Free", "license": "icons CC BY 4.0, font SIL OFL 1.1", "text": "{engine}/ThirdParty/rlImGui/extras/FontAwsome_LICENSE.txt" },
+    { "name": "Velopack", "lock": "velopack", "license": "MIT", "text": "{repo}/Packaging/Licenses/Velopack.txt" },
+    { "name": "Python", "lock": "python", "license": "PSF License Version 2 and the licenses it lists", "text": "{tools}/python/LICENSE.txt" },
+    { "name": "CMake", "lock": "cmake", "license": "BSD-3-Clause; bundled libraries: Tools/cmake/doc/cmake/", "text": "{tools}/cmake/doc/cmake/Copyright.txt" },
+    { "name": "Ninja", "lock": "ninja", "license": "Apache-2.0", "text": "{repo}/Packaging/Licenses/Ninja.txt" }
+  ]
+}

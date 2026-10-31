@@ -153,6 +153,9 @@ public:
     [[nodiscard]] std::filesystem::path ProjectsFolder() const;
     void SetOnPath(bool onPath);
     void OpenInstallFolder();
+    // The package's ThirdPartyNotices.txt; development builds have none.
+    [[nodiscard]] bool LicenseNoticesAvailable() const;
+    void OpenLicenseNotices();
     void AskDeveloperMode(); // → Confirmation::DeveloperMode (warning, no password: design D19)
     void LeaveDeveloperMode();
 

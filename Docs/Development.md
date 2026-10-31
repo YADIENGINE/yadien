@@ -4,11 +4,12 @@ Requirements: VS 2022 Build Tools (C++ workload), CMake 3.24+, Python 3.10+, git
 --recurse-submodules` (or `git submodule update --init` afterwards).
 
 ```powershell
-python Scripts/fetch_toolchain.py     # ToolCache/: Python, CMake, Ninja bundled with the launcher (once)
+python Scripts/fetch_toolchain.py     # ToolCache/: bundled Python, CMake, Ninja + the Velopack library (once)
 python Scripts/dev.py build           # Debug: build/Debug/<engine>.com + <engine>.exe (window)
 python Scripts/dev.py build --release
 python Scripts/dev.py test            # build Debug + C++ tests (ctest) + script tests
 python Scripts/dev.py clean
+python Scripts/dev.py package         # Release build + installer (Packaging.md)
 ```
 
 `dev.py` gets the MSVC environment from the engine submodule's helper. Manually, in Developer PowerShell: `cmake

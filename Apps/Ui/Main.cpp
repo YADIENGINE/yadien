@@ -2,6 +2,7 @@
 #include <exception>
 #include <string>
 #include <utility>
+#include "InstallerHooks.h"
 #include "LauncherEntryPoint.h"
 #include "Platform/KnownFolders.h"
 #include "Platform/Text.h"
@@ -11,6 +12,7 @@
 int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
     const std::wstring caption = Utf8ToWide(LAUNCHER_PRODUCT_NAME);
     try {
+        RunInstallerHooks(); // Ends the process when Velopack started it for a hook
         Result<LauncherLayout> layout = ResolveLauncherLayout(ExecutablePath().parent_path());
         if (!layout.Ok()) {
             MessageBoxW(nullptr, Utf8ToWide(layout.Error()).c_str(), caption.c_str(), MB_OK | MB_ICONERROR);

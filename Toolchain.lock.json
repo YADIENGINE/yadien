@@ -13,7 +13,15 @@
       "url": "https://github.com/Kitware/CMake/releases/download/v3.31.2/cmake-3.31.2-windows-x86_64.zip",
       "sha256": "109c29a744d648863d3637b4963c90088045c8d92799c68c9b9d8713407776c8",
       "root": "cmake-3.31.2-windows-x86_64",
-      "executable": "bin/cmake.exe"
+      "executable": "bin/cmake.exe",
+      "exclude": [
+        "doc/cmake/html",
+        "doc/cmake/CMake.qch",
+        "doc/cmake/cmake.org.html",
+        "man",
+        "bin/cmake-gui.exe",
+        "bin/cpack.exe"
+      ]
     },
     "ninja": {
       "version": "1.12.1",
@@ -21,6 +29,15 @@
       "sha256": "f550fec705b6d6ff58f2db3c374c2277a37691678d6aba463adcbb129108467a",
       "root": null,
       "executable": "ninja.exe"
+    }
+  },
+  "libraries": {
+    "velopack": {
+      "version": "1.2.161",
+      "url": "https://github.com/velopack/velopack/releases/download/1.2.161/velopack_libc_1.2.161.zip",
+      "sha256": "31de8f2cf05a47bd5328a9f98b0c41aec1582156f6075f1058b26941f7f17c20",
+      "root": null,
+      "check": "include/Velopack.h"
     }
   }
 }

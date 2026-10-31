@@ -23,8 +23,9 @@ sözleşme engine `Docs/ToolsContract.md` (komutlar, çıkış kodları, manifes
 
 ## Build ve test
 Build almak kullanıcıya bırakılır (kod bitince kullanıcı derler, uyarı / hata paylaşır).
-`python Scripts/dev.py build | test | clean` (`Docs/Development.md`). Betik testleri derleyicisiz:
-`python -m unittest discover -s Scripts/Tests -t .`. İlk kurulumda `python Scripts/fetch_toolchain.py`.
+`python Scripts/dev.py build | test | clean | package` (`Docs/Development.md`; kurulum paketi `Docs/Packaging.md`).
+Betik testleri derleyicisiz: `python -m unittest discover -s Scripts/Tests -t .`. İlk kurulumda (ve Velopack
+kütüphanesi için derlemeden önce) `python Scripts/fetch_toolchain.py`.
 
 ## Kurallar
 - Bütün iş `Core/` (`LauncherCore`, headless); `Apps/` giriş noktaları incedir. UI iş mantığı yazmaz: durum ve

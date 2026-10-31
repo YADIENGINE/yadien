@@ -23,7 +23,8 @@ code-signed yet, so Windows SmartScreen may ask you to confirm ("More info" → 
 See [Docs/Development.md](Docs/Development.md): Visual Studio 2022 Build Tools (C++ workload), CMake 3.24+,
 Python 3.10+ and git, then `python Scripts/fetch_toolchain.py` and `python Scripts/dev.py build`.
 
-Architecture and design: [Docs/Architecture.md](Docs/Architecture.md); design decisions are in the engine
+Making the installer: [Docs/Packaging.md](Docs/Packaging.md). Architecture and design:
+[Docs/Architecture.md](Docs/Architecture.md); design decisions are in the engine
 repository under `Docs/Design/`. The documentation is being translated from Turkish to English.
 
 ## License

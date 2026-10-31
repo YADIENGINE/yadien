@@ -5,6 +5,7 @@ Usage, from the launcher repository:
     python Scripts/dev.py test                Debug build, then the core's C++ tests and the scripts' tests
     python Scripts/dev.py clean               delete build/
     python Scripts/dev.py pin-engine          point the launcher's Engine submodule at the engine checkout's HEAD
+    python Scripts/dev.py package             Release build, then the installer (Scripts/package.py, Docs/Packaging.md)
 
 `--engine PATH` (before the command) picks the engine checkout; by default the launcher's own Engine/ submodule,
 or the enclosing project's Engine/ when the launcher sits inside a project (Scripts/engine_location.py). The MSVC
@@ -98,6 +99,7 @@ def main(argv: list[str]) -> int:
     commands.add_parser("test")
     commands.add_parser("clean")
     commands.add_parser("pin-engine")
+    commands.add_parser("package")
     args = parser.parse_args(argv)
 
     engine = (args.engine or default_engine()).resolve()
@@ -118,6 +120,16 @@ def main(argv: list[str]) -> int:
                 shutil.rmtree(BUILD, ignore_errors=True)
             case "pin-engine":
                 pin_engine(engine)
+            case "package":
+                from package import PackageFailed, package
+
+                build(engine, release=True)
+                try:
+                    setup = package(engine, BUILD / "Release", BUILD / "Package")
+                except PackageFailed as error:
+                    print(f"error: {error}", file=sys.stderr)
+                    return 1
+                print(f"Installer: {setup}")
     except ToolError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

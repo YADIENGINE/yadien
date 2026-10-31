@@ -5,8 +5,12 @@ MSVC is not bundled (license); System check installs it.
 
 - **Source:** `Toolchain.lock.json`: per-tool `version`, `url`, `sha256` (archive), `root` (folder to strip from the
   archive), `executable` (relative to tool folder). Binaries are not tracked in git.
+- **Libraries:** the lock's `libraries` section lists what the launcher links but does not ship as a tool, same fields
+  with `check` (a file that must exist) instead of `executable`. Today: Velopack's C library (`velopack_libc`, the
+  installer's hooks, D15); `<engine>.exe` links its DLL and the build copies the DLL beside it.
 - **Download:** `python Scripts/fetch_toolchain.py` → `ToolCache/<tool>/` + `ToolCache/Toolchain.json` (read by the
-  launcher: version + executable path). Stops on hash mismatch; nothing unverified is extracted. Internet only here.
+  launcher: version + executable path; tools only). Stops on hash mismatch; nothing unverified is extracted. Internet
+  only here. Building the launcher needs it too (the Velopack library).
 - **Upgrade:** version + address in the lock file, clear `sha256`, `python Scripts/fetch_toolchain.py --pin`; compare
   with the publisher's hash (CMake publishes `cmake-<v>-SHA-256.txt`), then commit.
 - **Python:** the embeddable distribution's `python3XX._pth` stays unchanged: the interpreter is isolated (system Python

@@ -3,11 +3,23 @@
 #include "Platform/FileSystem.h"
 #include "Platform/Text.h"
 
+namespace {
+// Velopack puts the application in <root>/current/ beside <root>/Update.exe and replaces current/ on every update.
+bool IsVelopackApplicationFolder(const std::filesystem::path& folder) {
+    std::error_code error;
+    return folder.filename() == "current" &&
+           std::filesystem::is_regular_file(folder.parent_path() / "Update.exe", error);
+}
+} // namespace
+
 Result<LauncherLayout> ResolveLauncherLayout(const std::filesystem::path& executableFolder) {
     const std::filesystem::path file = executableFolder / LauncherLayoutFile;
     std::error_code error;
-    if (!std::filesystem::exists(file, error))
-        return LauncherLayout{executableFolder / "Engines", executableFolder / "Tools", executableFolder};
+    if (!std::filesystem::exists(file, error)) {
+        const std::filesystem::path data =
+            IsVelopackApplicationFolder(executableFolder) ? executableFolder.parent_path() : executableFolder;
+        return LauncherLayout{executableFolder / "Engines", executableFolder / "Tools", data};
+    }
 
     Result<nlohmann::json> json = ReadJsonFile(file);
     if (!json.Ok()) return Result<LauncherLayout>::Failure(json.Error());

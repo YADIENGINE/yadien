@@ -1,12 +1,14 @@
-"""Downloads the tools the launcher ships (Python, CMake, Ninja) into ToolCache/ (Docs/Toolchain.md).
+"""Downloads the tools the launcher ships (Python, CMake, Ninja) and the libraries it links (Velopack) into
+ToolCache/ (Docs/Toolchain.md).
 
 Usage, from the launcher repository:
     python Scripts/fetch_toolchain.py          download what is missing, verify every archive's SHA-256
     python Scripts/fetch_toolchain.py --pin    record the SHA-256 of entries whose "sha256" is empty
 
 Toolchain.lock.json is the only source: per tool a fixed version, its download address, the archive's SHA-256, the
-archive folder to strip ("root") and the executable inside the tool folder. A mismatching hash stops the script;
-nothing unverified is extracted. Binaries never enter git.
+archive folder to strip ("root") and the executable inside the tool folder. "libraries" entries are the same with a
+"check" file instead of an executable: they are needed to build the launcher, not shipped as tools. A mismatching hash
+stops the script; nothing unverified is extracted. Binaries never enter git.
 
 ToolCache/<tool>/ receives each tool; ToolCache/Toolchain.json tells the launcher which versions it got and where the
 executables are (the launcher verifies them against it). The embeddable Python stays as published, `._pth` file
@@ -34,15 +36,26 @@ class FetchFailed(Exception):
     pass
 
 
+SECTIONS = {"tools": "executable", "libraries": "check"}  # Lock section → the file that must exist after extracting
+
+
 def load_lock(path: Path) -> dict:
     lock = json.loads(path.read_text(encoding="utf-8"))
     if lock.get("format") != FORMAT:
         raise FetchFailed(f"{path}: expected \"format\": {FORMAT}")
-    for name, tool in lock["tools"].items():
-        for key in ("version", "url", "sha256", "executable"):
-            if not isinstance(tool.get(key), str):
-                raise FetchFailed(f"{path}: tools.{name}.{key} is required")
+    for section, required in SECTIONS.items():
+        for name, entry in lock.get(section, {}).items():
+            for key in ("version", "url", "sha256", required):
+                if not isinstance(entry.get(key), str):
+                    raise FetchFailed(f"{path}: {section}.{name}.{key} is required")
     return lock
+
+
+def entries(lock: dict):
+    """(section, name, entry) for every tool and library in the lock."""
+    for section in SECTIONS:
+        for name, entry in lock.get(section, {}).items():
+            yield section, name, entry
 
 
 def sha256(path: Path) -> str:
@@ -109,19 +122,20 @@ def extract(archive: Path, destination: Path, root: str | None) -> None:
 
 def fetch(lock: dict, cache: Path) -> None:
     installed = {}
-    for name, tool in lock["tools"].items():
+    for section, name, tool in entries(lock):
         if not tool["sha256"]:
-            raise FetchFailed(f"tools.{name}.sha256 is empty; run with --pin first")
+            raise FetchFailed(f"{section}.{name}.sha256 is empty; run with --pin first")
         folder = cache / name
         stamp = folder / STAMP_FILE
         if not (stamp.is_file() and stamp.read_text(encoding="utf-8").strip() == tool["sha256"]):
             print(f"{name} {tool['version']}", flush=True)
             extract(verified_archive(cache, name, tool), folder, tool.get("root"))
             stamp.write_text(tool["sha256"] + "\n", encoding="utf-8")
-        executable = folder / tool["executable"]
-        if not executable.is_file():
-            raise FetchFailed(f"{name}: {tool['executable']} not found in {folder}")
-        installed[name] = {"version": tool["version"], "executable": f"{name}/{tool['executable']}"}
+        required = tool[SECTIONS[section]]
+        if not (folder / required).is_file():
+            raise FetchFailed(f"{name}: {required} not found in {folder}")
+        if section == "tools":
+            installed[name] = {"version": tool["version"], "executable": f"{name}/{required}"}
     (cache / INSTALLED_FILE).write_text(json.dumps({"format": FORMAT, "tools": installed}, indent=2) + "\n",
                                         encoding="utf-8", newline="\n")
 
@@ -129,7 +143,7 @@ def fetch(lock: dict, cache: Path) -> None:
 def pin(lock: dict, lock_path: Path, cache: Path) -> None:
     """Trust on first download: records the hash of an entry without one. Compare it with the publisher's
     checksum where one is published before committing the lock."""
-    for name, tool in lock["tools"].items():
+    for _, name, tool in entries(lock):
         if tool["sha256"]:
             continue
         archive = download(tool["url"], archive_path(cache, name, tool))
@@ -139,7 +153,7 @@ def pin(lock: dict, lock_path: Path, cache: Path) -> None:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Download the launcher's tools into ToolCache/")
+    parser = argparse.ArgumentParser(description="Download the launcher's tools and libraries into ToolCache/")
     parser.add_argument("--pin", action="store_true", help="record missing SHA-256 values in the lock")
     parser.add_argument("--lock", type=Path, default=LOCK_FILE)
     parser.add_argument("--cache", type=Path, default=CACHE)

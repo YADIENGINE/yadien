@@ -66,6 +66,13 @@ TEST_CASE("The layout is beside the executable unless a development layout file 
     CHECK(installed.Value().enginesFolder == temp.Path() / "Engines");
     CHECK(installed.Value().SettingsFile() == temp.Path() / "Settings.json");
 
+    // A Velopack install replaces current/ on every update: the settings live one level up.
+    temp.Write("Update.exe", "");
+    Result<LauncherLayout> velopack = ResolveLauncherLayout(temp.Path() / "current");
+    REQUIRE(velopack.Ok());
+    CHECK(velopack.Value().enginesFolder == temp.Path() / "current" / "Engines");
+    CHECK(velopack.Value().SettingsFile() == temp.Path() / "Settings.json");
+
     temp.Write("LauncherLayout.json",
                R"({"engines": "C:/Repo/Engines", "tools": "C:/Repo/ToolCache", "data": "C:/B"})");
     Result<LauncherLayout> development = ResolveLauncherLayout(temp.Path());
