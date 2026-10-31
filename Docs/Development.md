@@ -1,51 +1,51 @@
-# Launcher'ı geliştirmek
+# Developing the launcher
 
-Gerekenler: VS 2022 Build Tools (C++ workload), CMake 3.24+, Python 3.10+, git. Klon:
-`git clone --recurse-submodules` (sonradan `git submodule update --init`).
+Requirements: VS 2022 Build Tools (C++ workload), CMake 3.24+, Python 3.10+, git. Clone: `git clone
+--recurse-submodules` (or `git submodule update --init` afterwards).
 
 ```powershell
-python Scripts/fetch_toolchain.py     # ToolCache/: launcher'ın taşıdığı Python, CMake, Ninja (bir kez)
-python Scripts/dev.py build           # Debug: build/Debug/<engine>.com + <engine>.exe (pencere)
+python Scripts/fetch_toolchain.py     # ToolCache/: Python, CMake, Ninja bundled with the launcher (once)
+python Scripts/dev.py build           # Debug: build/Debug/<engine>.com + <engine>.exe (window)
 python Scripts/dev.py build --release
-python Scripts/dev.py test            # Debug derle + C++ testleri (ctest) + betik testleri
+python Scripts/dev.py test            # build Debug + C++ tests (ctest) + script tests
 python Scripts/dev.py clean
 ```
 
-`dev.py` MSVC ortamını engine submodule'ünün yardımcısından alır. Elle: Developer PowerShell'de
-`cmake --preset launcher`, `cmake --build --preset debug`, `ctest --preset debug`.
+`dev.py` gets the MSVC environment from the engine submodule's helper. Manually, in Developer PowerShell: `cmake
+--preset launcher`, `cmake --build --preset debug`, `ctest --preset debug`.
 
-Geliştirme build'i repo'nun `Engines/` ve `ToolCache/` klasörlerini kullanır, ayarlarını `build/<Config>/LauncherData/`'da
-tutar (`LauncherLayout.json`). Deneme: `build\Debug\<engine>.com launcher system-check`, bir proje klasöründe
-`...\<engine>.com build`.
+Development builds use the repo's `Engines/` and `ToolCache/` folders and keep settings in
+`build/<Config>/LauncherData/` (`LauncherLayout.json`). Try: `build\Debug\<engine>.com launcher system-check`, and
+`...\<engine>.com build` in a project folder.
 
-## Bir oyunun içinde geliştirmek
+## Developing inside a game
 
-Launcher reposu bir oyunun reposuna `Launcher/` submodule'ü olarak da konabilir; engine, launcher ve oyun aynı
-yerde geliştirilir, engine'in tek kopyası oyunun `Engine/`'idir:
+The launcher repo can also be a `Launcher/` submodule in a game's repo; engine, launcher, and game are developed in one
+place, with the game's `Engine/` as the single engine copy:
 
 ```
 MyGame/
-  Engine/      oyunun engine submodule'ü (tek engine kopyası)
-  Launcher/    bu repo; içindeki Engine/ submodule'ü başlatılmaz (git submodule update --init Launcher, recursive değil)
+  Engine/      game's engine submodule (single engine copy)
+  Launcher/    this repo; its Engine/ submodule is not initialized (git submodule update --init Launcher, not recursive)
 ```
 
-- `Scripts/` komutları launcher'ın bir projenin içinde durduğunu görünce (üst klasörde `Project.json` + `Engine/`)
-  o `Engine/`'i kullanır (`Scripts/engine_location.py`); `--engine PATH` her zaman önce gelir. CMake'e
-  `LAUNCHER_ENGINE_DIR` olarak geçer.
-- Launcher'ın kendi Engine pointer'ı elle tutulur: engine değişikliği push'landıktan sonra
-  `python Launcher/Scripts/dev.py pin-engine` (pointer'ı engine'in HEAD'ine çeker; push'lanmamış commit'i reddeder),
-  sonra launcher reposunda commit + push, sonra oyunun reposunda `Launcher` pointer'ı.
-- Sıra her zaman: engine → launcher → oyun. Her repo sadece push'lanmış commit'leri gösterir.
+- When `Scripts/` commands detect the launcher inside a project (`Project.json` + `Engine/` in the parent folder), they
+  use that `Engine/` (`Scripts/engine_location.py`); `--engine PATH` always takes precedence. It is passed to CMake as
+  `LAUNCHER_ENGINE_DIR`.
+- The launcher's own Engine pointer is maintained manually: after pushing the engine change, run `python
+  Launcher/Scripts/dev.py pin-engine` (sets the pointer to the engine's HEAD; rejects unpushed commits), then commit +
+  push in the launcher repo, then update the `Launcher` pointer in the game's repo.
+- The order is always engine → launcher → game. Each repo points only to pushed commits.
 
-Testler: C++ `Tests/` (Catch2, `[git]` etiketli olanlar yerel git depolarıyla çalışır, git yoksa atlanır); betikler
-`python -m unittest discover -s Scripts/Tests -t .`.
+Tests: C++ `Tests/` (Catch2; `[git]` tests use local git repositories and skip if git is absent); scripts: `python -m
+unittest discover -s Scripts/Tests -t .`.
 
-## İsteğe bağlı UI görüntüleri
+## Optional UI screenshots
 
-Mevcut build ağacında `cmake --build build --config Debug --target LauncherUiSmoke` (MSVC ortamında), sonra
-`build/Debug/LauncherUiSmoke.exe build/UiReview`. Normal build/test bu hedefi çalıştırmaz; masaüstü/GPU gerekir.
-Gizli engine penceresi üretim ekranlarını, gömülü fontları ve rlImGui çizicisini kullanır; kullanıcı ayarlarına veya
-projelerine dokunmaz. Geçici boş/dolu listeler, arama, denetçi, formlar ve %75/100/125/150/200 ölçekleri için PNG
-üretir; yatay taşmayı ve kalıcı araç çubuklarının iç kaydırma gerektirmesini hata sayar. Klasör seçimi doğrulaması,
-otomatik keşif, varsayılan klasör kaydı ve yeni proje formunun bu klasörü kullanması geçici verilerle denetlenir.
-Görselleri ayrıca gözle incele.
+In the existing build tree, `cmake --build build --config Debug --target LauncherUiSmoke` (in the MSVC environment),
+then `build/Debug/LauncherUiSmoke.exe build/UiReview`. Normal build/test does not run this target; desktop/GPU required.
+A hidden engine window uses production screens, bundled fonts, and the rlImGui renderer; it does not touch user settings
+or projects. It produces PNGs for temporary empty/populated lists, search, inspector, forms, and 75/100/125/150/200%
+scales; horizontal overflow and persistent toolbars requiring internal scrolling count as errors. Folder-selection
+validation, automatic discovery, default-folder saving, and the new-project form's use of that folder are checked with
+temporary data. Also inspect images visually.

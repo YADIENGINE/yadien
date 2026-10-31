@@ -1,73 +1,75 @@
-# Launcher mimarisi
+# Launcher architecture
 
-Launcher engine'den ayrı bir üründür (engine `Docs/Design/README.md` D15, D16): engine'in stable sürümlerini taşır,
-projeleri kurar, açar ve engine komutlarını projenin kendi engine'ine devreder. Hiçbir oyunu bilmez; engine'in adını
-sabit yazmaz (ad engine manifest'inden gelir).
+The launcher is a separate product from the engine (engine `Docs/Design/README.md` D15, D16): it carries stable engine
+versions, creates and opens projects, and forwards engine commands to each project's own engine. It knows no games; it
+does not hardcode the engine name (the name comes from the engine manifest).
 
 ## Repo
 
 ```
-Engine/              submodule: engine reposu, main (aktif geliştirme). Launcher buna karşı derlenir.
-Engines/             stable kopyalar, Engine<ANA.ARA>/ (Scripts/import_engine.py; hiç düzenlenmez) — Engines.md
-Core/                LauncherCore: headless çekirdek, include kökü (#include "Projects/NewProject.h")
-  Jobs/              BackgroundJob / Job<T>: uzun işin thread'i, adımı, çıktısı, iptali (UI her karede okur)
-  Platform/          Result/Status, UTF-8 ↔ UTF-16, dosya (atomik yazım, ağaç kopyası), süreç, BCrypt, bilinen
-                     klasörler, Explorer'da açma
-  Engines/           EngineVersion, EngineManifest (notlar), EngineCopyRecord, EngineLibrary (Engines/ taraması)
-  Projects/          ProjectInfo (tür), ProjectRow / ProjectDetails (liste satırı, eylemler, yavaş denetimler),
-                     ProjectLaunch (Aç, Run), ProjectScan, CopyIntegrity (salt okunur), EngineUpdate, NewProject
+Engine/              submodule: engine repo, main (active development). The launcher builds against this.
+Engines/             stable engine copies, Engine<MAJOR.MINOR>/ (Scripts/import_engine.py; never edited) — Engines.md
+Core/                LauncherCore: headless core, include root (#include "Projects/NewProject.h")
+  Jobs/              BackgroundJob / Job<T>: long task thread, step, output, cancellation (UI reads every frame)
+  Platform/          Result/Status, UTF-8 ↔ UTF-16, files (atomic writes, tree copy), processes, BCrypt, known
+                     folders, opening in Explorer
+  Engines/           EngineVersion, EngineManifest (notes), EngineCopyRecord, EngineLibrary (Engines/ scan)
+  Projects/          ProjectInfo (type), ProjectRow / ProjectDetails (list row, actions, slow checks),
+                     ProjectLaunch (Open, Run), ProjectScan, CopyIntegrity (read-only), EngineUpdate, NewProject
   Settings/          LauncherLayout, LauncherSettings (Settings.json), ProjectList
-  Developer/         DeveloperGit (submodule işleri)
-  System/            Toolchain (Toolchain.json), SystemCheck (araçlar, vswhere, winget, git), UserPath (PATH)
-  Cli/               EngineCommand (devir), CommandLine (<engine>.com)
+  Developer/         DeveloperGit (submodule operations)
+  System/            Toolchain (Toolchain.json), SystemCheck (tools, vswhere, winget, git), UserPath (PATH)
+  Cli/               EngineCommand (forwarding), CommandLine (<engine>.com)
 Apps/
-  Cli/Main.cpp       <engine>.com (konsol)
-  Ui/                <engine>.exe (pencere): model + ekran fonksiyonları, engine'in EngineToolUi'ı — UiScreens.md
-Tests/               Catch2 testleri (LauncherCoreTests) + Support/
-Scripts/             Geliştirici betikleri (stdlib Python): import_engine, fetch_toolchain, dev
-Toolchain.lock.json  Gömülü araçların sürüm / adres / SHA-256'sı — Toolchain.md
-ToolCache/           İndirilen araçlar (git'e girmez)
+  Cli/Main.cpp       <engine>.com (console)
+  Ui/                <engine>.exe (window): model + screen functions, engine EngineToolUi — UiScreens.md
+Tests/               Catch2 tests (LauncherCoreTests) + Support/
+Scripts/             Developer scripts (stdlib Python): import_engine, fetch_toolchain, dev
+Toolchain.lock.json  Bundled tool versions / addresses / SHA-256 — Toolchain.md
+ToolCache/           Downloaded tools (not tracked in git)
 ```
 
-## Katmanlar
+## Layers
 
-- Bütün iş `LauncherCore`'dadır; giriş noktaları incedir. UI ve CLI aynı fonksiyonları çağırır (D6: tek mantık).
-- Çekirdek raylib / ImGui bilmez; sadece engine'in `ThirdParty/nlohmann_json`'unu ve Windows API'lerini (BCrypt,
-  Shell) kullanır. UI hedefi engine'in ImGui katmanını ayrıca link'ler.
-- Launcher derleme mantığı yazmaz: derleme, test, editör projenin `Engine/Tools`'undadır (D7). Launcher onu kendi
-  Python'uyla çalıştırır (`EngineCommand`).
-- Uzun işler `OutputLine` ile çıktı akıtır ve iptal bayrağı alır; thread'i yalnız `Jobs/` açar (UI'ın her uzun işi
-  bir `Job<T>`'dir, CLI aynı fonksiyonları doğrudan çağırır).
-- Pencere: `Apps/Ui` engine'in `Game`'i üstünde, engine'in araç arayüzüyle (`EngineToolUi`, editörle ortak tema ve
-  widget'lar) çizilir. Durum tek modeldedir (`LauncherModel`), ekranlar yalnız çizer ([UiScreens](UiScreens.md)).
+- All work lives in `LauncherCore`; entry points are thin. UI and CLI call the same functions (D6: one logic layer).
+- The core knows no raylib / ImGui; it uses only the engine's `ThirdParty/nlohmann_json` and Windows APIs (BCrypt,
+  Shell). The UI target also links the engine's ImGui layer.
+- The launcher does not implement build logic: build, test, and editor live in the project's `Engine/Tools` (D7). The
+  launcher runs it with its own Python (`EngineCommand`).
+- Long tasks stream output through `OutputLine` and take a cancellation flag; only `Jobs/` creates threads (each long UI
+  task is a `Job<T>`; CLI calls the same functions directly).
+- Window: `Apps/Ui` draws on the engine's `Game` using the engine's tool UI (`EngineToolUi`, theme and widgets shared
+  with the editor). State lives in one model (`LauncherModel`); screens only draw ([UiScreens](UiScreens.md)).
 
 ## CLI
 
-`<engine>.com` konsol programıdır, `<engine>.exe` pencere programı; terminalde `<engine>` yazınca Windows `.com`'u
-önce seçer (D15).
+`<engine>.com` is the console program, `<engine>.exe` the windowed program; when typing `<engine>` in a terminal,
+Windows selects `.com` first (D15).
 
 ```
 <engine> [--project KÖK] <engine komutu> [seçenekler]   → <python> -X utf8 <KÖK>/Engine --project <KÖK> <...>
 <engine> launcher version | system-check | projects [--json]
 ```
 
-- Proje: `--project` yoksa çalışma klasöründen yukarı ilk `Project.json`'lu (ya da `Engine/EngineManifest.json`'lu,
-  `new` öncesi) klasör.
-- Manifest'in `toolsContract`'ı `SupportsToolsContract`'ta değilse komut çalışmaz (çıkış 2, "launcher'ı güncelle").
-- Kopya projede her komuttan önce salt okunur denetimi; değişmiş dosya varsa stderr'e uyarı (derlemeyi durdurmaz).
-- Süreç konsolu paylaşır; Ctrl+C çocuğa gider, çıkış kodu aynen döner (0 / 1 / 2 / 130).
-- Engine `launcher` adında komut eklemez (engine `Docs/ToolsContract.md`).
+- Project: without `--project`, the first folder upward from the working folder containing `Project.json` (or
+  `Engine/EngineManifest.json` before `new`).
+- If the manifest's `toolsContract` is not in `SupportsToolsContract`, the command does not run (exit 2, "update the
+  launcher").
+- Every command in an engine copy project starts with a read-only check; modified files produce a stderr warning (does
+  not stop the build).
+- The process shares the console; Ctrl+C reaches the child, and the exit code is returned unchanged (0 / 1 / 2 / 130).
+- The engine adds no command named `launcher` (engine `Docs/ToolsContract.md`).
 
-## Çalışma anındaki düzen
+## Runtime layout
 
-Kurulu (Aşama 4): `%LOCALAPPDATA%\<Ad>\` altında `<engine>.exe`, `<engine>.com`, `Engines/`, `Tools/` (Toolchain.json +
-python, cmake, ninja), `Settings.json`. Geliştirme build'inde exe yanındaki `LauncherLayout.json` repo'nun `Engines/`
-ve `ToolCache/` klasörlerini, `build/<Config>/LauncherData/` veri klasörünü gösterir; kurulu launcher'ın ayarlarına
-dokunulmaz.
+Installed (Stage 4): `<engine>.exe`, `<engine>.com`, `Engines/`, `Tools/` (Toolchain.json + python, cmake, ninja), and
+`Settings.json` under `%LOCALAPPDATA%\<Ad>\`. In development builds, `LauncherLayout.json` beside the executable points
+to the repo's `Engines/` and `ToolCache/` folders and the `build/<Config>/LauncherData/` data folder; installed launcher
+settings are untouched.
 
-## Kod kuralları
+## Code rules
 
-Engine'inkilerle aynı: C++20, `/W4` uyarısız, isimli namespace yok (`.cpp` yardımcıları anonim namespace'te), her
-class kendi `.h` + `.cpp`'sinde, `#pragma once`, include'lar tek blok (kendi header → üçüncü parti → std → proje),
-`new` / `delete` ve C dizisi yok, RAII, `enum class` tek satır, `PascalCase` / `camelCase` / `_camelCase`, getter'lar
-`[[nodiscard]] const`. Format `.clang-format`, satır sonu LF. Koddaki metinler ve yorumlar İngilizce; belgeler Türkçe.
+Same as the engine: C++20, no `/W4` warnings, no named namespaces (`.cpp` helpers in anonymous namespaces), each class
+in its own `.h` + `.cpp`, `#pragma once`, one include block (own header → third-party → std → project), no `new` /
+`delete` or C arrays, RAII, single-line `enum class`, `PascalCase` / `camelCase` / `_camelCase`, getters `[[nodiscard]]
+const`. Format `.clang-format`, LF line endings. Code text and comments are English; documentation is Turkish.

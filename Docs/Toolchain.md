@@ -1,19 +1,20 @@
-# Gömülü araçlar
+# Bundled tools
 
-Launcher Python (resmi embeddable), CMake ve Ninja'yı taşır; kullanıcı kurmaz (D7, D8). MSVC taşınmaz (lisans),
-Sistem kontrolü kurar.
+The launcher bundles Python (official embeddable distribution), CMake, and Ninja; users do not install them (D7, D8).
+MSVC is not bundled (license); System check installs it.
 
-- **Kaynak:** `Toolchain.lock.json`: araç başına `version`, `url`, `sha256` (arşivin), `root` (arşivde soyulacak
-  klasör), `executable` (araç klasörüne göre). İkililer git'e girmez.
-- **İndirme:** `python Scripts/fetch_toolchain.py` → `ToolCache/<araç>/` + `ToolCache/Toolchain.json` (launcher'ın
-  okuduğu: sürüm + exe yolu). Özet tutmazsa durur, doğrulanmamış hiçbir şey açılmaz. İnternet sadece burada.
-- **Yükseltme:** kilit dosyasında sürüm + adres, `sha256`'yı boşalt, `python Scripts/fetch_toolchain.py --pin`;
-  yayıncının yayımladığı özetle karşılaştır (CMake `cmake-<v>-SHA-256.txt` yayımlar), sonra commit.
-- **Python:** embeddable dağıtımın `python3XX._pth` dosyası olduğu gibi kalır: yorumlayıcı yalıtılmıştır (sistemdeki
-  Python'un registry kaydı, `PYTHONPATH` karışmaz). Engine araçları buna göre yazılır: çalışma klasörüne güvenmez,
-  CMake'e kendi yorumlayıcısını verir (engine `Docs/ToolsContract.md`).
-- **Çalışırken:** `EngineCommand` aracın klasörlerini alt sürecin `PATH`'inin başına ekler; engine araçları
-  cmake / ninja / python'u oradan bulur. `-X utf8` ile çıktı UTF-8'dir.
-- **Doğrulama:** Sistem kontrolü her aracı `--version` ile çalıştırır ve sürümü `Toolchain.json` ile karşılaştırır.
+- **Source:** `Toolchain.lock.json`: per-tool `version`, `url`, `sha256` (archive), `root` (folder to strip from the
+  archive), `executable` (relative to tool folder). Binaries are not tracked in git.
+- **Download:** `python Scripts/fetch_toolchain.py` → `ToolCache/<araç>/` + `ToolCache/Toolchain.json` (read by the
+  launcher: version + executable path). Stops on hash mismatch; nothing unverified is extracted. Internet only here.
+- **Upgrade:** version + address in the lock file, clear `sha256`, `python Scripts/fetch_toolchain.py --pin`; compare
+  with the publisher's hash (CMake publishes `cmake-<v>-SHA-256.txt`), then commit.
+- **Python:** the embeddable distribution's `python3XX._pth` stays unchanged: the interpreter is isolated (system Python
+  registry entries and `PYTHONPATH` do not interfere). Engine tools accommodate this: they do not rely on the working
+  folder and pass their own interpreter to CMake (engine `Docs/ToolsContract.md`).
+- **Runtime:** `EngineCommand` prepends tool folders to the child process's `PATH`; engine tools find cmake / ninja /
+  python there. `-X utf8` makes output UTF-8.
+- **Validation:** System check runs each tool with `--version` and compares its version with `Toolchain.json`.
 
-AudioGeneration'ın NumPy / SciPy bağımlılıkları gömülü Python'a gelmez (D7); "ses araçlarını kur" Aşama 4'tedir.
+AudioGeneration's NumPy / SciPy dependencies are not included in bundled Python (D7); "install audio tools" is in Stage
+4.

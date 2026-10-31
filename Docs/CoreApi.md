@@ -1,30 +1,30 @@
-# Çekirdek API'si
+# Core API
 
-Launcher'ın bütün işi `LauncherCore`'dadır (headless, `Core/`); UI sadece onu çağırır, kendi iş mantığı yazmaz.
-Tasarım kararları engine reposunda `Docs/Design/README.md` (D4, D6, D8, D14, D15, D16); bu belge onların koddaki
-karşılığıdır. Mimari: [Architecture](Architecture.md).
+All launcher work lives in `LauncherCore` (headless, `Core/`); UI only calls it and implements no business logic. Design
+decisions are in the engine repo's `Docs/Design/README.md` (D4, D6, D8, D14, D15, D16); this document describes their
+code counterparts. Architecture: [Architecture](Architecture.md).
 
-## Durum (2026-10-31)
+## Status (2026-10-31)
 
-- Çekirdek (repo, içe aktarma, araç kilidi, CLI, ayarlar, proje işlemleri, modlar) ve UI hazırlığı bitti: arka plan
-  işi (`Jobs/`), "Aç" / "Run" akışları, proje satırı modeli ve ayrıntıları, Scan, PATH, Explorer, klasör seçme
-  penceresi, `Apps/Ui` iskeleti (pencere, tema, model, boş ekran fonksiyonları).
-- Kalan iş yalnız görsel: `Apps/Ui/Screens/` fonksiyonlarını doldurmak ([UiScreens](UiScreens.md)). Kararlar engine
-  `Docs/Design/README.md` → D15 "UI hazırlığı".
-- Pencere engine'in ortak araç arayüzünü kullanır: `EngineToolUi` (`ToolUi/`, engine `Docs/ToolUi.md`).
+- Core (repo, import, tool lock, CLI, settings, project operations, modes) and UI preparation are complete: background
+  jobs (`Jobs/`), "Open" / "Run" flows, project row model and details, Scan, PATH, Explorer, folder picker, `Apps/Ui`
+  skeleton (window, theme, model, empty screen functions).
+- Only visual work remains: fill `Apps/Ui/Screens/` functions ([UiScreens](UiScreens.md)). Decisions: engine
+  `Docs/Design/README.md` → D15 "UI preparation".
+- The window uses the engine's shared tool UI: `EngineToolUi` (`ToolUi/`, engine `Docs/ToolUi.md`).
 
-## Genel kurallar
+## General rules
 
-- Hata kanalı `Result<T>` / `Status` (`Platform/Result.h`): `Ok()`, `Value()`, `Error()`. Mesajlar İngilizce, tek
-  cümle, sonda nokta yok; UI olduğu gibi gösterebilir. Exception public API'den çıkmaz.
-- Metin UTF-8 `std::string`; yollar `std::filesystem::path` (`PathToUtf8` / `Utf8ToPath`, `Platform/Text.h`).
-- Süreç çıktısı `OutputLine` (`std::function<void(const std::string&)>`), satır satır, UTF-8. Callback çağıran
-  thread'de çağrılır; işlerde `JobContext::Lines()` verilir, satırlar `BackgroundJob`'ta birikir.
-- Uzun işler UI thread'inde çalışmaz: `Job<T>` (aşağıda) kendi thread'ini açar; çekirdek fonksiyonları thread açmaz.
-- Ad: ürün adı `LAUNCHER_PRODUCT_NAME`, exe adı `LAUNCHER_EXECUTABLE_NAME`, launcher sürümü `LAUNCHER_VERSION`
-  (CMake tanımları; ad engine manifest'inden). UI metinlerine ad sabit yazılmaz.
+- Error channel is `Result<T>` / `Status` (`Platform/Result.h`): `Ok()`, `Value()`, `Error()`. Messages are English, one
+  sentence, no trailing period; UI can show them as-is. Exceptions do not escape public API.
+- Text is UTF-8 `std::string`; paths are `std::filesystem::path` (`PathToUtf8` / `Utf8ToPath`, `Platform/Text.h`).
+- Process output is `OutputLine` (`std::function<void(const std::string&)>`), line by line, UTF-8. The callback runs on
+  the calling thread; jobs supply `JobContext::Lines()`, and lines accumulate in `BackgroundJob`.
+- Long tasks do not run on the UI thread: `Job<T>` (below) starts its own thread; core functions do not start threads.
+- Name: product name `LAUNCHER_PRODUCT_NAME`, executable name `LAUNCHER_EXECUTABLE_NAME`, launcher version
+  `LAUNCHER_VERSION` (CMake definitions; name from engine manifest). Do not hardcode the name in UI text.
 
-## Açılış
+## Startup
 
 ```cpp
 Result<LauncherLayout> layout = ResolveLauncherLayout(ExecutablePath().parent_path()); // Settings/LauncherLayout.h
@@ -32,154 +32,158 @@ Result<LauncherSettings> settings = LoadLauncherSettings(layout.Value().Settings
 EngineLibrary engines = EngineLibrary::Scan(layout.Value().enginesFolder);           // Engines/EngineLibrary.h
 ```
 
-- `LauncherLayout`: `enginesFolder`, `toolsFolder`, `dataFolder`, `SettingsFile()`. Kurulu launcher'da hepsi exe'nin
-  yanında; geliştirme build'inde exe yanındaki `LauncherLayout.json` (CMake yazar) repo'nun `Engines/`,
-  `ToolCache/` klasörlerini ve build içinde bir veri klasörünü gösterir.
-- Bozuk `Settings.json` hatadır (sessizce sıfırlanmaz): UI kullanıcıya söyler, "varsayılanla başla" seçeneği verir.
-- İlk açılışta (D15) Sistem kontrolü otomatik açılır: `Settings.json` yokken `LoadLauncherSettings` varsayılan döner,
-  UI bunu `std::filesystem::exists(SettingsFile())` ile anlar.
+- `LauncherLayout`: `enginesFolder`, `toolsFolder`, `dataFolder`, `SettingsFile()`. In installed launchers, all are
+  beside the executable; in development builds, `LauncherLayout.json` beside the executable (written by CMake) points to
+  the repo's `Engines/`, `ToolCache/`, and a data folder inside the build.
+- Invalid `Settings.json` is an error (not silently reset): UI tells the user and offers "Start with defaults".
+- On first launch (D15), System check opens automatically: with no `Settings.json`, `LoadLauncherSettings` returns
+  defaults; UI detects this with `std::filesystem::exists(SettingsFile())`.
 
-## Ayarlar ve proje listesi (`Settings/`)
+## Settings and project list (`Settings/`)
 
-| API | İş |
+| API | Job |
 | --- | --- |
 | `LauncherSettings { mode, projects, projectsFolder, projectSort }` | `Settings.json` (`format: 1`) |
-| `SaveLauncherSettings(file, settings)` | atomik yazım; her değişiklikten sonra UI çağırır |
-| `AddProject(settings, root)` | "Var olanı ekle": klasörde `Project.json` olmalı, listede olmamalı |
-| `RemoveProject(settings, root)` | "Listeden kaldır": diske dokunmaz |
-| `MarkProjectOpened(settings, root, CurrentTimeIso())` | "Aç"ta; listede yoksa ekler |
-| `RecentProjects(settings)` | ekran sırası: son açılan üstte, hiç açılmamışlar sonda |
-| `ProjectsFolderOf(settings)` / `DefaultProjectsFolder()` | yeni projenin önerilen konumu (`Belgeler\<Ad> Projects`) |
+| `SaveLauncherSettings(file, settings)` | atomic write; UI calls after every change |
+| `AddProject(settings, root)` | "Add existing": folder must have `Project.json` and not be listed |
+| `RemoveProject(settings, root)` | "Remove from list": does not touch disk |
+| `MarkProjectOpened(settings, root, CurrentTimeIso())` | on "Open"; adds if not listed |
+| `RecentProjects(settings)` | screen order: most recently opened first, never opened last |
+| `ProjectsFolderOf(settings)` / `DefaultProjectsFolder()` | suggested location for new projects (`Belgeler\<Ad> Projects`) |
 
-`LauncherMode::User` / `Developer`. Developer modu şifresizdir (engine D19): UI bir uyarı onayından sonra
-`settings.mode = LauncherMode::Developer` yazar.
+`LauncherMode::User` / `Developer`. Developer mode has no password (engine D19): after a warning confirmation, UI writes
+`settings.mode = LauncherMode::Developer`.
 
-## Arka plan işi (`Jobs/`)
+## Background jobs (`Jobs/`)
 
 ```cpp
 auto job = std::make_unique<Job<SystemReport>>("System check", 1, [layout, mode](JobContext& context) -> Result<SystemReport> {
-    context.Step("Checking tools");                 // adım metni + sırası (1'den)
-    return RunSystemCheck(layout, mode);            // context.Lines(): çıktı, context.CancelFlag(): iptal
+    context.Step("Checking tools");                 // step text + index (from 1)
+    return RunSystemCheck(layout, mode);            // context.Lines(): output, context.CancelFlag(): cancellation
 });
-// UI thread'i her karede: job->State() (Running / Succeeded / Failed / Canceled), StepText(), StepIndex(),
-// StepCount(), LinesFrom(next) (yeni satırlar; son BackgroundJob::MaxLines tutulur), Error(), Cancel()
-// Bittiğinde: *job->Outcome() → Result<T> (Job<void>'da Status)
+// UI thread every frame: job->State() (Running / Succeeded / Failed / Canceled), StepText(), StepIndex(),
+// StepCount(), LinesFrom(next) (new lines; last BackgroundJob::MaxLines retained), Error(), Cancel()
+// On completion: *job->Outcome() → Result<T> (Status for Job<void>)
 ```
 
-- `BackgroundJob` tipsiz tabandır (UI yalnız onu okur); `Job<T>` sonucu ekler. Yıkılan iş iptal edilir ve thread'i
-  beklenir. Gövde hata döndürürken iptal istenmişse durum `Canceled`'dır; gövdenin attığı exception `Failed`'dır.
-- Yüzde yok: adım + "donmadı" göstergesi + canlı çıktı (D15).
+- `BackgroundJob` is the untyped base (UI reads only this); `Job<T>` adds the result. Destroying a job cancels it and
+  waits for its thread. If cancellation was requested when the body returns an error, state is `Canceled`; an exception
+  thrown by the body is `Failed`.
+- No percentage: step + "not frozen" indicator + live output (D15).
 
-## Proje satırı (`Projects/ProjectRow.h`, `ProjectDetails.h`)
+## Project row (`Projects/ProjectRow.h`, `ProjectDetails.h`)
 
 ```cpp
-std::vector<ProjectRow> rows = InspectProjectRows(settings, engines); // hızlı, sadece dosya okur
+std::vector<ProjectRow> rows = InspectProjectRows(settings, engines); // fast, reads files only
 std::vector<std::size_t> visible = VisibleRows(rows, filter, settings.projectSort);
-ProjectActions actions = ActionsFor(rows[i], engines, settings.mode);  // sağ eylem panelinin düğmeleri
-std::vector<ProjectDetails> slow = InspectProjectDetails(rows, mode, cancel); // arka plan işinde
+ProjectActions actions = ActionsFor(rows[i], engines, settings.mode);  // right action panel buttons
+std::vector<ProjectDetails> slow = InspectProjectDetails(rows, mode, cancel); // in a background job
 ```
 
-| `ProjectRow` | Anlamı |
+| `ProjectRow` | Meaning |
 | --- | --- |
 | `entry` | `root`, `lastOpened` |
 | `info` | `ProjectInfo`: `name`, `kind` (`Copy` / `Git` / `Unregistered` / `Missing`), `manifest`, `problem` |
-| `Version()` | "0.1.2"; engine yoksa boş |
-| `folderMissing` | klasör silinmiş ("Remove missing") |
-| `update`, `updateMayBreak` | kopyada daha yeni stable sürüm ve kırıcı olabilir mi (`MayBreak`) |
-| `contractSupported` | `false`: launcher bu engine'i süremez, "launcher'ı güncelle" |
+| `Version()` | "0.1.2"; empty without an engine |
+| `folderMissing` | folder deleted ("Remove missing") |
+| `update`, `updateMayBreak` | newer stable version for an engine copy and whether it may break (`MayBreak`) |
+| `contractSupported` | `false`: launcher cannot drive this engine, "update the launcher" |
 
-- `ProjectActions { open, run, showInFolder, updateEngine, repairEngine, replaceEngine, engineGit, remove }`;
-  hedef sürüm `UpdateTarget` / `RepairTarget` / `ReplaceTarget`.
-- `ProjectDetails { root, integrity, git, error }`: kopyanın salt okunur denetimi (`CopyIntegrity`: değişmiş /
-  eksik / eklenmiş dosyalar) ve developer modunda git engine'in durumu (`EngineGitStatus`).
-- `ProjectsUsing(rows, version)`: Engines sekmesinde "N proje kullanıyor".
-- `Git`: "engine git ile yönetiliyor" notu; kullanıcı modunda engine düğmeleri pasif. `Unregistered`: "kaynağı
-  bilinmiyor" uyarısı + Replace engine.
+- `ProjectActions { open, run, showInFolder, updateEngine, repairEngine, replaceEngine, engineGit, remove }`; target
+  version `UpdateTarget` / `RepairTarget` / `ReplaceTarget`.
+- `ProjectDetails { root, integrity, git, error }`: engine copy read-only check (`CopyIntegrity`: modified / missing /
+  added files) and git engine state in developer mode (`EngineGitStatus`).
+- `ProjectsUsing(rows, version)`: "N projects use this" in the Engines tab.
+- `Git`: "engine managed by git" note; engine buttons disabled in user mode. `Unregistered`: "unknown source" warning +
+  Replace engine.
 
-## Aç ve Run (`Projects/ProjectLaunch.h`)
+## Open and Run (`Projects/ProjectLaunch.h`)
 
 ```cpp
 Status OpenProject(info, toolchain, LauncherEngineRunner(toolchain, context.CancelFlag()), StartDetached, context);
 Status RunProject(info, LauncherEngineRunner(toolchain, context.CancelFlag()), context);
 ```
 
-- Aç, `OpenProjectSteps` (3) adım: "Checking engine files" (kopyada salt okunur denetimi; değişiklik bir `warning:`
-  satırıdır, açılış sürer) → "Building editor" (`editor --build-only`) → "Starting editor" (`editor` ayrık başlar).
-  Başarıda çağıran `MarkProjectOpened` + kaydeder, launcher kapanır.
-- Run: engine'in `run`'ı (derler, oyunu açar, oyun kapanınca biter); iptal derlemeyi durdurur ya da oyunu kapatır.
-- Engine komutlarına `ENGINE_LAUNCHER` (`WindowedLauncherExecutable()`) konur: editörün "Back to project list"i
-  (engine `Docs/ToolsContract.md` → Ortam değişkenleri).
+- Open, `OpenProjectSteps` (3) steps: "Checking engine files" (read-only check for engine copies; changes produce a
+  `warning:` line and opening continues) → "Building editor" (`editor --build-only`) → "Starting editor" (`editor`
+  starts detached). On success, the caller runs `MarkProjectOpened` + saves, and the launcher closes.
+- Run: engine `run` (builds, opens the game, finishes when the game closes); cancellation stops the build or closes the
+  game.
+- Engine commands get `ENGINE_LAUNCHER` (`WindowedLauncherExecutable()`): the editor's "Back to project list" (engine
+  `Docs/ToolsContract.md` → Environment variables).
 
-Launcher derleme mantığı yazmaz; her şey projenin `Engine/Tools`'unda (D7).
+The launcher implements no build logic; everything lives in the project's `Engine/Tools` (D7).
 
-## Scan, klasörler, PATH
+## Scan, folders, PATH
 
-| API | İş |
+| API | Job |
 | --- | --- |
-| `FindProjects(folder, cancel)` (`Projects/ProjectScan.h`) | "Scan": `Project.json`'lu klasörler, en çok `MaxScanDepth` (4) seviye; projenin içine, gizli ve build klasörlerine girmez |
+| `FindProjects(folder, cancel)` (`Projects/ProjectScan.h`) | "Scan": folders with `Project.json`, up to `MaxScanDepth` (4) levels; does not enter projects, hidden folders, or build folders |
 | `OpenFolder(path)` (`Platform/Shell.h`) | "Show in folder", "Open install folder" |
-| `LauncherFolder()`, `IsOnUserPath` / `AddToUserPath` / `RemoveFromUserPath` (`System/UserPath.h`) | Ayarlar → PATH (HKCU, `WM_SETTINGCHANGE`) |
-| `PickFolder(title, initial)` (`Apps/Ui/Dialogs/FolderDialog.h`) | Windows klasör seçme penceresi (UI tarafı) |
+| `LauncherFolder()`, `IsOnUserPath` / `AddToUserPath` / `RemoveFromUserPath` (`System/UserPath.h`) | Settings → PATH (HKCU, `WM_SETTINGCHANGE`) |
+| `PickFolder(title, initial)` (`Apps/Ui/Dialogs/FolderDialog.h`) | Windows folder picker (UI side) |
 
-## Yeni proje (`Projects/NewProject.h`)
+## New project (`Projects/NewProject.h`)
 
 ```cpp
-NewProjectRequest request{name, location, *engines.FindSeries("0.1")};           // kullanıcı modu: stable kopya
+NewProjectRequest request{name, location, *engines.FindSeries("0.1")};           // user mode: stable engine copy
 NewProjectRequest dev{name, location, DevelopmentEngine{engines.Newest()->manifest.repository, "main"}}; // developer
-Status usable = CheckNewProjectFolder(request);                 // canlı doğrulama: ad klasör olabilir mi, klasör boş mu
+Status usable = CheckNewProjectFolder(request);                 // live validation: valid folder name, empty folder
 Result<std::filesystem::path> root = CreateProject(request, LauncherEngineRunner(toolchain, &cancel), onLine);
 if (root.Ok()) { (void)AddProject(settings, root.Value()); SaveLauncherSettings(...); }
 ```
 
-- Ad kuralı engine'indir (`new --name`, harf/rakam/`_`); hata çıktıda görünür. Konum + ad = proje klasörü.
-- Kopya: `Engines/<seri>` → `<klasör>/Engine`, sonra engine'in `new`'i. Git'e dokunmaz (D14).
-- Developer ("dev (main)", sadece developer modunda listelenir): `git init` + submodule (`repository`, dal) +
-  `new` + ilk commit "Create <ad>".
-- Hata olursa oluşturulan her şey silinir.
+- Naming rules belong to the engine (`new --name`, letters/digits/`_`); errors appear in output. Location + name =
+  project folder.
+- Engine copy: `Engines/<seri>` → `<klasör>/Engine`, then engine `new`. Does not touch git (D14).
+- Developer ("dev (main)", listed only in developer mode): `git init` + submodule (`repository`, branch) + `new` +
+  initial commit "Create <ad>".
+- On error, everything created is removed.
 
-## Engine güncellemesi (`Projects/EngineUpdate.h`)
+## Engine update (`Projects/EngineUpdate.h`)
 
 ```cpp
 Result<EngineUpdatePlan> plan = PlanEngineUpdate(info, *engines.UpdateFor(info.manifest->version)); // worker thread
-// Onay ekranı: plan.notes (aradaki bütün sürümler, en yeni üstte; breaking[i].change / .migrate öne çıkar),
-// plan.mayBreak, plan.overwritten (kaybolacak düzenlemeler), plan.deleted (silinecek kullanıcı dosyaları)
-Status applied = ApplyEngineUpdate(plan.Value());                                                    // onaydan sonra
+// Confirmation screen: plan.notes (all intervening versions, newest first; highlight breaking[i].change / .migrate),
+// plan.mayBreak, plan.overwritten (edits to lose), plan.deleted (user files to delete)
+Status applied = ApplyEngineUpdate(plan.Value());                                                    // after confirmation
 ```
 
-- Her zaman onaylı (D15). Eski sürüme dönülmez; aynı sürüm "onar"dır. `Git` türünde reddedilir.
-- Uygulama yanına kopyalayıp klasörleri değiştirir; hata olursa eski engine yerinde kalır. Proje editörü / oyunu
-  açıkken Windows klasörü taşıyamaz; hata mesajı bunu söyler.
+- Always confirmed (D15). No downgrades; the same version is "repair". Rejected for `Git` type.
+- Application copies beside the old engine, then swaps folders; on error, the old engine remains in place. Windows
+  cannot move the folder while the project's editor / game is open; the error message explains this.
 
-## Developer projesi git işleri (`Developer/DeveloperGit.h`)
+## Developer project git operations (`Developer/DeveloperGit.h`)
 
-Sadece `LauncherMode::Developer` ve `kind == Git` iken gösterilir.
+Shown only with `LauncherMode::Developer` and `kind == Git`.
 
-| API | Düğme |
+| API | Button |
 | --- | --- |
-| `ReadEngineGitStatus(root)` → `EngineGitStatus { branch, trackedBranch, head, changedFiles, ahead, behind, pointerChanged, Detached() }` | satır durumu (değişiklik sayısı, detached uyarısı) |
-| `UpdateEngineFromRemote(root, onLine)` | "Engine'i güncelle": engine temiz olmalı; detached düzelir, fast-forward, projede "Update Engine" commit'i |
-| `PublishEngineChanges(root, message, onLine)` | "Engine değişikliklerini gönder": engine'de commit + pull --rebase + push, projede pointer commit'i (proje push'lanmaz) |
+| `ReadEngineGitStatus(root)` → `EngineGitStatus { branch, trackedBranch, head, changedFiles, ahead, behind, pointerChanged, Detached() }` | row status (change count, detached warning) |
+| `UpdateEngineFromRemote(root, onLine)` | "Update engine": engine must be clean; resolves detached state, fast-forwards, commits "Update Engine" in the project |
+| `PublishEngineChanges(root, message, onLine)` | "Publish engine changes": commit + pull --rebase + push in engine, pointer commit in project (project is not pushed) |
 
-## Sistem kontrolü (`System/SystemCheck.h`)
+## System check (`System/SystemCheck.h`)
 
 ```cpp
 SystemReport report = RunSystemCheck(layout, settings.mode); // ~1 s, worker thread
 for (const CheckItem& item : report.items) // id, title, status (Ok / Warning / Missing), detail, fix
-if (item.fix == CheckFix::InstallMsvc) InstallMsvc(onLine, &cancel); // winget; uzun; sonra RunSystemCheck yeniden
-report.ReadyToBuild()                                                 // Missing yoksa true
+if (item.fix == CheckFix::InstallMsvc) InstallMsvc(onLine, &cancel); // winget; long; then RunSystemCheck again
+report.ReadyToBuild()                                                 // true if no Missing
 ```
 
-Maddeler: `python`, `cmake`, `ninja` (kilit dosyasındaki sürüm), `msvc` (vswhere), `engines`, developer modunda `git`
-(kurulu mu, `user.name` / `user.email`).
+Items: `python`, `cmake`, `ninja` (lock-file version), `msvc` (vswhere), `engines`, and in developer mode `git`
+(installed, `user.name` / `user.email`).
 
 ## CLI (`Cli/CommandLine.h`)
 
-`<engine>.com` `RunCommandLine`'ı çağırır; UI'ın işi yok. `<engine> launcher version | system-check | projects
-[--json]`; geri kalan her şey projenin engine'ine aynen gider (D6). Ayrıntı: [Architecture](Architecture.md#cli).
+`<engine>.com` calls `RunCommandLine`; UI has no role. `<engine> launcher version | system-check | projects [--json]`;
+everything else goes unchanged to the project's engine (D6). Details: [Architecture](Architecture.md#cli).
 
-## Bu session'da bilerek yapılmayanlar
+## Deliberately excluded in this session
 
-- Kurulum, kısayol, Uygulamalar kaydı, üzerine kurulan güncelleme: Aşama 4 (PATH'e ekleme Ayarlar'da var).
-- Developer projesinde dal / tag / commit seçimi: plan dışı; "dev (main)" dalın en son commit'inden başlar.
-- `launcher new` CLI işi (AI / betik için proje kurma): istenirse `CreateProject` üstüne ince bir iş.
-- AudioGeneration bağımlılıklarını kurma (D7, "ses araçlarını kur"): gömülü Python'a pip gerekir; Aşama 4'te.
+- Installation, shortcuts, Apps registration, in-place updates: Stage 4 (adding to PATH is available in Settings).
+- Branch / tag / commit selection in developer projects: outside the plan; "dev (main)" starts from the branch's latest
+  commit.
+- `launcher new` CLI operation (project setup for AI / scripts): a thin layer over `CreateProject` if requested.
+- Installing AudioGeneration dependencies (D7, "install audio tools"): bundled Python needs pip; in Stage 4.

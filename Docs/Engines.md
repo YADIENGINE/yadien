@@ -1,31 +1,31 @@
-# Engine sürümleri
+# Engine versions
 
-Launcher iki engine taşır (engine `Docs/Design/README.md` D16):
+The launcher carries two engines (engine `Docs/Design/README.md` D16):
 
-- `Engine/`: engine reposunun submodule'ü (`main`). Aktif geliştirme; launcher buna karşı derlenir. Kullanıcıya
-  gitmez. Değişiklik iki adımlıdır: önce `Engine/` içinde `main`'de commit + push, sonra burada pointer commit'i.
-- `Engines/Engine<ANA.ARA>/`: stable kopyalar. Kurulum paketine giren ve kullanıcı modunda projelere kopyalanan
-  bunlardır. Bir seri klasörü o serinin en son yamasını tutar; repoda 2–3 seri durur. Hiç elle düzenlenmez.
+- `Engine/`: submodule of the engine repo (`main`). Active development; the launcher builds against this. Not delivered
+  to users. Changes take two steps: commit + push on `main` inside `Engine/`, then commit the pointer here.
+- `Engines/Engine<MAJOR.MINOR>/`: stable engine copies. These go into the installer package and are copied to projects
+  in user mode. A series folder holds that series' latest patch; the repo keeps 2–3 series. Never edit them manually.
 
-## Yeni stable sürüm
+## New stable version
 
-1. Engine reposunda: `EngineManifest.json` `version` + `notes` en üste (kurallar engine `Docs/ToolsContract.md` →
-   Manifest; engine testi denetler), commit, push, annotated tag `v<sürüm>`, tag'i push.
-2. Burada: `git -C Engine fetch --tags` ve `python Scripts/import_engine.py v<sürüm>`.
-3. `Engines/` değişikliğini commit'le (ör. "Import engine 0.2.0"). Seri sayısı 3'ü geçerse betik söyler; en eskiyi
-   silmek ayrı bir commit'tir.
+1. In the engine repo: `EngineManifest.json` `version` + `notes` at the top (rules in engine `Docs/ToolsContract.md` →
+   Manifest; engine tests check them), commit, push, annotated tag `v<sürüm>`, push the tag.
+2. Here: `git -C Engine fetch --tags` and `python Scripts/import_engine.py v<sürüm>`.
+3. Commit the `Engines/` change (e.g. "Import engine 0.2.0"). The script reports more than 3 series; removing the oldest
+   is a separate commit.
 
-Yama akışı: eski bir seride düzeltme engine reposunda o tag'den açılan dalda yapılır, yeni yama tag'lenir ve
-içe aktarılır; seri klasörü yenisiyle değişir.
+Patch flow: fix an older series on a branch from that tag in the engine repo, tag the new patch, and import it; the
+series folder is replaced with the new version.
 
-## İçe aktarma ne yapar
+## What import does
 
-- Tag'in var olduğunu ve origin'de aynı commit'i gösterdiğini denetler (her kopya izlenebilir).
-- İçeriği `git archive <tag>` ile alır: `.git`, commit'lenmemiş değişiklikler ve engine'in `.gitattributes`
-  `export-ignore` dosyaları (engine `CLAUDE.md`, `Docs/Design/`) girmez (D14). Neyin ayıklanacağını engine bilir.
-- Manifest sürümü tag'le aynı olmalı (`v0.2.0` ↔ `0.2.0`), en yeni not o sürüm olmalı.
-- Yanına `EngineCopy.json` yazar: `{"format": 1, "source": {"tag", "commit"}, "files": {"<yol>": "sha256:<hex>"}}`.
-  Launcher projelerdeki kopyayı bununla denetler (salt okunur kuralı) ve güncellemede neyin kaybolacağını gösterir.
-- Önce yanına yazar, sonra klasörleri değiştirir; seri klasörü sadece daha yeni bir yamaya ilerler.
+- Checks that the tag exists and points to the same commit on origin (every engine copy is traceable).
+- Gets content with `git archive <tag>`: excludes `.git`, uncommitted changes, and engine `.gitattributes`
+  `export-ignore` files (engine `CLAUDE.md`, `Docs/Design/`) (D14). The engine knows what to exclude.
+- Manifest version must match the tag (`v0.2.0` ↔ `0.2.0`), and the newest note must be for that version.
+- Writes `EngineCopy.json` beside it: `{"format": 1, "source": {"tag", "commit"}, "files": {"<yol>": "sha256:<hex>"}}`.
+  The launcher uses it to check project engine copies (read-only rule) and show what an update would lose.
+- Writes beside the current folder first, then swaps folders; a series folder advances only to a newer patch.
 
-`Engines/**` git'te `-text`'tir: dosyalar `git archive`'ın ürettiği baytlarla saklanır, özetler tutar.
+`Engines/**` is `-text` in git: files retain the bytes produced by `git archive`, so hashes match.

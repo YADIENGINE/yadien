@@ -1,19 +1,19 @@
-# Kullanıcı modu ve developer modu
+# User mode and developer mode
 
-Mod launcher'ın yetkisidir; projenin türünü dosyalar söyler (engine `Docs/Design/README.md` D4).
+Mode is the launcher's authority; files determine project type (engine `Docs/Design/README.md` D4).
 
-| Tür (`ProjectInfo::kind`) | Nasıl anlaşılır | Salt okunur denetimi | Engine güncellemesi |
+| Type (`ProjectInfo::kind`) | Detection | Read-only check | Engine update |
 | --- | --- | --- | --- |
-| `Copy` | `Engine/EngineCopy.json` var | var | `Engines/`'dan, onaylı (her iki modda) |
-| `Git` | `Engine/.git` var (submodule) | yok | kullanıcı modunda yok; developer modunda git işleri |
-| `Unregistered` | ikisi de yok | yok, uyarı | "`Engines/`'daki bir sürümle değiştir", onaylı |
-| `Missing` | kullanılabilir `Engine/` yok | — | `Project.json` varsa aynı "değiştir" |
+| `Copy` | `Engine/EngineCopy.json` exists | yes | from `Engines/`, with confirmation (both modes) |
+| `Git` | `Engine/.git` exists (submodule) | no | none in user mode; git operations in developer mode |
+| `Unregistered` | neither exists | no, warning | "replace with a version from `Engines/`", with confirmation |
+| `Missing` | no usable `Engine/` | — | same "replace" if `Project.json` exists |
 
-Derleme / çalıştırma / editör her türde çalışır. Kullanıcı modu hiçbir zaman git çalıştırmaz (D14).
+Build / run / editor work for every type. User mode never runs git (D14).
 
-## Developer modu
+## Developer mode
 
-- Ayarlar'da düz bir anahtardır; açarken bir uyarı onayı çıkar ("`main`'deki kararsız engine; engine'e katkı için").
-  Şifre yoktur (engine D19): engine reposu public, göndermeyi GitHub'ın push yetkisi korur.
-- Developer modunda: yeni projede "dev (main)" seçeneği (submodule), `Git` projelerde "Engine'i güncelle" ve "Engine
-  değişikliklerini gönder", Sistem kontrolünde git maddesi.
+- A plain toggle in Settings; enabling shows a warning confirmation ("unstable engine on `main`; for engine
+  contributions"). No password (engine D19): the engine repo is public; GitHub push permissions protect publishing.
+- Developer mode adds "dev (main)" for new projects (submodule), "Update engine" and "Publish engine changes" for `Git`
+  projects, and a git item in System check.

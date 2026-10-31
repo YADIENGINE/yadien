@@ -1,81 +1,82 @@
-# Launcher ekranları (`Apps/Ui`)
+# Launcher screens (`Apps/Ui`)
 
-`<engine>.exe`'nin penceresi. İş mantığı `LauncherCore`'da ([CoreApi](CoreApi.md)), sıralaması (işler, gezinme,
-kayıt, bildirimler) tek uygulama modelinde (`Model/LauncherModel`); ekranlar yalnız çizer. Kararlar engine
-`Docs/Design/README.md` → D15 "UI hazırlığı" (Godot proje yöneticisi benzeri düzen, yalnız İngilizce, hata dili).
+The `<engine>.exe` window. Business logic lives in `LauncherCore` ([CoreApi](CoreApi.md)); sequencing (jobs, navigation,
+saves, notices) lives in one application model (`Model/LauncherModel`); screens only draw. Decisions: engine
+`Docs/Design/README.md` → D15 "UI preparation" (Godot project manager-like layout, English only, error language).
 
 ```
 Apps/Ui/
-  Main.cpp, LauncherEntryPoint.h   wWinMain; düzeni çözer, pencereyi çalıştırır (raylib ile <windows.h> ayrı)
-  LauncherApplication              engine Game'i: ToolUiContext + model; her karede Tick → DrawLauncher
-  Model/LauncherModel              bütün durum ve eylemler (aşağıda)
-  Dialogs/FolderDialog             Windows klasör seçme penceresi (modelin eylemleri açar)
-  Screens/LauncherScreens.h        ekran fonksiyonlarının listesi
-  Screens/*.cpp                    bölge başına bir çizim fonksiyonu (görsel iş burada)
+  Main.cpp, LauncherEntryPoint.h   wWinMain; resolves layout, runs the window (raylib and <windows.h> separate)
+  LauncherApplication              engine Game: ToolUiContext + model; Tick → DrawLauncher every frame
+  Model/LauncherModel              all state and actions (below)
+  Dialogs/FolderDialog             Windows folder picker (opened by model actions)
+  Screens/LauncherScreens.h        list of screen functions
+  Screens/*.cpp                    one drawing function per region (visual work here)
 ```
 
-## Bölgeler
+## Regions
 
-| Fonksiyon | Dosya | Bölge |
+| Function | File | Region |
 | --- | --- | --- |
-| `DrawLauncher` | `LauncherFrame.cpp` | Bütün pencere: üst çubuk, bildirim, sekme, durum çubuğu; sonra panel ve onay popup'ı |
-| `DrawTopBar` | `LauncherFrame.cpp` | Ad, sekmeler (Projects / Engines), sistem durumu noktası, Settings |
+| `DrawLauncher` | `LauncherFrame.cpp` | Whole window: top bar, notice, tab, status bar; then panel and confirmation popup |
+| `DrawTopBar` | `LauncherFrame.cpp` | Name, tabs (Projects / Engines), system status dot, Settings |
 | `DrawNotice` | `LauncherFrame.cpp` | `CurrentNotice()`; `SettingsError()` + "Start with defaults" |
-| `DrawStatusBar` | `LauncherFrame.cpp` | Launcher sürümü, proje sayısı, uygulama / iş durumu, "Developer mode" |
-| `DrawProjectsTab` | `ProjectsTab.cpp` | Kalıcı araç çubuğu (Create, Import, Projects Folder, filtre, sıralama), sınırlı liste, proje denetçisi |
-| `DrawEnginesTab` | `EnginesTab.cpp` | Stable sürümler, notları (kırıcılar öne), kullanan proje sayısı; developer'da "dev (main)" |
-| `DrawNewProjectPanel` | `NewProjectPanel.cpp` | Ad, konum (Browse), engine seçimi, canlı doğrulama, Create |
-| `DrawSettingsPanel` | `SettingsPanel.cpp` | PATH, kurulum klasörünü aç, developer modu ve lisanslar |
-| `DrawSystemCheckPanel` | `SystemCheckPanel.cpp` | Maddeler (durum, ayrıntı), MSVC kurulumu, yeniden denetle |
-| `DrawEngineUpdatePanel` | `EngineUpdatePanel.cpp` | Update / Repair / Replace onayı: notlar, kırıcı olabilir, kaybolacak / silinecek dosyalar |
-| `DrawJobPanel` | `JobPanel.cpp` | Ön plan işi: başlık, adım (n / toplam), dönen gösterge, canlı çıktı, Cancel; hata + çıktı + Back |
-| `DrawConfirmation` | `Confirmation.cpp` | Remove? / developer modu uyarısı / engine commit mesajı |
+| `DrawStatusBar` | `LauncherFrame.cpp` | Launcher version, project count, application / job state, "Developer mode" |
+| `DrawProjectsTab` | `ProjectsTab.cpp` | Persistent toolbar (Create, Import, Projects Folder, filter, sort), bounded list, project inspector |
+| `DrawEnginesTab` | `EnginesTab.cpp` | Stable versions, notes (breaking changes highlighted), project usage count; "dev (main)" in developer mode |
+| `DrawNewProjectPanel` | `NewProjectPanel.cpp` | Name, location (Browse), engine selection, live validation, Create |
+| `DrawSettingsPanel` | `SettingsPanel.cpp` | PATH, open install folder, developer mode, and licenses |
+| `DrawSystemCheckPanel` | `SystemCheckPanel.cpp` | Items (status, details), MSVC installation, recheck |
+| `DrawEngineUpdatePanel` | `EngineUpdatePanel.cpp` | Update / Repair / Replace confirmation: notes, may break, files to overwrite / delete |
+| `DrawJobPanel` | `JobPanel.cpp` | Foreground job: title, step (n / total), spinner, live output, Cancel; error + output + Back |
+| `DrawConfirmation` | `Confirmation.cpp` | Remove? / developer mode warning / engine commit message |
 
 ## Model
 
-Ekran `LauncherModel&` alır: getter'ları okur, eylemleri çağırır. Eylemler kuyruğa girer ve sonraki karenin başında
-uygulanır; çizim sırasında (satır döngüsünün içinde bile) çağrılabilir. Formlar (`NewProject()`, `Filter()`,
-`ConfirmationInput()`) ekranın doğrudan düzenlediği metinlerdir.
+Screens receive `LauncherModel&`: read getters, call actions. Actions are queued and applied at the next frame's start;
+they can be called during drawing (even inside row loops). Forms (`NewProject()`, `Filter()`, `ConfirmationInput()`) are
+text edited directly by screens.
 
-| Bölge | Okunan | Eylemler |
+| Region | Reads | Actions |
 | --- | --- | --- |
-| Genel | `ProductName()`, `LauncherVersion()`, `Mode()`, `Tab()`, `Panel()`, `CurrentNotice()`, `SettingsError()`, `System()` | `SelectTab`, `OpenPanel(NewProject / Settings / SystemCheck)`, `ClosePanel`, `DismissNotice`, `StartWithDefaultSettings` |
+| General | `ProductName()`, `LauncherVersion()`, `Mode()`, `Tab()`, `Panel()`, `CurrentNotice()`, `SettingsError()`, `System()` | `SelectTab`, `OpenPanel(NewProject / Settings / SystemCheck)`, `ClosePanel`, `DismissNotice`, `StartWithDefaultSettings` |
 | Projects | `Rows()`, `VisibleRows()`, `Selected()`, `ActionsFor(row)`, `DetailsFor(row)`, `DetailsRunning()`, `Filter()`, `Sort()`, `ProjectsFolder()` | `Select`, `SetSort`, `Create`, `Import`, `BrowseProjectsFolder`, `SetProjectsFolder`, `Open`, `Run`, `ShowInFolder`, `AskRemove`, `RemoveMissing`, `ChangeEngine(row, Update / Repair / Replace)`, `UpdateEngineFromRemote`, `AskPublishEngine` |
-| Engines | `Engines()` (`Engines()`: en yeni üstte, `Problems()`), `ProjectsUsing(version)`, `DevelopmentEngineAvailable()` | — |
+| Engines | `Engines()` (`Engines()`: newest first, `Problems()`), `ProjectsUsing(version)`, `DevelopmentEngineAvailable()` | — |
 | New project | `NewProject()` (`name`, `location`, `engine`), `NewProjectEngines()`, `NewProjectProblem()`, `NewProjectFolder()` | `BrowseNewProjectLocation`, `CreateProject` |
 | Engine update | `PendingChange()`, `ChangeProject()`, `PlanRunning()`, `Plan()`, `PlanError()` | `ConfirmEngineChange`, `ClosePanel` |
 | System check | `System()`, `Report()`, `SystemCheckRunning()` | `RunSystemCheck`, `InstallMsvc` |
 | Settings | `OnPath()`, `Mode()` | `SetOnPath`, `OpenInstallFolder`, `AskDeveloperMode`, `LeaveDeveloperMode` |
-| Onay | `Pending()`, `PendingProject()`, `ConfirmationInput()` | `Confirm`, `CancelConfirmation` |
-| İş | `CurrentJob()` (`Title`, `State`, `StepText`, `StepIndex`, `StepCount`, `Error`), `JobFailureTitle()`, `JobOutput()` | `CancelJob`, `DismissJob` |
+| Confirmation | `Pending()`, `PendingProject()`, `ConfirmationInput()` | `Confirm`, `CancelConfirmation` |
+| Job | `CurrentJob()` (`Title`, `State`, `StepText`, `StepIndex`, `StepCount`, `Error`), `JobFailureTitle()`, `JobOutput()` | `CancelJob`, `DismissJob` |
 
-- Satır metadatası `ProjectRow`'dan: sürüm `Version()`, "Update available" `update` (+ `updateMayBreak`), tür
+- Row metadata comes from `ProjectRow`: version `Version()`, "Update available" `update` (+ `updateMayBreak`), type
   `info.kind` (Git: "managed by git", Unregistered: "unknown source"), `contractSupported == false`: "update the
-  launcher", `folderMissing`, `info.problem`; ayrıntılar `DetailsFor`: `integrity` temiz değilse "N engine files
-  modified" (+ Repair), `git` (dal, değişiklik sayısı, ahead / behind, detached), `error`.
-- Ön plan işi sürerken satır eylemleri pasiftir (`ActionsFor` hepsini kapatır, Remove hariç); iş başarıyla bitince
-  panel kendiliğinden kapanır (Aç'ta launcher kapanır).
-- Bildirim: başlık ekranın değil modelin metnidir; altındaki mesaj çekirdeğin cümlesidir, değiştirilmez.
+  launcher", `folderMissing`, `info.problem`; details from `DetailsFor`: "N engine files modified" if `integrity` is not
+  clean (+ Repair), `git` (branch, change count, ahead / behind, detached), `error`.
+- Row actions are disabled while a foreground job runs (`ActionsFor` disables all except Remove); the panel closes
+  automatically on success (Open closes the launcher).
+- Notice: the title is model text, not screen text; the message beneath is the core's sentence, unchanged.
 
-## Kurallar
+## Rules
 
-- Ekranlar iş mantığı yazmaz: dosya / süreç / git / kayıt yok, çekirdek fonksiyonu çağrılmaz; yalnız model.
-  Modelde eksik bir şey varsa ekran onu taklit etmez, modele eklenir.
-- Görünüş engine'in ortak araç arayüzüdür: `ToolUi/ToolTheme.h` (renkler `ToolToneColor`, fontlar `ToolFont`,
-  ölçek `ToolUiScale()`), `ToolUi/ToolWidgets.h`; ikonlar Font Awesome (`<extras/IconsFontAwesome6.h>`, `ICON_FA_*`).
-  Tema / widget değişikliği engine'de olur (editörle ortak); launcher'a özgü küçük yardımcılar `Screens/`'ta.
-- Metinler İngilizce, ekran fonksiyonlarında; ürün adı yazılmaz (`ProductName()`).
-- Ölçüler `ToolUiScale()` ile çarpılır; sabit sayılar dosyanın anonim namespace'inde adlı `constexpr`.
-- Araç çubuğu ve sütun başlıklı liste boşken de görünür. Boşluk mesajı listenin içindedir;
-  sonuçsuz aramada Clear search bulunur. Satır içeriği 48 mantıksal px, ad / konum ve engine / durum sütunlarıdır.
-  Projects ve Project details başlıkları ayrı `PanelHeader` şeritleridir; tablo başlıkları yarı kalındır.
-- Import Project'in sağındaki Projects Folder klasör seçiciyi açar. Seçilen klasör doğrulanır, varsayılan proje
-  klasörü olarak kaydedilir, yeni proje formunun konumu güncellenir ve otomatik taranır. Mevcut kayıtlı projeler
-  korunur. Düğmenin ipucu geçerli yolu gösterir. İlerleme / iptal iş panelindedir, sonuçlar bildirimde gösterilir.
-- Sağ denetçi 316 mantıksal px'dir; görünür seçimde projenin bilgilerini / eylemlerini gösterir.
-  Seçim yokken geçerli projeler klasörü, aynı seçim / tarama eylemi, Create / Import kısayolları ve kısa keşif
-  açıklaması görünür; ayrı Launcher sekmesi ya da ölçek ayarı bulunmaz.
-  Dar görünümde Project details açılır panelinden erişilir. Launcher sekmesi ve ayrı tarama satırı yoktur.
-  Eksik proje temizleme yalnız eksik proje varsa gösterilir.
-- Pencere monitörün DPI ölçeğini izler; kullanıcıya özel arayüz ölçeği ayarı saklanmaz. Settings içinde yalnız
-  kurulum / PATH, developer modu ve lisanslar bulunur; varsayılan klasör Projects Folder üzerinden değiştirilir.
+- Screens implement no business logic: no files / processes / git / saves, no core function calls; only the model. If
+  the model lacks something, add it to the model rather than imitate it in the screen.
+- Appearance uses the engine's shared tool UI: `ToolUi/ToolTheme.h` (colors `ToolToneColor`, fonts `ToolFont`, scale
+  `ToolUiScale()`), `ToolUi/ToolWidgets.h`; icons are Font Awesome (`<extras/IconsFontAwesome6.h>`, `ICON_FA_*`). Theme
+  / widget changes belong in the engine (shared with the editor); small launcher-specific helpers in `Screens/`.
+- Text is English, in screen functions; do not spell out the product name (`ProductName()`).
+- Dimensions multiply by `ToolUiScale()`; constants are named `constexpr` in the file's anonymous namespace.
+- Toolbar and column-headed list remain visible when empty. The empty-state message is inside the list; empty searches
+  offer Clear search. Row content is 48 logical px, with name / location and engine / status columns. Projects and
+  Project details headings are separate `PanelHeader` strips; table headings are semibold.
+- Projects Folder to the right of Import Project opens the folder picker. The chosen folder is validated, saved as the
+  default projects folder, applied to the new-project form's location, and scanned automatically. Existing registered
+  projects remain. The button tooltip shows the current path. Progress / cancellation is in the job panel; results
+  appear in a notice.
+- The right inspector is 316 logical px; with a visible selection, it shows project information / actions. Without
+  selection, it shows the current projects folder, the same select / scan action, Create / Import shortcuts, and a short
+  discovery explanation; no separate Launcher tab or scale setting. In narrow views, access it from the Project details
+  dropdown panel. There is no Launcher tab or separate scan row. Missing-project cleanup appears only when missing
+  projects exist.
+- The window follows monitor DPI scale; no user-specific UI scale setting is saved. Settings contains only installation
+  / PATH, developer mode, and licenses; change the default folder through Projects Folder.
