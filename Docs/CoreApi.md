@@ -20,6 +20,30 @@ UI session'ının işi:
   thread'inde çalışmaz: bir worker thread'de çalıştırılır, `OutputLine` satırları UI'a kuyrukla taşınır, iptal
   `std::atomic<bool>` ile.
 
+## UI'dan önce yapılacaklar (UI hazırlığı)
+
+Ekranlar yalnızca görsel iş olarak (düzen, buton yeri, görünüş) yazılabilsin diye, UI'dan önce bir session'da
+yapılır. Her biri karar ister; tek tek konuşulur ve engine `Docs/Design/README.md`'ye yazılır.
+
+1. **Paylaşılan ImGui katmanı (engine):** tema (`Editor/Ui/Style/EditorTheme`), widget'lar (`Editor/Ui/Widgets`),
+   pencere + ImGui bağlamı + font kurulumu (`Editor/Host/EditorUiContext`) bugün `ENGINE_BUILD_EDITOR` altında,
+   `EngineEditorUi` / editör exe'sine bağlı. Editörden bağımsız, launcher'ın link'leyebileceği bir katmana ayrılır;
+   editör de onu kullanır (kopya yok).
+2. **İş modeli (çekirdek):** arka plan işi tipi: thread, `OutputLine` kuyruğu, ilerleme / durum (sürüyor, bitti,
+   hata, iptal), iptal. UI her karede sadece durumu okur. Testli.
+3. **"Aç" akışı (çekirdek):** salt okunur denetimi → `editor --build-only` → `StartDetached(editor)` →
+   `MarkProjectOpened` + kaydet; adımları ve hataları olan tek bir iş.
+4. **"Proje listesine dön" (engine + launcher):** editör launcher'ı bilmez; launcher editörü kendi yoluyla başlatır
+   (ör. ortam değişkeni / argüman), editör menüsü onu açar. Mekanizma karar ister.
+5. **Eksik çekirdek parçaları:** PATH'e ekle / çıkar (HKCU, `WM_SETTINGCHANGE`), "Kurulum klasörünü aç", klasör seçme
+   penceresi (Windows dialog; UI tarafı platform yardımcısı), developer modunda commit seçimi (şu an sadece dal),
+   proje satırının hazır modeli (sürüm, tür, güncelleme var, kırıcı olabilir, git durumu, sorun).
+6. **UI hedefi iskeleti:** `Apps/Ui` (`<engine>.exe`, WIN32), pencere + tema + ekranlar arası gezinme + boş ekran
+   fonksiyonları; ekran başına bir çizim fonksiyonu, uygulama durumu tek bir model sınıfında. Görsel tasarım bu
+   iskeletin ekran fonksiyonları doldurularak yapılır.
+7. **Açık kararlar:** UI dili (metinler İngilizce mi, yerelleştirme var mı), ekran düzeni ve gezinme, hata / uyarı
+   dili, ilerleme gösterimi.
+
 ## Genel kurallar
 
 - Hata kanalı `Result<T>` / `Status` (`Platform/Result.h`): `Ok()`, `Value()`, `Error()`. Mesajlar İngilizce, tek
