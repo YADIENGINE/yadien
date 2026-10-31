@@ -1,4 +1,4 @@
-# Çekirdek API'si (UI session'ı için devir belgesi)
+# Çekirdek API'si
 
 Launcher'ın bütün işi `LauncherCore`'dadır (headless, `Core/`); UI sadece onu çağırır, kendi iş mantığı yazmaz.
 Tasarım kararları engine reposunda `Docs/Design/README.md` (D4, D6, D8, D14, D15, D16); bu belge onların koddaki
@@ -6,43 +6,12 @@ karşılığıdır. Mimari: [Architecture](Architecture.md).
 
 ## Durum (2026-10-31)
 
-Bitti (bu session): repo iskeleti, engine submodule'ü + ilk stable kopya (`Engines/Engine0.1`, `v0.1.0`), içe aktarma
-betiği, araç kilidi ve indirme betiği, developer şifresi betiği, çekirdek kütüphane, `<engine>.com` CLI, testler.
-
-UI session'ının işi:
-- `Apps/Ui/` (`<engine>.exe`, WIN32): ekranlar Projeler, Yeni proje, Sistem kontrolü, Ayarlar (D15). Engine'in
-  editör ImGui katmanı ve teması kullanılır; yeni UI sistemi yazılmaz.
-- `LAUNCHER_BUILD_UI=ON` engine'in raylib runtime'ını açar (kök `CMakeLists.txt`); editörün ImGui hedefleri
-  (`EngineEditorImGui`, `EngineEditorUi`) şu an `ENGINE_BUILD_EDITOR` altında ve kısmen `Internals/`'ta. Launcher'ın
-  kullanacağı ImGui katmanı engine'de public hale getirilir (engine'de iki adımlı akış; launcher submodule'e karşı
-  derlendiği için tag beklemez). Launcher engine `Internals/` include etmez.
-- Uzun işler (sistem kontrolü, MSVC kurulumu, yeni proje, engine güncellemesi, editörü derleme, git işleri) UI
-  thread'inde çalışmaz: bir worker thread'de çalıştırılır, `OutputLine` satırları UI'a kuyrukla taşınır, iptal
-  `std::atomic<bool>` ile.
-
-## UI'dan önce yapılacaklar (UI hazırlığı)
-
-Ekranlar yalnızca görsel iş olarak (düzen, buton yeri, görünüş) yazılabilsin diye, UI'dan önce bir session'da
-yapılır. Her biri karar ister; tek tek konuşulur ve engine `Docs/Design/README.md`'ye yazılır.
-
-1. **Paylaşılan ImGui katmanı (engine):** tema (`Editor/Ui/Style/EditorTheme`), widget'lar (`Editor/Ui/Widgets`),
-   pencere + ImGui bağlamı + font kurulumu (`Editor/Host/EditorUiContext`) bugün `ENGINE_BUILD_EDITOR` altında,
-   `EngineEditorUi` / editör exe'sine bağlı. Editörden bağımsız, launcher'ın link'leyebileceği bir katmana ayrılır;
-   editör de onu kullanır (kopya yok).
-2. **İş modeli (çekirdek):** arka plan işi tipi: thread, `OutputLine` kuyruğu, ilerleme / durum (sürüyor, bitti,
-   hata, iptal), iptal. UI her karede sadece durumu okur. Testli.
-3. **"Aç" akışı (çekirdek):** salt okunur denetimi → `editor --build-only` → `StartDetached(editor)` →
-   `MarkProjectOpened` + kaydet; adımları ve hataları olan tek bir iş.
-4. **"Proje listesine dön" (engine + launcher):** editör launcher'ı bilmez; launcher editörü kendi yoluyla başlatır
-   (ör. ortam değişkeni / argüman), editör menüsü onu açar. Mekanizma karar ister.
-5. **Eksik çekirdek parçaları:** PATH'e ekle / çıkar (HKCU, `WM_SETTINGCHANGE`), "Kurulum klasörünü aç", klasör seçme
-   penceresi (Windows dialog; UI tarafı platform yardımcısı), developer modunda commit seçimi (şu an sadece dal),
-   proje satırının hazır modeli (sürüm, tür, güncelleme var, kırıcı olabilir, git durumu, sorun).
-6. **UI hedefi iskeleti:** `Apps/Ui` (`<engine>.exe`, WIN32), pencere + tema + ekranlar arası gezinme + boş ekran
-   fonksiyonları; ekran başına bir çizim fonksiyonu, uygulama durumu tek bir model sınıfında. Görsel tasarım bu
-   iskeletin ekran fonksiyonları doldurularak yapılır.
-7. **Açık kararlar:** UI dili (metinler İngilizce mi, yerelleştirme var mı), ekran düzeni ve gezinme, hata / uyarı
-   dili, ilerleme gösterimi.
+- Çekirdek (repo, içe aktarma, araç kilidi, CLI, ayarlar, proje işlemleri, modlar) ve UI hazırlığı bitti: arka plan
+  işi (`Jobs/`), "Aç" / "Run" akışları, proje satırı modeli ve ayrıntıları, Scan, PATH, Explorer, klasör seçme
+  penceresi, `Apps/Ui` iskeleti (pencere, tema, model, boş ekran fonksiyonları).
+- Kalan iş yalnız görsel: `Apps/Ui/Screens/` fonksiyonlarını doldurmak ([UiScreens](UiScreens.md)). Kararlar engine
+  `Docs/Design/README.md` → D15 "UI hazırlığı".
+- Pencere engine'in ortak araç arayüzünü kullanır: `EngineToolUi` (`ToolUi/`, engine `Docs/ToolUi.md`).
 
 ## Genel kurallar
 
@@ -50,7 +19,8 @@ yapılır. Her biri karar ister; tek tek konuşulur ve engine `Docs/Design/READM
   cümle, sonda nokta yok; UI olduğu gibi gösterebilir. Exception public API'den çıkmaz.
 - Metin UTF-8 `std::string`; yollar `std::filesystem::path` (`PathToUtf8` / `Utf8ToPath`, `Platform/Text.h`).
 - Süreç çıktısı `OutputLine` (`std::function<void(const std::string&)>`), satır satır, UTF-8. Callback çağıran
-  thread'de çağrılır (UI worker thread'i); UI thread'ine kendisi taşır.
+  thread'de çağrılır; işlerde `JobContext::Lines()` verilir, satırlar `BackgroundJob`'ta birikir.
+- Uzun işler UI thread'inde çalışmaz: `Job<T>` (aşağıda) kendi thread'ini açar; çekirdek fonksiyonları thread açmaz.
 - Ad: ürün adı `LAUNCHER_PRODUCT_NAME`, exe adı `LAUNCHER_EXECUTABLE_NAME`, launcher sürümü `LAUNCHER_VERSION`
   (CMake tanımları; ad engine manifest'inden). UI metinlerine ad sabit yazılmaz.
 
@@ -73,7 +43,7 @@ EngineLibrary engines = EngineLibrary::Scan(layout.Value().enginesFolder);      
 
 | API | İş |
 | --- | --- |
-| `LauncherSettings { mode, projects, projectsFolder, uiScale }` | `Settings.json` (`format: 1`) |
+| `LauncherSettings { mode, projects, projectsFolder, uiScale, projectSort }` | `Settings.json` (`format: 1`) |
 | `SaveLauncherSettings(file, settings)` | atomik yazım; her değişiklikten sonra UI çağırır |
 | `AddProject(settings, root)` | "Var olanı ekle": klasörde `Project.json` olmalı, listede olmamalı |
 | `RemoveProject(settings, root)` | "Listeden kaldır": diske dokunmaz |
@@ -91,39 +61,72 @@ if (access && CheckDeveloperPassword(*access, typed)) settings.mode = LauncherMo
 
 `CheckDeveloperPassword` PBKDF2 (600 000 tur) hesaplar, ~0,3 s: worker thread'de. Kapatmak şifre istemez.
 
-## Proje satırı (`Projects/ProjectInfo.h`)
+## Arka plan işi (`Jobs/`)
 
 ```cpp
-ProjectInfo info = InspectProject(entry.root); // hızlı, dosya okur; her satır için çağrılabilir
+auto job = std::make_unique<Job<SystemReport>>("System check", 1, [layout, mode](JobContext& context) -> Result<SystemReport> {
+    context.Step("Checking tools");                 // adım metni + sırası (1'den)
+    return RunSystemCheck(layout, mode);            // context.Lines(): çıktı, context.CancelFlag(): iptal
+});
+// UI thread'i her karede: job->State() (Running / Succeeded / Failed / Canceled), StepText(), StepIndex(),
+// StepCount(), LinesFrom(next) (yeni satırlar; son BackgroundJob::MaxLines tutulur), Error(), Cancel()
+// Bittiğinde: *job->Outcome() → Result<T> (Job<void>'da Status)
 ```
 
-| Alan | Anlamı |
+- `BackgroundJob` tipsiz tabandır (UI yalnız onu okur); `Job<T>` sonucu ekler. Yıkılan iş iptal edilir ve thread'i
+  beklenir. Gövde hata döndürürken iptal istenmişse durum `Canceled`'dır; gövdenin attığı exception `Failed`'dır.
+- Yüzde yok: adım + "donmadı" göstergesi + canlı çıktı (D15).
+
+## Proje satırı (`Projects/ProjectRow.h`, `ProjectDetails.h`)
+
+```cpp
+std::vector<ProjectRow> rows = InspectProjectRows(settings, engines); // hızlı, sadece dosya okur
+std::vector<std::size_t> visible = VisibleRows(rows, filter, settings.projectSort);
+ProjectActions actions = ActionsFor(rows[i], engines, settings.mode);  // sağ eylem panelinin düğmeleri
+std::vector<ProjectDetails> slow = InspectProjectDetails(rows, mode, cancel); // arka plan işinde
+```
+
+| `ProjectRow` | Anlamı |
 | --- | --- |
-| `name` | `Project.json` `name` (yoksa klasör adı) |
-| `kind` | `EngineKind::Copy` (kullanıcı kopyası), `Git` (submodule, developer projesi), `Unregistered` (kaydı yok), `Missing` (engine yok / bozuk) |
-| `manifest` | `EngineManifest { name, version, toolsContract, repository, notes }`; `Missing`'de boş |
-| `problem` | boş değilse satırda uyarı (ör. klasör silinmiş) |
+| `entry` | `root`, `lastOpened` |
+| `info` | `ProjectInfo`: `name`, `kind` (`Copy` / `Git` / `Unregistered` / `Missing`), `manifest`, `problem` |
+| `Version()` | "0.1.2"; engine yoksa boş |
+| `folderMissing` | klasör silinmiş ("Remove missing") |
+| `update`, `updateMayBreak` | kopyada daha yeni stable sürüm ve kırıcı olabilir mi (`MayBreak`) |
+| `contractSupported` | `false`: launcher bu engine'i süremez, "launcher'ı güncelle" |
 
-Satır rozetleri (D15):
-- **Sürüm:** `info.manifest->version.ToString()`.
-- **Güncelleme var:** `kind == Copy` ve `engines.UpdateFor(info.manifest->version) != nullptr`.
-- **Kırıcı olabilir:** `MayBreak(from, to)` (0.x'te ARA, 1.0'dan sonra ANA adımı).
-- `Git`: "engine git ile yönetiliyor" notu; kullanıcı modunda engine düğmeleri gizli. `Unregistered`: "kaynağı
-  bilinmiyor" uyarısı + "Engines/'daki bir sürümle değiştir". `toolsContract` desteklenmiyorsa
-  (`SupportsToolsContract`, `Cli/EngineCommand.h`) "launcher'ı güncelle".
+- `ProjectActions { open, run, showInFolder, updateEngine, repairEngine, replaceEngine, engineGit, remove }`;
+  hedef sürüm `UpdateTarget` / `RepairTarget` / `ReplaceTarget`.
+- `ProjectDetails { root, integrity, git, error }`: kopyanın salt okunur denetimi (`CopyIntegrity`: değişmiş /
+  eksik / eklenmiş dosyalar) ve developer modunda git engine'in durumu (`EngineGitStatus`).
+- `ProjectsUsing(rows, version)`: Engines sekmesinde "N proje kullanıyor".
+- `Git`: "engine git ile yönetiliyor" notu; kullanıcı modunda engine düğmeleri pasif. `Unregistered`: "kaynağı
+  bilinmiyor" uyarısı + Replace engine.
 
-## Aç
+## Aç ve Run (`Projects/ProjectLaunch.h`)
 
-1. Kopyada salt okunur denetimi (D4): `LoadEngineCopyRecord(info.EngineFolder())` + `CheckCopyIntegrity(...)`
-   → `CopyIntegrity { modified, missing, added }`; `Clean()` değilse uyarı + "Onar" (aynı sürümle
-   `PlanEngineUpdate`). ~0,2–1 s: worker thread.
-2. Editörü derle (ilerleme): `LauncherEngineRunner(toolchain, &cancel)(root, {"editor", "--build-only"}, onLine)`.
-   `toolchain = LoadToolchain(layout.toolsFolder)` (`System/Toolchain.h`).
-3. Başlat: `StartDetached(EngineCommand(toolchain, info, {"editor"}).Value())` (`Platform/Process.h`); derleme
-   güncel olduğu için hemen açılır. `MarkProjectOpened` + kaydet, launcher kapanır.
+```cpp
+Status OpenProject(info, toolchain, LauncherEngineRunner(toolchain, context.CancelFlag()), StartDetached, context);
+Status RunProject(info, LauncherEngineRunner(toolchain, context.CancelFlag()), context);
+```
 
-Launcher derleme mantığı yazmaz; her şey projenin `Engine/Tools`'unda (D7). Editör açıkken derleme engine'in
-`refresh` komutuyla editöre gider.
+- Aç, `OpenProjectSteps` (3) adım: "Checking engine files" (kopyada salt okunur denetimi; değişiklik bir `warning:`
+  satırıdır, açılış sürer) → "Building editor" (`editor --build-only`) → "Starting editor" (`editor` ayrık başlar).
+  Başarıda çağıran `MarkProjectOpened` + kaydeder, launcher kapanır.
+- Run: engine'in `run`'ı (derler, oyunu açar, oyun kapanınca biter); iptal derlemeyi durdurur ya da oyunu kapatır.
+- Engine komutlarına `ENGINE_LAUNCHER` (`WindowedLauncherExecutable()`) konur: editörün "Back to project list"i
+  (engine `Docs/ToolsContract.md` → Ortam değişkenleri).
+
+Launcher derleme mantığı yazmaz; her şey projenin `Engine/Tools`'unda (D7).
+
+## Scan, klasörler, PATH
+
+| API | İş |
+| --- | --- |
+| `FindProjects(folder, cancel)` (`Projects/ProjectScan.h`) | "Scan": `Project.json`'lu klasörler, en çok `MaxScanDepth` (4) seviye; projenin içine, gizli ve build klasörlerine girmez |
+| `OpenFolder(path)` (`Platform/Shell.h`) | "Show in folder", "Open install folder" |
+| `LauncherFolder()`, `IsOnUserPath` / `AddToUserPath` / `RemoveFromUserPath` (`System/UserPath.h`) | Ayarlar → PATH (HKCU, `WM_SETTINGCHANGE`) |
+| `PickFolder(title, initial)` (`Apps/Ui/Dialogs/FolderDialog.h`) | Windows klasör seçme penceresi (UI tarafı) |
 
 ## Yeni proje (`Projects/NewProject.h`)
 
@@ -183,6 +186,7 @@ Maddeler: `python`, `cmake`, `ninja` (kilit dosyasındaki sürüm), `msvc` (vswh
 
 ## Bu session'da bilerek yapılmayanlar
 
-- Kurulum, PATH'e ekleme, kısayol, Uygulamalar kaydı, üzerine kurulan güncelleme: Aşama 4.
+- Kurulum, kısayol, Uygulamalar kaydı, üzerine kurulan güncelleme: Aşama 4 (PATH'e ekleme Ayarlar'da var).
+- Developer projesinde dal / tag / commit seçimi: plan dışı; "dev (main)" dalın en son commit'inden başlar.
 - `launcher new` CLI işi (AI / betik için proje kurma): istenirse `CreateProject` üstüne ince bir iş.
 - AudioGeneration bağımlılıklarını kurma (D7, "ses araçlarını kur"): gömülü Python'a pip gerekir; Aşama 4'te.

@@ -1,5 +1,5 @@
 # Thin entry points over LauncherCore (Docs/Architecture.md). Both carry the product's name in lower case:
-# <engine>.com (console, CLI) and <engine>.exe (window, added by the UI under LAUNCHER_BUILD_UI).
+# <engine>.com (console, CLI) and <engine>.exe (window, Apps/Ui, LAUNCHER_BUILD_UI).
 
 add_executable(LauncherCli Cli/Main.cpp)
 target_link_libraries(LauncherCli PRIVATE LauncherCore)
@@ -18,8 +18,5 @@ file(GENERATE OUTPUT "$<TARGET_FILE_DIR:LauncherCli>/LauncherLayout.json" CONTEN
 ")
 
 if(LAUNCHER_BUILD_UI)
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Ui/CMakeLists.txt")
-        message(FATAL_ERROR "LAUNCHER_BUILD_UI: Apps/Ui/ does not exist yet (Docs/CoreApi.md → UI)")
-    endif()
     add_subdirectory(Ui)
 endif()

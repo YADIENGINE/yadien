@@ -38,21 +38,27 @@ def output(command: list[str], cwd: Path) -> str:
     return result.stdout.strip()
 
 
-def configured_engine() -> Path | None:
+def cached(variable: str) -> str | None:
     cache = BUILD / "CMakeCache.txt"
     if not cache.is_file():
         return None
     for line in cache.read_text(encoding="utf-8", errors="replace").splitlines():
-        if line.startswith(f"{ENGINE_CACHE_VARIABLE}:"):
-            return Path(line.split("=", 1)[1]).resolve()
+        if line.startswith(f"{variable}:"):
+            return line.split("=", 1)[1]
     return None
+
+
+def configured_engine() -> Path | None:
+    engine = cached(ENGINE_CACHE_VARIABLE)
+    return Path(engine).resolve() if engine else None
 
 
 def build(engine: Path, release: bool) -> dict[str, str]:
     from Tools.msvc import msvc_env, tool  # The chosen engine's helper (main puts it on sys.path)
 
     env = msvc_env(BUILD / ".msvc-env.json")
-    if not (BUILD / "build.ninja").exists() or configured_engine() != engine:
+    # The preset turns the window on; a build tree configured before it existed is configured again.
+    if not (BUILD / "build.ninja").exists() or configured_engine() != engine or cached("LAUNCHER_BUILD_UI") != "ON":
         run([tool("cmake"), "--preset", "launcher", f"-D{ENGINE_CACHE_VARIABLE}={engine.as_posix()}"], env)
     run([tool("cmake"), "--build", "--preset", "release" if release else "debug"], env)
     return env

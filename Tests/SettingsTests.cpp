@@ -16,6 +16,7 @@ TEST_CASE("Settings survive a save and load; a missing file is a first start", "
     LauncherSettings settings;
     settings.mode = LauncherMode::Developer;
     settings.uiScale = 1.25f;
+    settings.projectSort = ProjectSort::Name;
     settings.projectsFolder = temp.Path() / Utf8ToPath("Projekte ğüş");
     settings.projects.push_back({temp.Path() / "Oyun", "2026-10-31T10:00:00Z"});
     REQUIRE(SaveLauncherSettings(file, settings).Ok());
@@ -24,6 +25,7 @@ TEST_CASE("Settings survive a save and load; a missing file is a first start", "
     REQUIRE(loaded.Ok());
     CHECK(loaded.Value().mode == LauncherMode::Developer);
     CHECK(loaded.Value().uiScale == 1.25f);
+    CHECK(loaded.Value().projectSort == ProjectSort::Name);
     CHECK(loaded.Value().projectsFolder == settings.projectsFolder);
     REQUIRE(loaded.Value().projects.size() == 1);
     CHECK(loaded.Value().projects[0].root == settings.projects[0].root);

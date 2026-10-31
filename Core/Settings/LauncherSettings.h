@@ -7,6 +7,8 @@
 
 // User: engine copies only. Developer: unlocked with the password; adds submodule projects and their git work.
 enum class LauncherMode { User, Developer };
+// Order of the Projects list: most recently opened first (never opened last), by name, by folder.
+enum class ProjectSort { LastOpened, Name, Path };
 
 struct ProjectEntry {
     std::filesystem::path root;
@@ -19,6 +21,7 @@ struct LauncherSettings {
     std::vector<ProjectEntry> projects;   // In the order added; the UI sorts
     std::filesystem::path projectsFolder; // Where "New project" proposes; empty → DefaultProjectsFolder()
     float uiScale = 1.0f;
+    ProjectSort projectSort = ProjectSort::LastOpened;
 };
 
 inline constexpr int LauncherSettingsFormat = 1;

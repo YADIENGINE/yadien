@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 option(LAUNCHER_BUILD_TESTS "Build the core's tests" ON)
-option(LAUNCHER_BUILD_UI "Build the windowed launcher (needs the engine's raylib / ImGui layer)" OFF)
+option(LAUNCHER_BUILD_UI "Build the windowed launcher (needs the engine's raylib runtime and ToolUi)" ON)
 
 # The launcher builds against an engine checkout (active development), never against the stable Engines/ copies:
 # its own Engine/ submodule, or the enclosing project's Engine/ when the launcher sits inside a project

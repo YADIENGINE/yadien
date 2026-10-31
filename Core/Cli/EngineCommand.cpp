@@ -1,6 +1,7 @@
 #include "Cli/EngineCommand.h"
 #include <algorithm>
 #include <array>
+#include "Platform/KnownFolders.h"
 #include "Platform/Text.h"
 
 namespace {
@@ -9,6 +10,13 @@ constexpr std::array SupportedContracts = {1};
 
 bool SupportsToolsContract(int contract) {
     return std::ranges::find(SupportedContracts, contract) != SupportedContracts.end();
+}
+
+std::filesystem::path WindowedLauncherExecutable() {
+    const std::filesystem::path executable =
+        ExecutablePath().parent_path() / Utf8ToPath(std::string(LAUNCHER_EXECUTABLE_NAME) + ".exe");
+    std::error_code error;
+    return std::filesystem::is_regular_file(executable, error) ? executable : std::filesystem::path{};
 }
 
 Result<ProcessCommand> EngineCommand(const Toolchain& toolchain, const ProjectInfo& project,
@@ -26,6 +34,8 @@ Result<ProcessCommand> EngineCommand(const Toolchain& toolchain, const ProjectIn
     command.arguments.insert(command.arguments.end(), arguments.begin(), arguments.end());
     command.workingDirectory = project.root;
     command.pathPrefix = toolchain.PathFolders();
+    if (const std::filesystem::path launcher = WindowedLauncherExecutable(); !launcher.empty())
+        command.environment.emplace_back(LauncherVariable, PathToUtf8(launcher));
     return command;
 }
 

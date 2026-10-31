@@ -5,7 +5,7 @@ Gerekenler: VS 2022 Build Tools (C++ workload), CMake 3.24+, Python 3.10+, git. 
 
 ```powershell
 python Scripts/fetch_toolchain.py     # ToolCache/: launcher'ın taşıdığı Python, CMake, Ninja (bir kez)
-python Scripts/dev.py build           # Debug: build/Debug/<engine>.com
+python Scripts/dev.py build           # Debug: build/Debug/<engine>.com + <engine>.exe (pencere)
 python Scripts/dev.py build --release
 python Scripts/dev.py test            # Debug derle + C++ testleri (ctest) + betik testleri
 python Scripts/dev.py clean

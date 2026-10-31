@@ -10,16 +10,19 @@ sabit yazmaz (ad engine manifest'inden gelir).
 Engine/              submodule: engine reposu, main (aktif geliştirme). Launcher buna karşı derlenir.
 Engines/             stable kopyalar, Engine<ANA.ARA>/ (Scripts/import_engine.py; hiç düzenlenmez) — Engines.md
 Core/                LauncherCore: headless çekirdek, include kökü (#include "Projects/NewProject.h")
-  Platform/          Result/Status, UTF-8 ↔ UTF-16, dosya (atomik yazım, ağaç kopyası), süreç, BCrypt, bilinen klasörler
+  Jobs/              BackgroundJob / Job<T>: uzun işin thread'i, adımı, çıktısı, iptali (UI her karede okur)
+  Platform/          Result/Status, UTF-8 ↔ UTF-16, dosya (atomik yazım, ağaç kopyası), süreç, BCrypt, bilinen
+                     klasörler, Explorer'da açma
   Engines/           EngineVersion, EngineManifest (notlar), EngineCopyRecord, EngineLibrary (Engines/ taraması)
-  Projects/          ProjectInfo (tür), CopyIntegrity (salt okunur), EngineUpdate (plan + uygulama), NewProject
+  Projects/          ProjectInfo (tür), ProjectRow / ProjectDetails (liste satırı, eylemler, yavaş denetimler),
+                     ProjectLaunch (Aç, Run), ProjectScan, CopyIntegrity (salt okunur), EngineUpdate, NewProject
   Settings/          LauncherLayout, LauncherSettings (Settings.json), ProjectList
   Developer/         DeveloperAccess (şifre), DeveloperGit (submodule işleri)
-  System/            Toolchain (Toolchain.json), SystemCheck (araçlar, vswhere, winget, git)
+  System/            Toolchain (Toolchain.json), SystemCheck (araçlar, vswhere, winget, git), UserPath (PATH)
   Cli/               EngineCommand (devir), CommandLine (<engine>.com)
 Apps/
   Cli/Main.cpp       <engine>.com (konsol)
-  Ui/                <engine>.exe (pencere) — UI session'ı ekler (LAUNCHER_BUILD_UI)
+  Ui/                <engine>.exe (pencere): model + ekran fonksiyonları, engine'in EngineToolUi'ı — UiScreens.md
 Tests/               Catch2 testleri (LauncherCoreTests) + Support/
 Scripts/             Geliştirici betikleri (stdlib Python): import_engine, fetch_toolchain, set_developer_password, dev
 Toolchain.lock.json  Gömülü araçların sürüm / adres / SHA-256'sı — Toolchain.md
@@ -34,7 +37,10 @@ ToolCache/           İndirilen araçlar (git'e girmez)
   Shell) kullanır. UI hedefi engine'in ImGui katmanını ayrıca link'ler.
 - Launcher derleme mantığı yazmaz: derleme, test, editör projenin `Engine/Tools`'undadır (D7). Launcher onu kendi
   Python'uyla çalıştırır (`EngineCommand`).
-- Uzun işler `OutputLine` ile çıktı akıtır ve iptal bayrağı alır; thread yönetimi çağıranındır.
+- Uzun işler `OutputLine` ile çıktı akıtır ve iptal bayrağı alır; thread'i yalnız `Jobs/` açar (UI'ın her uzun işi
+  bir `Job<T>`'dir, CLI aynı fonksiyonları doğrudan çağırır).
+- Pencere: `Apps/Ui` engine'in `Game`'i üstünde, engine'in araç arayüzüyle (`EngineToolUi`, editörle ortak tema ve
+  widget'lar) çizilir. Durum tek modeldedir (`LauncherModel`), ekranlar yalnız çizer ([UiScreens](UiScreens.md)).
 
 ## CLI
 

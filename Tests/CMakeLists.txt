@@ -9,8 +9,10 @@ add_executable(LauncherCoreTests
     CryptoTests.cpp
     DeveloperGitTests.cpp
     EnginesTests.cpp
+    JobTests.cpp
     NewProjectTests.cpp
     ProcessTests.cpp
+    ProjectListTests.cpp
     SettingsTests.cpp
 )
 target_include_directories(LauncherCoreTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
