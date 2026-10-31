@@ -11,20 +11,23 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 option(LAUNCHER_BUILD_TESTS "Build the core's tests" ON)
 option(LAUNCHER_BUILD_UI "Build the windowed launcher (needs the engine's raylib / ImGui layer)" OFF)
 
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Engine/EngineManifest.json")
-    message(FATAL_ERROR "Engine/ is empty; run: git submodule update --init")
+# The launcher builds against an engine checkout (active development), never against the stable Engines/ copies:
+# its own Engine/ submodule, or the enclosing project's Engine/ when the launcher sits inside a project
+# (Scripts/dev.py passes it; Docs/Development.md).
+set(LAUNCHER_ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Engine" CACHE PATH "Engine checkout the launcher builds against")
+if(NOT EXISTS "${LAUNCHER_ENGINE_DIR}/EngineManifest.json")
+    message(FATAL_ERROR "No engine at ${LAUNCHER_ENGINE_DIR}; run: git submodule update --init Engine")
 endif()
 
-# The launcher builds against the Engine/ submodule (active development), never against the stable Engines/ copies.
 set(ENGINE_BUILD_RUNTIME ${LAUNCHER_BUILD_UI} CACHE BOOL "" FORCE)
 set(ENGINE_BUILD_EDITOR OFF CACHE BOOL "" FORCE)
 set(ENGINE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(ENGINE_BUILD_EDITOR_TESTS OFF CACHE BOOL "" FORCE)
-add_subdirectory(Engine EXCLUDE_FROM_ALL)
+add_subdirectory("${LAUNCHER_ENGINE_DIR}" "${CMAKE_BINARY_DIR}/Engine" EXCLUDE_FROM_ALL)
 
 # The product's name comes from the engine manifest; executables are named after it in lower case.
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Engine/EngineManifest.json")
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/Engine/EngineManifest.json" launcherManifest)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${LAUNCHER_ENGINE_DIR}/EngineManifest.json")
+file(READ "${LAUNCHER_ENGINE_DIR}/EngineManifest.json" launcherManifest)
 string(JSON LAUNCHER_PRODUCT_NAME GET "${launcherManifest}" name)
 string(TOLOWER "${LAUNCHER_PRODUCT_NAME}" LAUNCHER_EXECUTABLE_NAME)
 set(LAUNCHER_VERSION "0.1.0")

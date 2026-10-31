@@ -15,6 +15,9 @@ sözleşme engine `Docs/ToolsContract.md` (komutlar, çıkış kodları, manifes
 - `Engine/` submodule'dür (engine reposu, `main`): aktif geliştirme, launcher buna karşı derlenir. Değişiklik iki
   adımlı: `git -C Engine switch main`, orada commit + push, sonra burada pointer commit'i. Commit / push öncesi
   `git -C Engine status` ve `git -C Engine pull --rebase`; başka bir session aynı engine'de çalışıyor olabilir.
+- Bir oyunun içinde (`<oyun>/Launcher/`) launcher oyunun `Engine/`'ine karşı derlenir, kendi `Engine/` submodule'ü
+  başlatılmaz; pointer'ı `python Scripts/dev.py pin-engine` ile çekilir. Sıra: engine → launcher → oyun
+  (`Docs/Development.md` → Bir oyunun içinde geliştirmek).
 - `Engines/Engine<ANA.ARA>/` stable kopyalardır: sadece `python Scripts/import_engine.py v<sürüm>` yazar, elle
   düzenlenmez (`Docs/Engines.md`).
 

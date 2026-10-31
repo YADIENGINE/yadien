@@ -3,7 +3,7 @@
 Usage, from the launcher repository:
     python Scripts/import_engine.py v0.2.0
 
-The copy is taken from the tag with `git archive` in the Engine/ submodule, so it is exactly the tagged content:
+The copy is taken from the tag with `git archive` in the engine checkout (Scripts/engine_location.py), so it is exactly the tagged content:
 `.git`, uncommitted changes and the engine's `export-ignore` files (its development files) never enter it. The tag
 must be pushed to the engine's origin, so every copy is traceable. `EngineCopy.json` is written beside the copy:
 source tag and commit, and a SHA-256 for every file; the launcher checks projects' copies against it.
@@ -20,6 +20,9 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from engine_location import default_engine  # noqa: E402
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 MANIFEST_FILE = "EngineManifest.json"
@@ -160,7 +163,8 @@ def series_folders(engines: Path) -> list[Path]:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Copy a stable engine tag into Engines/")
     parser.add_argument("tag", help="release tag, e.g. v0.2.0")
-    parser.add_argument("--engine", type=Path, default=REPOSITORY / "Engine", help="engine repository (submodule)")
+    parser.add_argument("--engine", type=Path, default=default_engine(),
+                        help="engine repository (default: the Engine/ submodule, or the enclosing project's Engine/)")
     parser.add_argument("--engines", type=Path, default=REPOSITORY / "Engines", help="destination folder")
     args = parser.parse_args(argv)
     try:
