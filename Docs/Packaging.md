@@ -28,7 +28,9 @@ It builds the launcher in Release, then `Scripts/package.py`:
 
 Packing the same version again (a test build) makes vpk ask whether to overwrite the earlier one in
 `build/Package/Releases/`; answer `y`. A real release always raises the version, so the question guards published
-versions. The version is `LAUNCHER_VERSION` in `CMakeLists.txt`; the Velopack id and title are the product name from the engine
+versions.
+
+The version is `LAUNCHER_VERSION` in `CMakeLists.txt`; the Velopack id and title are the product name from the engine
 manifest. A release that ships a new engine, launcher change or tool upgrade raises the launcher's version (D15).
 
 When a license text changes (a tool or library upgrade), update `Packaging/Notices.json` or `Packaging/Licenses/` in
