@@ -50,6 +50,8 @@ Windows selects `.com` first (D15).
 ```
 <engine> [--project ROOT] <engine command> [options]   → <python> -X utf8 <ROOT>/Engine --project <ROOT> <...>
 <engine> launcher version | system-check | projects [--json]
+<engine> launcher audio-tools [status | install | remove]
+<engine> launcher python SCRIPT [ARGS]                  → bundled Python, script folder + audio tools on sys.path
 ```
 
 - Project: without `--project`, the first folder upward from the working folder containing `Project.json` (or

@@ -46,6 +46,14 @@ class FetchTests(unittest.TestCase):
         installed = json.loads((self.cache / "Toolchain.json").read_text(encoding="utf-8"))
         self.assertEqual(list(installed["tools"]), ["tool"])
 
+    def test_audio_packages_pass_through_to_the_launcher(self):
+        lock = self.lock(hashlib.sha256(self.archive.read_bytes()).hexdigest())
+        lock["audio"] = {"numpy": {"version": "2.0", "url": "https://example.invalid/numpy.whl", "sha256": "ab" * 32}}
+        fetch(lock, self.cache)
+        installed = json.loads((self.cache / "Toolchain.json").read_text(encoding="utf-8"))
+        self.assertEqual(installed["audio"], lock["audio"])
+        self.assertFalse((self.cache / "numpy").exists())
+
     def test_pin_records_missing_hashes(self):
         lock_path = self.root / "Toolchain.lock.json"
         lock_path.write_text(json.dumps(self.lock("")), encoding="utf-8")

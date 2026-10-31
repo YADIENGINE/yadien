@@ -33,6 +33,7 @@ LauncherModel::LauncherModel(LauncherLayout layout)
     else
         _toolchainError = toolchain.Error();
     _newProject.location = PathToUtf8(ProjectsFolderOf(_settings));
+    _audioTools = InspectAudioTools(_layout.AudioToolsFolder(), AudioPackages());
     ReloadRows();
     ReadPathState();
     StartSystemCheck();
@@ -483,6 +484,36 @@ void LauncherModel::OpenLicenseNotices() {
     Queue([this] {
         if (Status opened = OpenFile(LauncherFolder() / LicenseNoticesFile); !opened.Ok())
             ShowNotice(NoticeLevel::Error, "Could not open the license notices", opened.Error());
+    });
+}
+
+const std::vector<AudioPackage>& LauncherModel::AudioPackages() const {
+    static const std::vector<AudioPackage> none;
+    return _toolchain ? _toolchain->audio : none;
+}
+
+void LauncherModel::InstallAudioTools() {
+    Queue([this] {
+        if (_job || AudioPackages().empty()) return;
+        auto job = std::make_unique<Job<void>>(
+            "Installing audio tools", 1,
+            [folder = _layout.AudioToolsFolder(), packages = AudioPackages()](JobContext& context) {
+                context.Step("Downloading and extracting NumPy / SciPy");
+                return ::InstallAudioTools(folder, packages, context.Lines(), context.CancelFlag());
+            });
+        StartJob(std::move(job), "Could not install the audio tools", [this] {
+            _audioTools = InspectAudioTools(_layout.AudioToolsFolder(), AudioPackages());
+            _panel = LauncherPanel::Settings;
+        });
+    });
+}
+
+void LauncherModel::RemoveAudioTools() {
+    Queue([this] {
+        if (_job) return;
+        if (Status removed = ::RemoveAudioTools(_layout.AudioToolsFolder()); !removed.Ok())
+            ShowNotice(NoticeLevel::Error, "Could not remove the audio tools", removed.Error());
+        _audioTools = InspectAudioTools(_layout.AudioToolsFolder(), AudioPackages());
     });
 }
 

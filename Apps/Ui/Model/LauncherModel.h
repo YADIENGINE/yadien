@@ -8,6 +8,7 @@
 #include "Settings/LauncherLayout.h"
 #include "Settings/LauncherSettings.h"
 #include "System/SystemCheck.h"
+#include "System/AudioTools.h"
 #include "System/Toolchain.h"
 #include <cstddef>
 #include <filesystem>
@@ -156,6 +157,11 @@ public:
     // The package's ThirdPartyNotices.txt; development builds have none.
     [[nodiscard]] bool LicenseNoticesAvailable() const;
     void OpenLicenseNotices();
+    // Audio tools (design D7): NumPy / SciPy for the engine's sound generator, downloaded on request.
+    [[nodiscard]] AudioToolsState AudioTools() const { return _audioTools; }
+    [[nodiscard]] const std::vector<AudioPackage>& AudioPackages() const;
+    void InstallAudioTools(); // Job; also reinstalls outdated ones
+    void RemoveAudioTools();
     void AskDeveloperMode(); // → Confirmation::DeveloperMode (warning, no password: design D19)
     void LeaveDeveloperMode();
 
@@ -223,6 +229,7 @@ private:
     std::string _planError;
     std::optional<SystemReport> _report;
     std::optional<bool> _onPath;
+    AudioToolsState _audioTools = AudioToolsState::NotOffered;
     Confirmation _confirmation = Confirmation::None;
     std::filesystem::path _confirmationRoot;
     ConfirmationForm _confirmationForm;

@@ -1,6 +1,7 @@
 #include "Screens/LauncherScreens.h"
 #include <extras/IconsFontAwesome6.h>
 #include <imgui.h>
+#include <string>
 #include "Model/LauncherModel.h"
 #include "Screens/ScreenLayout.h"
 #include "ToolUi/ToolTheme.h"
@@ -25,6 +26,27 @@ void DrawSettingsPanel(LauncherModel& model) {
             if (!onPath) LauncherMutedText("PATH status is unavailable.");
             LauncherMutedText("Restart your terminal app (Windows Terminal, VS Code) after changing PATH.");
             if (ToolSingleLineButton(ICON_FA_FOLDER_OPEN " Open installation folder")) model.OpenInstallFolder();
+        }
+        if (model.AudioTools() != AudioToolsState::NotOffered && ToolSectionHeader("Audio tools", false)) {
+            LauncherMutedText("NumPy and SciPy for the engine's offline sound generator (AudioGeneration). "
+                              "Downloaded only when you install them, about 50 MB.");
+            const AudioToolsState state = model.AudioTools();
+            if (state == AudioToolsState::Installed) {
+                ToolStatusBadge(ICON_FA_CHECK " Installed", ToolToneColor(ToolTone::Success));
+            } else if (state == AudioToolsState::Outdated) {
+                ToolStatusBadge(ICON_FA_TRIANGLE_EXCLAMATION " Other versions installed",
+                                ToolToneColor(ToolTone::Warning));
+            }
+            for (const AudioPackage& package : model.AudioPackages())
+                LauncherMutedText((package.name + " " + package.version).c_str());
+            if (state != AudioToolsState::Installed) {
+                if (ToolButton(ICON_FA_DOWNLOAD " Install audio tools")) model.InstallAudioTools();
+            } else if (ToolButton("Remove audio tools")) {
+                model.RemoveAudioTools();
+            }
+            const std::string usage =
+                std::string("Run sound scripts with: ") + LAUNCHER_EXECUTABLE_NAME + " launcher python script.py";
+            LauncherMutedText(usage.c_str());
         }
         if (ToolSectionHeader("Developer mode", false)) {
             LauncherMutedText("Use git-managed engines and publish engine changes.");

@@ -4,6 +4,7 @@ engine_use_catch2()
 add_executable(LauncherCoreTests
     Support/TempFolder.cpp
     Support/FakeEngine.cpp
+    AudioToolsTests.cpp
     CommandLineTests.cpp
     CopyAndUpdateTests.cpp
     CryptoTests.cpp

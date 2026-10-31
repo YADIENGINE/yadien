@@ -20,5 +20,11 @@ MSVC is not bundled (license); System check installs it.
   python there. `-X utf8` makes output UTF-8.
 - **Validation:** System check runs each tool with `--version` and compares its version with `Toolchain.json`.
 
-AudioGeneration's NumPy / SciPy dependencies are not included in bundled Python (D7); "install audio tools" is in Stage
-4.
+**Audio tools (D7):** AudioGeneration's NumPy / SciPy are not in the package. The lock's `audio` section pins their
+wheels (version, address, SHA-256); `fetch_toolchain.py` does not download them, it copies the section into
+`Toolchain.json`. The launcher downloads them only when the user asks (Settings → Audio tools, or
+`<engine> launcher audio-tools install`), checks each hash, extracts the wheels with Windows' `tar.exe` into
+`<data>/AudioTools/site/` (beside `Settings.json`, so updates keep them) and records the versions in
+`AudioTools.json`. `<engine> launcher python SCRIPT [ARGS]` runs a script with the bundled Python and that folder on
+`sys.path` (the bundled Python is isolated, so PYTHONPATH would not work). Upgrading: new wheel address + `sha256`
+(PyPI publishes it) in the lock; the launcher then shows the installed tools as outdated.

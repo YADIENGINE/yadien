@@ -10,6 +10,7 @@
 #include "Projects/ProjectInfo.h"
 #include "Settings/LauncherSettings.h"
 #include "Settings/ProjectList.h"
+#include "System/AudioTools.h"
 #include "System/SystemCheck.h"
 
 namespace {
@@ -50,7 +51,11 @@ void PrintUsage() {
               << "Launcher jobs:\n"
               << "  version        launcher and bundled engine versions\n"
               << "  system-check   compiler and tools (exit 1 when building is not possible)\n"
-              << "  projects       the launcher's project list\n";
+              << "  projects       the launcher's project list\n"
+              << "  audio-tools [status|install|remove]\n"
+              << "                 NumPy / SciPy for the engine's sound generator (downloads on install)\n"
+              << "  python SCRIPT [ARGS]\n"
+              << "                 run a Python script with the bundled Python and the audio tools\n";
 }
 
 bool WantsJson(const std::vector<std::string>& arguments) {
@@ -107,12 +112,77 @@ int ProjectsJob(const LauncherLayout& layout, bool json) {
     return ExitOk;
 }
 
+const char* AudioStateName(AudioToolsState state) {
+    switch (state) {
+    case AudioToolsState::NotOffered  : return "not offered by this launcher";
+    case AudioToolsState::NotInstalled: return "not installed";
+    case AudioToolsState::Outdated    : return "installed, but not this launcher's versions (reinstall)";
+    case AudioToolsState::Installed   : return "installed";
+    }
+    return "not installed";
+}
+
+int AudioToolsJob(const std::vector<std::string>& arguments, const LauncherLayout& layout) {
+    const std::string action = arguments.size() > 2 ? arguments[2] : "status";
+    Result<Toolchain> toolchain = LoadToolchain(layout.toolsFolder);
+    if (!toolchain.Ok()) {
+        std::cerr << "error: " << toolchain.Error() << "; reinstall the launcher\n";
+        return ExitUsage;
+    }
+    const std::vector<AudioPackage>& packages = toolchain.Value().audio;
+    const std::filesystem::path folder = layout.AudioToolsFolder();
+    if (action == "status") {
+        std::cout << "audio tools: " << AudioStateName(InspectAudioTools(folder, packages)) << "\n";
+        for (const AudioPackage& package : packages)
+            std::cout << "  " << package.name << " " << package.version << "\n";
+        return ExitOk;
+    }
+    Status done = Status::Success();
+    if (action == "install") {
+        done = InstallAudioTools(folder, packages, [](const std::string& line) { std::cout << line << "\n"; });
+    } else if (action == "remove") {
+        done = RemoveAudioTools(folder);
+    } else {
+        std::cerr << "error: unknown audio-tools action '" << action << "' (status, install, remove)\n";
+        return ExitUsage;
+    }
+    if (!done.Ok()) {
+        std::cerr << "error: " << done.Error() << "\n";
+        return ExitFailed;
+    }
+    std::cout << "audio tools: " << AudioStateName(InspectAudioTools(folder, packages)) << "\n";
+    return ExitOk;
+}
+
+int PythonJob(const std::vector<std::string>& arguments, const LauncherLayout& layout) {
+    if (arguments.size() < 3) {
+        std::cerr << "error: launcher python needs a script: " << LAUNCHER_EXECUTABLE_NAME
+                  << " launcher python SCRIPT [ARGS]\n";
+        return ExitUsage;
+    }
+    Result<Toolchain> toolchain = LoadToolchain(layout.toolsFolder);
+    if (!toolchain.Ok()) {
+        std::cerr << "error: " << toolchain.Error() << "; reinstall the launcher\n";
+        return ExitUsage;
+    }
+    const std::vector<std::string> script(arguments.begin() + 2, arguments.end());
+    std::cout.flush();
+    const ProcessResult result = RunAttached(PythonScriptCommand(toolchain.Value(), layout.AudioToolsFolder(), script));
+    if (!result.Started()) {
+        std::cerr << "error: " << result.startError << "\n";
+        return ExitUsage;
+    }
+    return result.exitCode;
+}
+
 int LauncherJob(const std::vector<std::string>& arguments, const LauncherLayout& layout) {
     const std::string job = arguments.size() > 1 ? arguments[1] : "help";
     const bool json = WantsJson(arguments);
     if (job == "version") return Version(layout);
     if (job == "system-check") return SystemCheckJob(layout, json);
     if (job == "projects") return ProjectsJob(layout, json);
+    if (job == "audio-tools") return AudioToolsJob(arguments, layout);
+    if (job == "python") return PythonJob(arguments, layout);
     if (job == "help" || job == "--help" || job == "-h") {
         PrintUsage();
         return ExitOk;

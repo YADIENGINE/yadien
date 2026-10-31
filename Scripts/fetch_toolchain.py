@@ -7,8 +7,10 @@ Usage, from the launcher repository:
 
 Toolchain.lock.json is the only source: per tool a fixed version, its download address, the archive's SHA-256, the
 archive folder to strip ("root") and the executable inside the tool folder. "libraries" entries are the same with a
-"check" file instead of an executable: they are needed to build the launcher, not shipped as tools. A mismatching hash
-stops the script; nothing unverified is extracted. Binaries never enter git.
+"check" file instead of an executable: they are needed to build the launcher, not shipped as tools. "audio" entries
+(NumPy / SciPy wheels) are not downloaded here: they are copied into Toolchain.json and the launcher downloads them when
+the user installs the audio tools. A mismatching hash stops the script; nothing unverified is extracted. Binaries never
+enter git.
 
 ToolCache/<tool>/ receives each tool; ToolCache/Toolchain.json tells the launcher which versions it got and where the
 executables are (the launcher verifies them against it). The embeddable Python stays as published, `._pth` file
@@ -48,6 +50,10 @@ def load_lock(path: Path) -> dict:
             for key in ("version", "url", "sha256", required):
                 if not isinstance(entry.get(key), str):
                     raise FetchFailed(f"{path}: {section}.{name}.{key} is required")
+    for name, entry in lock.get("audio", {}).items():
+        for key in ("version", "url", "sha256"):
+            if not isinstance(entry.get(key), str) or not entry[key]:
+                raise FetchFailed(f"{path}: audio.{name}.{key} is required")
     return lock
 
 
@@ -136,8 +142,11 @@ def fetch(lock: dict, cache: Path) -> None:
             raise FetchFailed(f"{name}: {required} not found in {folder}")
         if section == "tools":
             installed[name] = {"version": tool["version"], "executable": f"{name}/{required}"}
-    (cache / INSTALLED_FILE).write_text(json.dumps({"format": FORMAT, "tools": installed}, indent=2) + "\n",
-                                        encoding="utf-8", newline="\n")
+    # "audio" is downloaded by the launcher itself when the user asks (Settings → Audio tools); it only passes through.
+    audio = {name: {key: entry[key] for key in ("version", "url", "sha256")}
+             for name, entry in lock.get("audio", {}).items()}
+    (cache / INSTALLED_FILE).write_text(json.dumps({"format": FORMAT, "tools": installed, "audio": audio}, indent=2) +
+                                        "\n", encoding="utf-8", newline="\n")
 
 
 def pin(lock: dict, lock_path: Path, cache: Path) -> None:

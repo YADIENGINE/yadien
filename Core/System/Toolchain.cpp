@@ -25,5 +25,16 @@ Result<Toolchain> LoadToolchain(const std::filesystem::path& toolsFolder) {
         if (tool->version.empty() || !entry.contains("executable"))
             return Result<Toolchain>::Failure(PathToUtf8(file) + ": " + name + " needs version and executable");
     }
+    const nlohmann::json audio =
+        json.Value().is_object() ? json.Value().value("audio", nlohmann::json::object()) : nlohmann::json::object();
+    if (!audio.is_object()) return Result<Toolchain>::Failure(PathToUtf8(file) + ": audio must be an object");
+    for (const auto& [name, entry] : audio.items()) {
+        if (!entry.is_object())
+            return Result<Toolchain>::Failure(PathToUtf8(file) + ": audio." + name + " must be an object");
+        AudioPackage package{name, entry.value("version", ""), entry.value("url", ""), entry.value("sha256", "")};
+        if (package.version.empty() || package.url.empty() || package.sha256.empty())
+            return Result<Toolchain>::Failure(PathToUtf8(file) + ": audio." + name + " needs version, url and sha256");
+        toolchain.audio.push_back(std::move(package));
+    }
     return toolchain;
 }

@@ -177,13 +177,25 @@ Items: `python`, `cmake`, `ninja` (lock-file version), `msvc` (vswhere), `engine
 
 ## CLI (`Cli/CommandLine.h`)
 
-`<engine>.com` calls `RunCommandLine`; UI has no role. `<engine> launcher version | system-check | projects [--json]`;
-everything else goes unchanged to the project's engine (D6). Details: [Architecture](Architecture.md#cli).
+`<engine>.com` calls `RunCommandLine`; UI has no role. `<engine> launcher version | system-check | projects [--json]`,
+`audio-tools [status | install | remove]`, `python SCRIPT [ARGS]`; everything else goes unchanged to the project's
+engine (D6). Details: [Architecture](Architecture.md#cli).
+
+## Audio tools (`System/AudioTools.h`)
+
+| API | Job |
+| --- | --- |
+| `Toolchain::audio` | the wheels this launcher offers (`Toolchain.json` `audio`; empty: the feature is hidden) |
+| `InspectAudioTools(folder, packages)` | `NotOffered` / `NotInstalled` / `Outdated` (other versions) / `Installed` |
+| `InstallAudioTools(folder, packages, onLine, cancel)` | download (`Platform/Download.h`), SHA-256, `tar.exe`, then replace `folder` whole; a failure keeps the old one |
+| `RemoveAudioTools(folder)` | deletes the folder |
+| `PythonScriptCommand(toolchain, folder, arguments)` | the bundled Python running SCRIPT with its folder and `folder/site` on `sys.path` |
+
+The folder is `LauncherLayout::AudioToolsFolder()` (`<data>/AudioTools`). Toolchain.md has the file layout.
 
 ## Deliberately excluded in this session
 
-- Installation, shortcuts, Apps registration, in-place updates: Stage 4 (adding to PATH is available in Settings).
+- Installation, shortcuts, Apps registration, in-place updates: done with Velopack ([Packaging](Packaging.md)).
 - Branch / tag / commit selection in developer projects: outside the plan; "dev (main)" starts from the branch's latest
   commit.
 - `launcher new` CLI operation (project setup for AI / scripts): a thin layer over `CreateProject` if requested.
-- Installing AudioGeneration dependencies (D7, "install audio tools"): bundled Python needs pip; in Stage 4.

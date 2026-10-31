@@ -46,7 +46,7 @@ text edited directly by screens.
 | New project | `NewProject()` (`name`, `location`, `engine`), `NewProjectEngines()`, `NewProjectProblem()`, `NewProjectFolder()` | `BrowseNewProjectLocation`, `CreateProject` |
 | Engine update | `PendingChange()`, `ChangeProject()`, `PlanRunning()`, `Plan()`, `PlanError()` | `ConfirmEngineChange`, `ClosePanel` |
 | System check | `System()`, `Report()`, `SystemCheckRunning()` | `RunSystemCheck`, `InstallMsvc` |
-| Settings | `OnPath()`, `Mode()` | `SetOnPath`, `OpenInstallFolder`, `AskDeveloperMode`, `LeaveDeveloperMode` |
+| Settings | `OnPath()`, `Mode()`, `LicenseNoticesAvailable()`, `AudioTools()`, `AudioPackages()` | `SetOnPath`, `OpenInstallFolder`, `OpenLicenseNotices`, `InstallAudioTools` (job), `RemoveAudioTools`, `AskDeveloperMode`, `LeaveDeveloperMode` |
 | Confirmation | `Pending()`, `PendingProject()`, `ConfirmationInput()` | `Confirm`, `CancelConfirmation` |
 | Job | `CurrentJob()` (`Title`, `State`, `StepText`, `StepIndex`, `StepCount`, `Error`), `JobFailureTitle()`, `JobOutput()` | `CancelJob`, `DismissJob` |
 

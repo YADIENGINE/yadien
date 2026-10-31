@@ -14,6 +14,8 @@ struct LauncherLayout {
     std::filesystem::path dataFolder;  // Settings.json
 
     [[nodiscard]] std::filesystem::path SettingsFile() const { return dataFolder / "Settings.json"; }
+    // The audio tools (System/AudioTools.h) live beside the settings: kept across launcher updates.
+    [[nodiscard]] std::filesystem::path AudioToolsFolder() const { return dataFolder / "AudioTools"; }
 };
 
 inline constexpr const char* LauncherLayoutFile = "LauncherLayout.json";

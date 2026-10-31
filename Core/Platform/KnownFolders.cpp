@@ -25,3 +25,5 @@ std::filesystem::path ExecutablePath() {
 std::filesystem::path LocalAppDataFolder() { return KnownFolder(FOLDERID_LocalAppData); }
 
 std::filesystem::path DocumentsFolder() { return KnownFolder(FOLDERID_Documents); }
+
+std::filesystem::path SystemFolder() { return KnownFolder(FOLDERID_System); }
