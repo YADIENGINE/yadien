@@ -10,8 +10,8 @@ The launcher carries two engines (engine `Docs/Design/README.md` D16):
 ## New stable version
 
 1. In the engine repo: `EngineManifest.json` `version` + `notes` at the top (rules in engine `Docs/ToolsContract.md` →
-   Manifest; engine tests check them), commit, push, annotated tag `v<sürüm>`, push the tag.
-2. Here: `git -C Engine fetch --tags` and `python Scripts/import_engine.py v<sürüm>`.
+   Manifest; engine tests check them), commit, push, annotated tag `v<version>`, push the tag.
+2. Here: `git -C Engine fetch --tags` and `python Scripts/import_engine.py v<version>`.
 3. Commit the `Engines/` change (e.g. "Import engine 0.2.0"). The script reports more than 3 series; removing the oldest
    is a separate commit.
 
@@ -24,7 +24,7 @@ series folder is replaced with the new version.
 - Gets content with `git archive <tag>`: excludes `.git`, uncommitted changes, and engine `.gitattributes`
   `export-ignore` files (engine `CLAUDE.md`, `Docs/Design/`) (D14). The engine knows what to exclude.
 - Manifest version must match the tag (`v0.2.0` ↔ `0.2.0`), and the newest note must be for that version.
-- Writes `EngineCopy.json` beside it: `{"format": 1, "source": {"tag", "commit"}, "files": {"<yol>": "sha256:<hex>"}}`.
+- Writes `EngineCopy.json` beside it: `{"format": 1, "source": {"tag", "commit"}, "files": {"<path>": "sha256:<hex>"}}`.
   The launcher uses it to check project engine copies (read-only rule) and show what an update would lose.
 - Writes beside the current folder first, then swaps folders; a series folder advances only to a newer patch.
 

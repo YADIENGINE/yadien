@@ -5,7 +5,7 @@ MSVC is not bundled (license); System check installs it.
 
 - **Source:** `Toolchain.lock.json`: per-tool `version`, `url`, `sha256` (archive), `root` (folder to strip from the
   archive), `executable` (relative to tool folder). Binaries are not tracked in git.
-- **Download:** `python Scripts/fetch_toolchain.py` → `ToolCache/<araç>/` + `ToolCache/Toolchain.json` (read by the
+- **Download:** `python Scripts/fetch_toolchain.py` → `ToolCache/<tool>/` + `ToolCache/Toolchain.json` (read by the
   launcher: version + executable path). Stops on hash mismatch; nothing unverified is extracted. Internet only here.
 - **Upgrade:** version + address in the lock file, clear `sha256`, `python Scripts/fetch_toolchain.py --pin`; compare
   with the publisher's hash (CMake publishes `cmake-<v>-SHA-256.txt`), then commit.

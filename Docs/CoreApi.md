@@ -135,9 +135,9 @@ if (root.Ok()) { (void)AddProject(settings, root.Value()); SaveLauncherSettings(
 
 - Naming rules belong to the engine (`new --name`, letters/digits/`_`); errors appear in output. Location + name =
   project folder.
-- Engine copy: `Engines/<seri>` → `<klasör>/Engine`, then engine `new`. Does not touch git (D14).
+- Engine copy: `Engines/<series>` → `<folder>/Engine`, then engine `new`. Does not touch git (D14).
 - Developer ("dev (main)", listed only in developer mode): `git init` + submodule (`repository`, branch) + `new` +
-  initial commit "Create <ad>".
+  initial commit "Create <name>".
 - On error, everything created is removed.
 
 ## Engine update (`Projects/EngineUpdate.h`)

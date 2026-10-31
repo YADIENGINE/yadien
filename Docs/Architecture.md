@@ -47,7 +47,7 @@ ToolCache/           Downloaded tools (not tracked in git)
 Windows selects `.com` first (D15).
 
 ```
-<engine> [--project KÖK] <engine komutu> [seçenekler]   → <python> -X utf8 <KÖK>/Engine --project <KÖK> <...>
+<engine> [--project ROOT] <engine command> [options]   → <python> -X utf8 <ROOT>/Engine --project <ROOT> <...>
 <engine> launcher version | system-check | projects [--json]
 ```
 
