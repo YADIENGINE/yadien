@@ -46,8 +46,7 @@ void LauncherApplication::Update(float realSeconds) {
     if (_model.QuitRequested()) RequestQuit();
 }
 
-void LauncherApplication::DrawWindow(Painter& paint) const {
-    (void)paint; // ToolUi draws natively after the canvas has been presented.
+void LauncherApplication::DrawToolOverlay() const {
     _ui.BeginFrame(InterfaceScalePercent);
     DrawLauncher(_model);
     _ui.EndFrame();
