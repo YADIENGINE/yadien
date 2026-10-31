@@ -66,10 +66,12 @@ Windows selects `.com` first (D15).
 ## Runtime layout
 
 Installed (Stage 4, Velopack): `%LOCALAPPDATA%\<Name>\` holds `Update.exe`, `packages/`, a small `<Name>.exe` that
-the shortcuts start, `Settings.json`, and `current/`: `<engine>.exe` (+ the Velopack DLL), `<engine>.com`, `Engines/`,
-`Tools/` (Toolchain.json + python, cmake, ninja). Every update replaces `current/`, so the settings stay outside it
-(`LauncherLayout`). `<engine>.exe` starts with `RunInstallerHooks()` (`Apps/Ui/InstallerHooks`): after installing,
-Velopack runs it to add `current/` to the user's PATH; before uninstalling, to remove it. The installer itself:
+the shortcuts start, and `current/`: `<engine>.exe` (+ the Velopack DLL), `<engine>.com`, `Engines/`, `Tools/`
+(Toolchain.json + python, cmake, ninja). An update replaces `current/`, and running a newer Setup over an install
+replaces the whole root, so the data (`Settings.json`, `AudioTools/`) lives beside it in `%LOCALAPPDATA%\<Name> Data\`
+(`LauncherLayout`, `velopackInstall`). `<engine>.exe` starts with `RunInstallerHooks()` (`Apps/Ui/InstallerHooks`):
+after installing, Velopack runs it to add `current/` to the user's PATH; before uninstalling, to remove PATH and the
+data folder. The installer itself:
 [Packaging](Packaging.md).
 
 In development builds, `LauncherLayout.json` beside the executable points to the repo's `Engines/` and `ToolCache/`

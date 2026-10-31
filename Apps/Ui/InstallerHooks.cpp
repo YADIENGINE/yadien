@@ -1,11 +1,20 @@
 #include "InstallerHooks.h"
 #include <Velopack.h>
+#include "Platform/FileSystem.h"
+#include "Settings/LauncherLayout.h"
 #include "System/UserPath.h"
 
 namespace {
 // Hooks have no window and a 30 s limit. A PATH failure is not fatal: Settings → "Add launcher to PATH" fixes it.
 void AfterInstall(void*, const char*) { (void)AddToUserPath(LauncherFolder()); }
-void BeforeUninstall(void*, const char*) { (void)RemoveFromUserPath(LauncherFolder()); }
+// Velopack removes its own folder; the data folder beside it (settings, audio tools) is the launcher's to remove.
+// Projects are never touched (design D15).
+void BeforeUninstall(void*, const char*) {
+    (void)RemoveFromUserPath(LauncherFolder());
+    if (Result<LauncherLayout> layout = ResolveLauncherLayout(LauncherFolder());
+        layout.Ok() && layout.Value().velopackInstall)
+        (void)RemoveTree(layout.Value().dataFolder);
+}
 } // namespace
 
 void RunInstallerHooks() {
