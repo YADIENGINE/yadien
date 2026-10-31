@@ -2,7 +2,7 @@
 
 Engine'in launcher'ı: ayrı ürün, ayrı repo. Mimari `Docs/Architecture.md`, çekirdek API'si `Docs/CoreApi.md`,
 pencere ve ekranları `Docs/UiScreens.md`. Tasarım kararları engine reposunda (`Engine/Docs/Design/README.md`,
-D3–D16); karar değişirse orada güncellenir.
+D3–D19); karar değişirse orada güncellenir.
 
 **Ad sabit yazılmaz.** Ürün adı engine manifest'indedir (`Engine/EngineManifest.json` `name`); kod
 `LAUNCHER_PRODUCT_NAME` / `LAUNCHER_EXECUTABLE_NAME` kullanır, belgeler `<engine>` yazar.
@@ -37,7 +37,9 @@ Build almak kullanıcıya bırakılır (kod bitince kullanıcı derler, uyarı /
 - Kod stili engine'inki: C++20, `/W4` uyarısız, isimli namespace yok (yardımcılar anonim namespace'te, açılış /
   kapanışta boş satır yok), her class kendi `.h` + `.cpp`'sinde, `#pragma once`, include'lar tek blok (kendi header →
   üçüncü parti → std → proje), `new` / `delete` ve C dizisi yok, RAII, `enum class` tek satır, `PascalCase` /
-  `camelCase` / `_camelCase`, getter'lar `[[nodiscard]] const`. Kod metinleri ve yorumları İngilizce, belgeler Türkçe.
+  `camelCase` / `_camelCase`, getter'lar `[[nodiscard]] const`. Kod metinleri, yorumlar ve yeni belgeler İngilizce
+  (D19); Türkçe belgeler çevrilene kadar yerinde düzenlenir.
+- Repo public, lisans MIT (`LICENSE`). Oyun adı, kişisel bilgi, şifre / anahtar yazılmaz.
 - Format `.clang-format`, satır sonu LF; commit öncesi değişen dosyalar:
   `& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\bin\clang-format.exe" -i <dosyalar>`.
 - Yeni `.cpp` → `Core/CMakeLists.txt` (`LauncherCore`), `Apps/Ui/CMakeLists.txt` ya da `Tests/CMakeLists.txt`. Yeni

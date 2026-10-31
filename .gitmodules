@@ -1,4 +1,4 @@
 [submodule "Engine"]
 	path = Engine
-	url = https://github.com/yagizdkurt/YDArcadeEngine.git
+	url = https://github.com/YADIENGINE/engine.git
 	branch = main
