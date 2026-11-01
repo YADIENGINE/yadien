@@ -30,7 +30,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${LAUNCHER_ENGIN
 file(READ "${LAUNCHER_ENGINE_DIR}/EngineManifest.json" launcherManifest)
 string(JSON LAUNCHER_PRODUCT_NAME GET "${launcherManifest}" name)
 string(TOLOWER "${LAUNCHER_PRODUCT_NAME}" LAUNCHER_EXECUTABLE_NAME)
-set(LAUNCHER_VERSION "0.1.0")
+set(LAUNCHER_VERSION "0.2.0")
 
 # build/<Config>/: <engine>.com, the UI's <engine>.exe and the tests side by side
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")
