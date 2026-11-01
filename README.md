@@ -15,8 +15,10 @@ The engine source lives in its own repository: <https://github.com/YADIENGINE/en
 
 ## Download
 
-Installers will be published on the [Releases](https://github.com/YADIENGINE/yadien/releases) page. Releases are not
-code-signed yet, so Windows SmartScreen may ask you to confirm ("More info" → "Run anyway"). The installer puts
+Get the installer (`Setup.exe`) from the [Releases](https://github.com/YADIENGINE/yadien/releases) page. Releases are
+an early preview, marked Pre-release: Windows only, and 0.x versions may change in breaking ways. The first run installs
+the MSVC build tools the engine needs. Releases are not code-signed yet, so Windows SmartScreen may ask you to confirm
+("More info" → "Run anyway"). The installer puts
 `<engine>` on your PATH; terminals see it after their app (Windows Terminal, VS Code) is restarted.
 
 ## Building the launcher

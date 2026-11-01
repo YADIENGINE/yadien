@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "tests": {
-    "buildDirectory": "build/tests",
-    "configurePreset": "tests",
-    "buildPreset": "tests-debug",
-    "testPreset": "tests-debug"
-  }
-}

@@ -1,9 +1,0 @@
-# Build
-build/
-Release/
-__pycache__/
-
-# IDE
-.vs/
-.vscode/
-.idea/
