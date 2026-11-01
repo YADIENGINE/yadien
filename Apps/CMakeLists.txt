@@ -19,7 +19,11 @@ set(LAUNCHER_RESOURCES "${LAUNCHER_BRAND_DIR}/Launcher.rc")
 add_executable(LauncherCli Cli/Main.cpp "${LAUNCHER_RESOURCES}")
 target_link_libraries(LauncherCli PRIVATE LauncherCore)
 # A console program named .com: in a terminal `<engine>` finds it before the windowed .exe (PATHEXT order)
-set_target_properties(LauncherCli PROPERTIES OUTPUT_NAME "${LAUNCHER_EXECUTABLE_NAME}" SUFFIX ".com")
+set_target_properties(LauncherCli PROPERTIES OUTPUT_NAME "${LAUNCHER_EXECUTABLE_NAME}" SUFFIX ".com"
+    PDB_NAME "${LAUNCHER_EXECUTABLE_NAME}-cli")
+# Same base name as the windowed program: parallel links must not share <name>.ilk (a clean Debug build fails otherwise).
+target_link_options(LauncherCli PRIVATE
+    "$<$<CONFIG:Debug>:/ILK:$<TARGET_FILE_DIR:LauncherCli>/${LAUNCHER_EXECUTABLE_NAME}-cli.ilk>")
 engine_warnings(LauncherCli)
 
 # A development build reads the repository's engines and tools and keeps its settings in the build tree

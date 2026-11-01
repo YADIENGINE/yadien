@@ -9,11 +9,10 @@ The launcher carries two engines (engine `Docs/Design/README.md` D16):
 
 ## New stable version
 
-1. In the engine repo: `EngineManifest.json` `version` + `notes` at the top (rules in engine `Docs/ToolsContract.md` →
-   Manifest; engine tests check them), commit, push, annotated tag `v<version>`, push the tag.
-2. Here: `git -C Engine fetch --tags` and `python Scripts/import_engine.py v<version>`.
-3. Commit the `Engines/` change (e.g. "Import engine 0.2.0"). The script reports more than 3 series; removing the oldest
-   is a separate commit.
+Edit `EngineManifest.json` (`version` + `notes` at the top; rules in engine `Docs/ToolsContract.md` → Manifest) and
+`LauncherManifest.json` (`engines`, usually a new launcher `version` + note), then run `python Scripts/dev.py release`
+([Packaging](Packaging.md#publish)). It commits, pushes and tags the engine, then runs `Scripts/import_engine.py` and
+removes series `engines` no longer lists. `import_engine.py` remains available by hand; `engines` must match afterwards.
 
 Patch flow: fix an older series on a branch from that tag in the engine repo, tag the new patch, and import it; the
 series folder is replaced with the new version.

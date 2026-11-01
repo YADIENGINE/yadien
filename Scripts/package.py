@@ -12,14 +12,13 @@ Steps: stage the files the launcher ships, write their license notices, run Velo
 
 The installer's icon and splash are the build's (build/Brand/, drawn by Scripts/brand.py at configure time).
 
-The package's version is the launcher's (LAUNCHER_VERSION in CMakeLists.txt); the Velopack id and title are the
+The package's version is the launcher's (LauncherManifest.json); the Velopack id and title are the
 product name from the engine manifest. Signing is not set up yet (design D19): vpk pack is where it would go.
 Only the standard library; the engine's notice helpers come from the engine checkout dev.py puts on sys.path.
 """
 
 import fnmatch
 import json
-import re
 import shutil
 import subprocess
 import sys
@@ -29,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # Scripts/, also when 
 from brand import SPLASH_PROGRESS  # noqa: E402
 from engine_location import REPOSITORY  # noqa: E402
 
+LAUNCHER_MANIFEST = "LauncherManifest.json"
 NOTICES_FILE = REPOSITORY / "Packaging" / "Notices.json"
 OUTPUT_NOTICES = "ThirdPartyNotices.txt"  # Core/Settings/LauncherLayout.h LicenseNoticesFile
 VELOPACK_DLL = "velopack_libc.dll"  # The name <engine>.exe imports (Apps/Ui/CMakeLists.txt copies it so)
@@ -39,11 +39,11 @@ class PackageFailed(Exception):
     pass
 
 
-def launcher_version(cmake_lists: Path = REPOSITORY / "CMakeLists.txt") -> str:
-    match = re.search(r'set\(LAUNCHER_VERSION "([0-9]+\.[0-9]+\.[0-9]+)"\)', cmake_lists.read_text(encoding="utf-8"))
-    if match is None:
-        raise PackageFailed(f"{cmake_lists}: LAUNCHER_VERSION not found")
-    return match.group(1)
+def launcher_version(manifest: Path = REPOSITORY / LAUNCHER_MANIFEST) -> str:
+    try:
+        return json.loads(manifest.read_text(encoding="utf-8"))["version"]
+    except (OSError, ValueError, KeyError) as error:
+        raise PackageFailed(f"{manifest}: no version ({error})") from error
 
 
 def excluded(relative: Path, patterns: list[str]) -> bool:
@@ -103,18 +103,24 @@ def setup_name(product: str, version: str) -> str:
 
 
 def pack(stage_dir: Path, releases: Path, brand: Path, product: str, executable: str, version: str,
-         runner=subprocess.run, vpk: str | None = None) -> Path:
+         runner=subprocess.run, vpk: str | None = None, notes: Path | None = None, overwrite: bool = False) -> Path:
+    """`notes` (Markdown) travels in the package; Velopack lists them in releases.win.json. `overwrite` answers vpk's
+    question about a version that is already in `releases`."""
     for name in ("Icon.ico", "Splash.png"):
         if not (brand / name).is_file():
             raise PackageFailed(f"{brand / name} is missing; configure the launcher build first")
+    if notes is not None and not notes.is_file():
+        raise PackageFailed(f"release notes {notes} not found")
     vpk = vpk or shutil.which("vpk")
     if vpk is None:
         raise PackageFailed("vpk not found; install it: dotnet tool install -g vpk (Docs/Packaging.md)")
     releases.mkdir(parents=True, exist_ok=True)
-    command = [vpk, "pack", "--packId", product, "--packVersion", version, "--packTitle", product, "--packAuthors",
-               product, "--packDir", str(stage_dir), "--mainExe", f"{executable}.exe", "--outputDir", str(releases),
-               "--icon", str(brand / "Icon.ico"), "--splashImage", str(brand / "Splash.png"), "--splashProgressColor",
-               SPLASH_PROGRESS]
+    command = [vpk, *(["--yes"] if overwrite else []), "pack", "--packId", product, "--packVersion", version,
+               "--packTitle", product, "--packAuthors", product, "--packDir", str(stage_dir), "--mainExe",
+               f"{executable}.exe", "--outputDir", str(releases), "--icon", str(brand / "Icon.ico"), "--splashImage",
+               str(brand / "Splash.png"), "--splashProgressColor", SPLASH_PROGRESS]
+    if notes is not None:
+        command += ["--releaseNotes", str(notes)]
     print(f"> {subprocess.list2cmdline(command)}", flush=True)
     if runner(command).returncode != 0:
         raise PackageFailed("vpk pack failed")
@@ -124,7 +130,8 @@ def pack(stage_dir: Path, releases: Path, brand: Path, product: str, executable:
 
 
 def package(engine: Path, build: Path, brand: Path, output: Path, cache: Path = REPOSITORY / "ToolCache",
-            engines: Path = REPOSITORY / "Engines", runner=subprocess.run) -> Path:
+            engines: Path = REPOSITORY / "Engines", runner=subprocess.run, notes: Path | None = None,
+            overwrite: bool = False) -> Path:
     """Stages a Release build and packs it; returns the setup executable."""
     from ThirdParty.notices import check_components, compose_notices, engine_notice, load_components
     from Tools.manifest import load_manifest
@@ -144,4 +151,5 @@ def package(engine: Path, build: Path, brand: Path, output: Path, cache: Path = 
     engine_text = engine_notice(manifest.name, manifest.version, (engine / "LICENSE").read_text(encoding="utf-8"))
     text = compose_notices(components, "Launcher", launcher_part, engine / "ThirdParty", engine_text=engine_text)
     (stage_dir / OUTPUT_NOTICES).write_text(text, encoding="utf-8", newline="\n")
-    return pack(stage_dir, output / "Releases", brand, product, executable, version, runner)
+    return pack(stage_dir, output / "Releases", brand, product, executable, version, runner, notes=notes,
+                overwrite=overwrite)

@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "engines": ["0.3.0"],
+  "notes": [
+    {
+      "version": "0.2.0",
+      "date": "2026-11-01",
+      "changes": ["Carries engine 0.3.0; engine 0.2 is no longer included"]
+    },
+    {
+      "version": "0.1.0",
+      "date": "2026-11-01",
+      "changes": ["First early preview"]
+    }
+  ]
+}

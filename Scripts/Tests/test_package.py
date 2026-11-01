@@ -101,6 +101,32 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(command[command.index("--mainExe") + 1], "myengine.exe")
         self.assertEqual(Path(command[command.index("--icon") + 1]).name, "Icon.ico")
         self.assertEqual(Path(command[command.index("--splashImage") + 1]).name, "Splash.png")
+        self.assertNotIn("--releaseNotes", command)
+        self.assertNotIn("--yes", command)
+
+    def test_pack_hands_release_notes_to_vpk(self):
+        calls = []
+
+        def runner(command):
+            calls.append(command)
+            self.write("Releases/MyEngine-win-Setup.exe")
+            return SimpleNamespace(returncode=0)
+
+        self.write("Brand/Icon.ico")
+        self.write("Brand/Splash.png")
+        notes = self.write("Notes.md", "- change")
+        pack(self.root / "Stage", self.root / "Releases", self.root / "Brand", "MyEngine", "myengine", "1.2.3", runner,
+             vpk="vpk", notes=notes, overwrite=True)
+        command = calls[0]
+        self.assertEqual(command[command.index("--releaseNotes") + 1], str(notes))
+        self.assertLess(command.index("--yes"), command.index("pack"))
+
+    def test_missing_release_notes_stop_before_vpk(self):
+        self.write("Brand/Icon.ico")
+        self.write("Brand/Splash.png")
+        with self.assertRaises(PackageFailed):
+            pack(self.root / "Stage", self.root / "Releases", self.root / "Brand", "MyEngine", "myengine", "1.2.3",
+                 vpk="vpk", notes=self.root / "Missing.md")
 
 
 if __name__ == "__main__":

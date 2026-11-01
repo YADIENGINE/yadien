@@ -10,6 +10,7 @@ python Scripts/dev.py build --release
 python Scripts/dev.py test            # build Debug + C++ tests (ctest) + script tests
 python Scripts/dev.py clean
 python Scripts/dev.py package         # Release build + installer (Packaging.md)
+python Scripts/dev.py release         # publish what the manifests ask for (Packaging.md -> Publish)
 ```
 
 `dev.py` gets the MSVC environment from the engine submodule's helper. Manually, in Developer PowerShell: `cmake

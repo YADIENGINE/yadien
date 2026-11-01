@@ -6,11 +6,13 @@ Usage, from the launcher repository:
     python Scripts/dev.py clean               delete build/
     python Scripts/dev.py pin-engine          point the launcher's Engine submodule at the engine checkout's HEAD
     python Scripts/dev.py package             Release build, then the installer (Scripts/package.py, Docs/Packaging.md)
+    python Scripts/dev.py release [--dry-run] publish what the manifests ask for (Scripts/release.py, Docs/Packaging.md)
 
 `--engine PATH` (before the command) picks the engine checkout; by default the launcher's own Engine/ submodule,
 or the enclosing project's Engine/ when the launcher sits inside a project (Scripts/engine_location.py). The MSVC
 environment comes from that engine's helper (Engine/Tools/msvc.py), so the launcher builds with the same compiler
-setup as the engine's projects.
+setup as the engine's projects. `--build-dir PATH` (before the command) picks the build tree; by default build/.
+The installer always goes to build/Package/.
 """
 
 import argparse
@@ -39,8 +41,8 @@ def output(command: list[str], cwd: Path) -> str:
     return result.stdout.strip()
 
 
-def cached(variable: str) -> str | None:
-    cache = BUILD / "CMakeCache.txt"
+def cached(tree: Path, variable: str) -> str | None:
+    cache = tree / "CMakeCache.txt"
     if not cache.is_file():
         return None
     for line in cache.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -49,27 +51,29 @@ def cached(variable: str) -> str | None:
     return None
 
 
-def configured_engine() -> Path | None:
-    engine = cached(ENGINE_CACHE_VARIABLE)
+def configured_engine(tree: Path) -> Path | None:
+    engine = cached(tree, ENGINE_CACHE_VARIABLE)
     return Path(engine).resolve() if engine else None
 
 
-def build(engine: Path, release: bool) -> dict[str, str]:
+def build(engine: Path, tree: Path, release: bool) -> dict[str, str]:
     from Tools.msvc import msvc_env, tool  # The chosen engine's helper (main puts it on sys.path)
 
-    env = msvc_env(BUILD / ".msvc-env.json")
+    env = msvc_env(tree / ".msvc-env.json")
     # The preset turns the window on; a build tree configured before it existed is configured again.
-    if not (BUILD / "build.ninja").exists() or configured_engine() != engine or cached("LAUNCHER_BUILD_UI") != "ON":
-        run([tool("cmake"), "--preset", "launcher", f"-D{ENGINE_CACHE_VARIABLE}={engine.as_posix()}"], env)
-    run([tool("cmake"), "--build", "--preset", "release" if release else "debug"], env)
+    if (not (tree / "build.ninja").exists() or configured_engine(tree) != engine
+            or cached(tree, "LAUNCHER_BUILD_UI") != "ON"):
+        run([tool("cmake"), "--preset", "launcher", "-B", str(tree), f"-D{ENGINE_CACHE_VARIABLE}={engine.as_posix()}"],
+            env)
+    run([tool("cmake"), "--build", str(tree), "--config", "Release" if release else "Debug"], env)
     return env
 
 
-def test(engine: Path) -> None:
-    env = build(engine, release=False)
+def test(engine: Path, tree: Path) -> None:
+    env = build(engine, tree, release=False)
     from Tools.msvc import tool
 
-    run([tool("ctest"), "--preset", "debug"], env)
+    run([tool("ctest"), "--test-dir", str(tree), "-C", "Debug", "--output-on-failure"], env)
     suite = unittest.defaultTestLoader.discover(str(REPOSITORY / "Scripts" / "Tests"), top_level_dir=str(REPOSITORY))
     if not unittest.TextTestRunner(verbosity=1).run(suite).wasSuccessful():
         raise SystemExit(1)
@@ -93,15 +97,21 @@ def pin_engine(engine: Path) -> None:
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Build and test the launcher")
     parser.add_argument("--engine", type=Path, help="engine checkout (default: see Scripts/engine_location.py)")
+    parser.add_argument("--build-dir", type=Path, default=BUILD, help="build tree (default: build/)")
     commands = parser.add_subparsers(dest="command", required=True)
     command = commands.add_parser("build")
     command.add_argument("--release", action="store_true")
     commands.add_parser("test")
     commands.add_parser("clean")
     commands.add_parser("pin-engine")
-    commands.add_parser("package")
+    command = commands.add_parser("package")
+    command.add_argument("--notes", type=Path, help="Markdown release notes to put in the package")
+    command.add_argument("--yes", action="store_true", help="overwrite this version in build/Package/Releases/")
+    command = commands.add_parser("release")
+    command.add_argument("--dry-run", action="store_true", help="show the plan and run the checks; change nothing")
     args = parser.parse_args(argv)
 
+    tree = args.build_dir.resolve()
     engine = (args.engine or default_engine()).resolve()
     if not (engine / MANIFEST_FILE).is_file():
         print(f"error: no engine at {engine}; run: git submodule update --init Engine", file=sys.stderr)
@@ -113,23 +123,28 @@ def main(argv: list[str]) -> int:
     try:
         match args.command:
             case "build":
-                build(engine, args.release)
+                build(engine, tree, args.release)
             case "test":
-                test(engine)
+                test(engine, tree)
             case "clean":
-                shutil.rmtree(BUILD, ignore_errors=True)
+                shutil.rmtree(tree, ignore_errors=True)
             case "pin-engine":
                 pin_engine(engine)
             case "package":
                 from package import PackageFailed, package
 
-                build(engine, release=True)
+                build(engine, tree, release=True)
                 try:
-                    setup = package(engine, BUILD / "Release", BUILD / "Brand", BUILD / "Package")
+                    setup = package(engine, tree / "Release", tree / "Brand", BUILD / "Package", notes=args.notes,
+                                    overwrite=args.yes)
                 except PackageFailed as error:
                     print(f"error: {error}", file=sys.stderr)
                     return 1
                 print(f"Installer: {setup}")
+            case "release":
+                from release import run_release
+
+                return run_release(engine, args.dry_run)
     except ToolError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
