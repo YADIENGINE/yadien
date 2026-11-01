@@ -1,0 +1,21 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.wav binary
+*.ogg binary
+*.ttf binary
+*.ico binary
+
+# Engine geliştirmeye ait dosyalar launcher'ın kullanıcı kopyasına girmez (içe aktarma `git archive` kullanır)
+/CLAUDE.md export-ignore
+/Docs/Design export-ignore
+
+# Bağımlılık kaynakları bayt bayt upstream'deki gibi saklanır (ThirdParty/README.md)
+/ThirdParty/raylib/** -text
+/ThirdParty/nlohmann_json/** -text
+/ThirdParty/imgui/** -text
+/ThirdParty/rlImGui/** -text
+/ThirdParty/Catch2/** -text
+/ThirdParty/NotoSans/** -text
+/ThirdParty/libvterm/** -text
