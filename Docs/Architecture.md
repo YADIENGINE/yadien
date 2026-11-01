@@ -18,7 +18,9 @@ Core/                LauncherCore: headless core, include root (#include "Projec
                      ProjectLaunch (Open, Run), ProjectScan, CopyIntegrity (read-only), EngineUpdate, NewProject
   Settings/          LauncherLayout, LauncherSettings (Settings.json), ProjectList
   Developer/         DeveloperGit (submodule operations)
-  System/            Toolchain (Toolchain.json), SystemCheck (tools, vswhere, winget, git), UserPath (PATH)
+  System/            Toolchain (Toolchain.json), SystemCheck (tools, vswhere, winget, git), UserPath (PATH),
+                     CommandActivity (running commands an update waits for)
+  Update/            UpdateController (the launcher's own update), ReleaseSource (GitHub releases), UpdateNotes
   Cli/               EngineCommand (forwarding), CommandLine (<engine>.com)
 Apps/
   Cli/Main.cpp       <engine>.com (console)

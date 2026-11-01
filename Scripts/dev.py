@@ -7,6 +7,7 @@ Usage, from the launcher repository:
     python Scripts/dev.py pin-engine          point the launcher's Engine submodule at the engine checkout's HEAD
     python Scripts/dev.py package             Release build, then the installer (Scripts/package.py, Docs/Packaging.md)
     python Scripts/dev.py release [--dry-run] publish what the manifests ask for (Scripts/release.py, Docs/Packaging.md)
+    python Scripts/dev.py update-test [--keep] update an installed launcher to a next version from local files
 
 `--engine PATH` (before the command) picks the engine checkout; by default the launcher's own Engine/ submodule,
 or the enclosing project's Engine/ when the launcher sits inside a project (Scripts/engine_location.py). The MSVC
@@ -109,6 +110,8 @@ def main(argv: list[str]) -> int:
     command.add_argument("--yes", action="store_true", help="overwrite this version in build/Package/Releases/")
     command = commands.add_parser("release")
     command.add_argument("--dry-run", action="store_true", help="show the plan and run the checks; change nothing")
+    command = commands.add_parser("update-test")
+    command.add_argument("--keep", action="store_true", help="stop after installing the first version, to try the panel")
     args = parser.parse_args(argv)
 
     tree = args.build_dir.resolve()
@@ -145,6 +148,18 @@ def main(argv: list[str]) -> int:
                 from release import run_release
 
                 return run_release(engine, args.dry_run)
+            case "update-test":
+                from Tools.msvc import tool
+                from package import PackageFailed
+                from update_test import run_update_test
+
+                env = build(engine, tree, release=True)
+                run([tool("cmake"), "--build", str(tree), "--config", "Release", "--target", "LauncherUpdateProbe"], env)
+                try:
+                    return run_update_test(engine, tree, args.keep)
+                except PackageFailed as error:
+                    print(f"error: {error}", file=sys.stderr)
+                    return 1
     except ToolError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

@@ -51,6 +51,24 @@ then
 uninstall from Windows Settings → Apps. Velopack closes every program running from the install folder when a
 version is installed over it (D15): close the launcher and let builds finish first.
 
+## Test the update
+
+```powershell
+python Scripts/dev.py update-test          # install, update, check, uninstall; a few minutes
+python Scripts/dev.py update-test --keep   # stop after the install and print how to open that launcher
+```
+
+It packs the current build twice as the next two versions of a separate id (no shortcuts, the real installation and its
+settings are not touched), installs the first under `build/UpdateTest/` and updates it to the second with the launcher's
+real update code (`Tests/UpdateProbe.cpp`), the release list served from local files through `LAUNCHER_UPDATE_API`. It
+checks that an unreachable server is an error, that the delta and the notes arrive, that the new version is in place and
+runs, and that the data folder survives; the uninstall must leave PATH as it was. It also prints what a check against
+the real GitHub releases returns. `dev.py release` runs it before packaging: a release with a broken update would strand
+its users, because a launcher that cannot update can only be replaced by hand with a new Setup.
+
+With `--keep`, the window goes through the same steps by hand; the panel's other states are in the UI snapshots
+(`Development.md`, `update-*.png`).
+
 ## Publish
 
 Edit the manifests, then run one command:
@@ -65,6 +83,7 @@ python Scripts/dev.py release
 ```json
 {
   "version": "0.3.0",
+  "repository": "https://github.com/owner/repo",
   "engines": ["0.4.0", "0.3.1"],
   "notes": [ { "version": "0.3.0", "date": "2026-11-02", "changes": ["..."] } ]
 }
@@ -81,7 +100,7 @@ GitHub release get released; the rest is left alone. If a run stops, fix the cau
 2. **Engine.** Its tests (`python . test` in the checkout), commit the manifest, push, annotated tag, push the tag.
 3. **Launcher.** Import or remove engines, move the Engine pointer up to the newest carried engine when it is behind
    (a pointer past that tag stays; `dev.py pin-engine` moves it further), commit locally.
-4. **Installer.** Tests, `dev.py package` in `build/ReleaseBuild/`, against a worktree of the pinned engine commit in
+4. **Installer.** Tests, the update test (above) and `dev.py package` in `build/ReleaseBuild/`, against a worktree of the pinned engine commit in
    `build/ReleaseEngine/`, so the shared engine checkout and the development build tree do not matter. If the previous
    release's full package is gone from `build/Package/Releases/`, `vpk download github` brings it back for the delta.
 5. **Your try.** The script prints the installer's path and asks before publishing (see Try it). Answering no keeps

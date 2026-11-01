@@ -9,7 +9,10 @@
 #include "Settings/LauncherSettings.h"
 #include "System/SystemCheck.h"
 #include "System/AudioTools.h"
+#include "System/CommandActivity.h"
 #include "System/Toolchain.h"
+#include "Update/UpdateController.h"
+#include "Update/UpdateNotes.h"
 #include <cstddef>
 #include <filesystem>
 #include <functional>
@@ -22,7 +25,7 @@
 // Where the launcher is (engine Docs/Design/README.md D15 → Düzen ve gezinme). Tabs fill the window, a panel is
 // drawn over the tab (at most one), a confirmation is a small popup.
 enum class LauncherTab { Projects, Engines };
-enum class LauncherPanel { None, NewProject, Settings, SystemCheck, EngineUpdate, Job };
+enum class LauncherPanel { None, NewProject, Settings, SystemCheck, EngineUpdate, Job, Update };
 // Small confirmations: remove a project from the list, enter developer mode (warning), publish engine changes
 // (commit message).
 enum class Confirmation { None, RemoveProject, DeveloperMode, PublishEngine };
@@ -65,7 +68,9 @@ struct ConfirmationForm {
 // All work is in LauncherCore; this class only orders it: jobs, navigation, settings saves, notices.
 class LauncherModel {
 public:
-    explicit LauncherModel(LauncherLayout layout);
+    // `updates`: null when the launcher cannot update itself (a development build). `justUpdated`: says so in a notice.
+    explicit LauncherModel(LauncherLayout layout, std::unique_ptr<UpdateBackend> updates = nullptr,
+                           bool justUpdated = false);
     ~LauncherModel();
 
     // Applies queued actions and collects finished jobs. Called once per frame before drawing.
@@ -165,6 +170,25 @@ public:
     void AskDeveloperMode(); // → Confirmation::DeveloperMode (warning, no password: design D19)
     void LeaveDeveloperMode();
 
+    // --- Launcher update (top bar button, Update panel, Settings) ---
+    [[nodiscard]] bool UpdatesSupported() const { return _updates.Supported(); }
+    [[nodiscard]] UpdatePhase UpdateState() const { return _updates.Phase(); }
+    [[nodiscard]] const std::optional<AvailableUpdate>& Update() const { return _updates.Update(); }
+    [[nodiscard]] const std::vector<UpdateNote>& UpdateNotes() const { return _updateNotes; }
+    [[nodiscard]] int UpdateProgress() const { return _updates.Progress(); }
+    [[nodiscard]] const std::string& UpdateError() const { return _updates.Error(); }
+    // Whether the top bar offers the update: known, and not the version the user skipped.
+    [[nodiscard]] bool UpdateOffered() const;
+    [[nodiscard]] bool ChecksForUpdates() const { return _settings.checkForUpdates; }
+    void SetChecksForUpdates(bool enabled);
+    void CheckForUpdates(); // Asked by the user: opens the panel and offers even a skipped version
+    void OpenUpdatePanel();
+    void DownloadUpdate();
+    void CancelUpdateDownload();
+    void SkipUpdate();
+    void RestartToUpdate(); // Waits for running commands, then the launcher closes and comes back updated
+    void CancelUpdateRestart();
+
     // --- Confirmations ---
     [[nodiscard]] Confirmation Pending() const { return _confirmation; }
     [[nodiscard]] const ProjectRow* PendingProject() const;
@@ -187,6 +211,7 @@ private:
         std::unique_ptr<BackgroundJob> job;
         std::string failureTitle;
         std::function<void()> onSuccess;
+        std::unique_ptr<CommandActivity> activity; // Another launcher window's update waits for this job too
     };
 
     void Queue(std::function<void()> action);
@@ -237,11 +262,14 @@ private:
     std::vector<std::function<void()>> _requests;
     std::vector<std::string> _jobOutput;
     std::size_t _jobLine = 0;
+    std::vector<UpdateNote> _updateNotes;
+    std::string _updateNotesVersion; // The version _updateNotes were parsed for
     // Jobs last: destroyed (canceled and joined) before the state they report into.
     std::unique_ptr<Job<std::vector<ProjectDetails>>> _details;
     std::unique_ptr<Job<SystemReport>> _systemJob;
     std::unique_ptr<Job<EngineUpdatePlan>> _planJob;
     std::optional<ForegroundJob> _job;
+    UpdateController _updates;
 
 public:
     LauncherModel(const LauncherModel&) = delete;

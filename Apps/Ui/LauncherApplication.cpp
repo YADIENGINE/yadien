@@ -27,15 +27,16 @@ GameSettings LauncherWindow() {
 }
 } // namespace
 
-int RunLauncherWindow(LauncherLayout layout) {
-    LauncherApplication application(std::move(layout));
+int RunLauncherWindow(LauncherLayout layout, std::unique_ptr<UpdateBackend> updates, bool justUpdated) {
+    LauncherApplication application(std::move(layout), std::move(updates), justUpdated);
     application.Run();
     return 0;
 }
 
-LauncherApplication::LauncherApplication(LauncherLayout layout)
+LauncherApplication::LauncherApplication(LauncherLayout layout, std::unique_ptr<UpdateBackend> updates,
+                                         bool justUpdated)
     : Game(LauncherWindow())
-    , _model(std::move(layout))
+    , _model(std::move(layout), std::move(updates), justUpdated)
     , _ui(ToolUiOptions{.keyboardNavigation = true}) {}
 
 LauncherApplication::~LauncherApplication() = default;

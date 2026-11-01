@@ -27,9 +27,13 @@ add_library(LauncherCore STATIC
     Settings/LauncherSettings.cpp
     Settings/ProjectList.cpp
     System/AudioTools.cpp
+    System/CommandActivity.cpp
     System/SystemCheck.cpp
     System/Toolchain.cpp
     System/UserPath.cpp
+    Update/ReleaseSource.cpp
+    Update/UpdateController.cpp
+    Update/UpdateNotes.cpp
 )
 target_include_directories(LauncherCore PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(LauncherCore PUBLIC nlohmann_json::nlohmann_json
@@ -38,5 +42,6 @@ target_compile_definitions(LauncherCore PUBLIC
     LAUNCHER_PRODUCT_NAME="${LAUNCHER_PRODUCT_NAME}"
     LAUNCHER_EXECUTABLE_NAME="${LAUNCHER_EXECUTABLE_NAME}"
     LAUNCHER_VERSION="${LAUNCHER_VERSION}"
+    LAUNCHER_REPOSITORY="${LAUNCHER_REPOSITORY}"
     UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 engine_warnings(LauncherCore)

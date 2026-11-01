@@ -21,6 +21,8 @@ struct LauncherSettings {
     std::vector<ProjectEntry> projects;   // In the order added; the UI sorts
     std::filesystem::path projectsFolder; // Where "New project" proposes; empty → DefaultProjectsFolder()
     ProjectSort projectSort = ProjectSort::LastOpened;
+    bool checkForUpdates = true; // At every start of the window
+    std::string skippedUpdate;   // The version "Skip this version" hides; a newer one is offered again
 };
 
 inline constexpr int LauncherSettingsFormat = 1;

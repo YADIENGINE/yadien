@@ -38,6 +38,7 @@ const char* PanelTitle(LauncherPanel panel) {
     case LauncherPanel::SystemCheck : return "System check";
     case LauncherPanel::EngineUpdate: return "Review engine change";
     case LauncherPanel::Job         : return "Activity";
+    case LauncherPanel::Update      : return "Launcher update";
     }
     return "";
 }
@@ -62,6 +63,22 @@ ToolTone SystemTone(SystemState state) {
     return ToolTone::Information;
 }
 
+// The top bar's offer: "Update 0.3.1", the download's percentage or the restart it needs.
+std::string UpdateButtonLabel(const LauncherModel& model) {
+    switch (model.UpdateState()) {
+    case UpdatePhase::Downloading:
+        return std::string(ICON_FA_DOWNLOAD " Updating ") + std::to_string(model.UpdateProgress()) + "%";
+    case UpdatePhase::Ready:
+    case UpdatePhase::WaitingForCommands: return ICON_FA_ROTATE " Restart to update";
+    case UpdatePhase::Idle              :
+    case UpdatePhase::Checking          :
+    case UpdatePhase::UpToDate          :
+    case UpdatePhase::Available         :
+    case UpdatePhase::Failed            : break;
+    }
+    return std::string(ICON_FA_CIRCLE_ARROW_UP " Update ") + model.Update()->version;
+}
+
 bool ContinueStatusBar(const char* label) {
     const float gap = ToolMetrics::SectionGap * ToolUiScale();
     const auto last = ImGui::GetItemRectMax();
@@ -81,7 +98,7 @@ void DrawPanel(LauncherModel& model) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImVec2 size{DefaultPanelWidth * scale, DefaultPanelHeight * scale};
     if (panel == LauncherPanel::Settings) size = {SettingsWidth * scale, SettingsHeight * scale};
-    if (panel == LauncherPanel::SystemCheck) size.x = SystemPanelWidth * scale;
+    if (panel == LauncherPanel::SystemCheck || panel == LauncherPanel::Update) size.x = SystemPanelWidth * scale;
     if (panel == LauncherPanel::Job || panel == LauncherPanel::EngineUpdate)
         size = {WidePanelWidth * scale, WidePanelHeight * scale};
     size.x = std::min(size.x, viewport->WorkSize.x - PanelMargin * scale * 2);
@@ -116,6 +133,7 @@ void DrawPanel(LauncherModel& model) {
         case LauncherPanel::SystemCheck : DrawSystemCheckPanel(model); break;
         case LauncherPanel::EngineUpdate: DrawEngineUpdatePanel(model); break;
         case LauncherPanel::Job         : DrawJobPanel(model); break;
+        case LauncherPanel::Update      : DrawUpdatePanel(model); break;
         }
     }
     ImGui::End();
@@ -209,17 +227,33 @@ void DrawTopBar(LauncherModel& model) {
         ImGui::PushFont(ToolFont(ToolFontRole::Medium), ToolMetrics::BodySize);
         const std::string status = std::string("    ") + SystemLabel(model.System());
         const char* settings = ICON_FA_GEAR " Settings";
+        const bool updateOffered = model.UpdateOffered();
+        const std::string updateLabel = updateOffered ? UpdateButtonLabel(model) : std::string();
+        const float spacing = ImGui::GetStyle().ItemSpacing.x;
         float rightWidth = ImGui::CalcTextSize(status.c_str()).x + ImGui::CalcTextSize(settings).x +
-                           ImGui::GetStyle().FramePadding.x * 4 + ImGui::GetStyle().ItemSpacing.x;
+                           ImGui::GetStyle().FramePadding.x * 4 + spacing;
+        if (updateOffered)
+            rightWidth += ImGui::CalcTextSize(updateLabel.c_str()).x + ImGui::GetStyle().FramePadding.x * 2 + spacing;
         const float rightEdge = ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x;
         const bool compact =
             ImGui::GetWindowPos().x + rightEdge - rightWidth < ImGui::GetItemRectMax().x + TopBarGap * scale;
-        if (compact) rightWidth = ImGui::GetFrameHeight() * 2 + ImGui::GetStyle().ItemSpacing.x;
+        if (compact) rightWidth = ImGui::GetFrameHeight() * (updateOffered ? 3 : 2) + spacing * (updateOffered ? 2 : 1);
         const float rightStart = rightEdge - rightWidth;
         if (ImGui::GetWindowPos().x + rightStart >= ImGui::GetItemRectMax().x + TopBarGap * scale)
             ImGui::SameLine(std::floor(rightStart));
         else
             ContinueToolToolbar(rightWidth, true);
+        if (updateOffered) {
+            const std::string updateId = updateLabel + "###launcher-update";
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  compact ? ToolPalette::Accent : ImGui::GetStyleColorVec4(ImGuiCol_Text));
+            const bool updatePressed =
+                compact ? ToolIconButton("launcher-update", ICON_FA_CIRCLE_ARROW_UP, updateLabel.c_str())
+                        : ToolButton(updateId.c_str(), {}, true);
+            ImGui::PopStyleColor();
+            if (updatePressed) model.OpenUpdatePanel();
+            ImGui::SameLine();
+        }
         ImGui::PushStyleColor(ImGuiCol_Text, ToolPalette::Secondary);
         const bool checkPressed =
             compact ? ToolIconButton("system-check", "", SystemLabel(model.System())) : ToolButton(status.c_str());

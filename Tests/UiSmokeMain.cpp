@@ -63,7 +63,9 @@ int main(int argc, char** argv) {
         return 1;
     }
     std::cout << "Workspace actions: passed\n";
-    UiSmoke smoke(empty, populated, output);
+    const LauncherLayout updating{empty.enginesFolder, empty.toolsFolder, temp.Path() / "UpdateData"};
+    if (!SaveLauncherSettings(updating.SettingsFile(), settings).Ok()) return 1;
+    UiSmoke smoke(empty, populated, updating, output);
     smoke.Run();
     std::cout << "UI checks: " << smoke.Failures() << " failures\n";
     return smoke.Failures() == 0 ? 0 : 1;

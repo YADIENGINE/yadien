@@ -193,6 +193,27 @@ engine (D6). Details: [Architecture](Architecture.md#cli).
 
 The folder is `LauncherLayout::AudioToolsFolder()` (`<data>/AudioTools`). Toolchain.md has the file layout.
 
+## Launcher update (`Update/`, `System/CommandActivity.h`)
+
+The launcher updates itself through Velopack (engine `Docs/Design/README.md` → D15 "In-app update"). The core does not
+link Velopack: `Apps/Ui/Update/VelopackUpdates` implements `UpdateBackend`, null in a development build.
+
+| API | Job |
+| --- | --- |
+| `UpdateController(backend, commandsRunning)` | The state machine, with its jobs: `Check(userAsked)`, `Download`, `CancelDownload`, `Restart`, `CancelRestart`, `Dismiss`, `Tick` every frame; `Phase()`, `Update()`, `Progress()`, `Error()`, `QuitRequested()` |
+| `ReleaseSource(apiUrl, includePrereleases, scratch)` | Reads GitHub's release list and every release's feed, downloads the packages through `DownloadFile` (cancelable, system proxy); Velopack verifies their SHA-256 |
+| `ReleasesApiUrl`, `IncludesPrereleases`, `ParseReleases`, `MergeFeeds` | Its pure parts; a 0.x launcher reads pre-releases, from 1.0 only stable releases |
+| `ParseUpdateNotes`, `FormatDownloadSize` | What the panel draws |
+| `CommandActivity(folder)`, `CommandsRunning(folder)` | Marks a running command; an update waits until none is left |
+
+An automatic check says nothing unless it finds an update: being offline or over GitHub's limit (60 requests an hour per
+IP) is not an error. `<engine>.com` and the window's foreground jobs hold a `CommandActivity`, because Velopack closes
+everything running from the install folder without asking. The editor runs from the project's `build/` and survives; a
+Build & Refresh running at that moment fails and can be repeated.
+
+`LauncherSettings::checkForUpdates` turns the startup check off, `skippedUpdate` hides one version until a newer one is
+out; a check the user asks for clears it. The repository comes from `LauncherManifest.json` (`LAUNCHER_REPOSITORY`).
+
 ## Deliberately excluded in this session
 
 - Installation, shortcuts, Apps registration, in-place updates: done with Velopack ([Packaging](Packaging.md)).

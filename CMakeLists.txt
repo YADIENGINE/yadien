@@ -35,6 +35,7 @@ string(TOLOWER "${LAUNCHER_PRODUCT_NAME}" LAUNCHER_EXECUTABLE_NAME)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/LauncherManifest.json")
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/LauncherManifest.json" launcherOwnManifest)
 string(JSON LAUNCHER_VERSION GET "${launcherOwnManifest}" version)
+string(JSON LAUNCHER_REPOSITORY GET "${launcherOwnManifest}" repository)
 
 # build/<Config>/: <engine>.com, the UI's <engine>.exe and the tests side by side
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")

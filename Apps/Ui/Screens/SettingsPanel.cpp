@@ -27,6 +27,17 @@ void DrawSettingsPanel(LauncherModel& model) {
             LauncherMutedText("Restart your terminal app (Windows Terminal, VS Code) after changing PATH.");
             if (ToolSingleLineButton(ICON_FA_FOLDER_OPEN " Open installation folder")) model.OpenInstallFolder();
         }
+        if (ToolSectionHeader("Updates")) {
+            const std::string running = std::string("Launcher ") + LauncherModel::LauncherVersion();
+            LauncherMutedText(running.c_str());
+            if (model.UpdatesSupported()) {
+                bool automatic = model.ChecksForUpdates();
+                if (ImGui::Checkbox("Check for updates at startup", &automatic)) model.SetChecksForUpdates(automatic);
+                if (ToolSingleLineButton(ICON_FA_ROTATE " Check for updates now")) model.CheckForUpdates();
+            } else {
+                LauncherMutedText("Installed launchers update themselves.");
+            }
+        }
         if (model.AudioTools() != AudioToolsState::NotOffered && ToolSectionHeader("Audio tools", false)) {
             LauncherMutedText("NumPy and SciPy for the engine's offline sound generator (AudioGeneration). "
                               "Downloaded only when you install them, about 50 MB.");

@@ -4,11 +4,12 @@
 #include "Runtime/Game.h"
 #include "ToolUi/ToolUiContext.h"
 #include <filesystem>
+#include <memory>
 
 // <engine>.exe: an engine Game window drawn entirely with the tool UI (ToolUi). Ticks the model, draws the screens.
 class LauncherApplication : public Game {
 public:
-    explicit LauncherApplication(LauncherLayout layout);
+    LauncherApplication(LauncherLayout layout, std::unique_ptr<UpdateBackend> updates, bool justUpdated);
     ~LauncherApplication() override;
 
 protected:

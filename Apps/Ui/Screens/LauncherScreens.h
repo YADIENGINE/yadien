@@ -25,6 +25,7 @@ void DrawSettingsPanel(LauncherModel& model);
 void DrawSystemCheckPanel(LauncherModel& model);
 void DrawEngineUpdatePanel(LauncherModel& model);
 void DrawJobPanel(LauncherModel& model);
+void DrawUpdatePanel(LauncherModel& model);
 
 // Confirmation popup (Pending() != Confirmation::None).
 void DrawConfirmation(LauncherModel& model);

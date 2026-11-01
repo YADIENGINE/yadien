@@ -23,6 +23,8 @@ Result<LauncherSettings> LoadLauncherSettings(const std::filesystem::path& file)
     LauncherSettings settings;
     settings.mode = data.value("mode", "user") == ModeNames[1] ? LauncherMode::Developer : LauncherMode::User;
     settings.projectsFolder = Utf8ToPath(data.value("projectsFolder", ""));
+    settings.checkForUpdates = data.value("checkForUpdates", true);
+    settings.skippedUpdate = data.value("skippedUpdate", "");
     const std::string sort = data.value("projectSort", SortNames[0]);
     for (std::size_t i = 0; i < SortNames.size(); ++i)
         if (sort == SortNames[i]) settings.projectSort = static_cast<ProjectSort>(i);
@@ -42,6 +44,8 @@ Status SaveLauncherSettings(const std::filesystem::path& file, const LauncherSet
         {"mode", ModeNames[settings.mode == LauncherMode::Developer ? 1 : 0]},
         {"projectsFolder", PathToUtf8(settings.projectsFolder)},
         {"projectSort", SortNames[static_cast<std::size_t>(settings.projectSort)]},
+        {"checkForUpdates", settings.checkForUpdates},
+        {"skippedUpdate", settings.skippedUpdate},
         {"projects", projects},
     };
     return WriteJsonFileAtomic(file, data);

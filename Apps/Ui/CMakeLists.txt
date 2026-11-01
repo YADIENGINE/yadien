@@ -12,6 +12,7 @@ add_library(LauncherUiPresentation STATIC
     Screens/SystemCheckPanel.cpp
     Screens/EngineUpdatePanel.cpp
     Screens/JobPanel.cpp
+    Screens/UpdatePanel.cpp
     Screens/Confirmation.cpp)
 target_include_directories(LauncherUiPresentation PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 # MSVC searches a library only where it first appears: raylib must follow Engine (its PlaySound, not winmm's) and come
@@ -32,8 +33,14 @@ set_target_properties(Velopack PROPERTIES
     IMPORTED_IMPLIB "${LAUNCHER_VELOPACK_DIR}/lib/velopack_libc_win_x64_msvc.dll.lib"
     INTERFACE_INCLUDE_DIRECTORIES "${LAUNCHER_VELOPACK_DIR}/include")
 
+# The update backend apart from the presentation, which stays free of Velopack (Tests/UiSmoke links it with a fake).
+add_library(LauncherVelopack STATIC Update/VelopackUpdates.cpp)
+target_include_directories(LauncherVelopack PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(LauncherVelopack PUBLIC LauncherCore Velopack)
+engine_warnings(LauncherVelopack)
+
 add_executable(LauncherUi WIN32 Main.cpp LauncherApplication.cpp InstallerHooks.cpp "${LAUNCHER_RESOURCES}")
-target_link_libraries(LauncherUi PRIVATE LauncherUiPresentation Velopack)
+target_link_libraries(LauncherUi PRIVATE LauncherUiPresentation LauncherVelopack)
 set_target_properties(LauncherUi PROPERTIES OUTPUT_NAME "${LAUNCHER_EXECUTABLE_NAME}")
 add_custom_command(TARGET LauncherUi POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:Velopack>"

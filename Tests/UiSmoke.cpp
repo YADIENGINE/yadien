@@ -1,16 +1,46 @@
 #include "UiSmoke.h"
 #include <imgui_internal.h>
+#include <raylib.h>
 #include <rlgl.h>
 #include <array>
+#include <atomic>
+#include <cstdint>
 #include <iostream>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include "Screens/LauncherScreens.h"
+#include "System/CommandActivity.h"
+#include "System/UserPath.h"
 #include "ToolUi/ToolTheme.h"
 #include "ToolUi/ToolWindow.h"
 
+struct UpdateSmokeState {
+    std::atomic<bool> upToDate = true;
+    std::atomic<bool> finishDownload = false;
+    std::atomic<bool> failDownload = false;
+};
+
 namespace {
-enum class SmokeView { Empty, Create, Settings, Engines, Scrolled, List, Inspector, Search, NoResults };
+enum class SmokeView {
+    Empty,
+    Create,
+    Settings,
+    Engines,
+    Scrolled,
+    List,
+    Inspector,
+    Search,
+    NoResults,
+    UpdateUpToDate,
+    UpdateAvailable,
+    UpdateButton,
+    UpdateDownloading,
+    UpdateFailed,
+    UpdateReady,
+    UpdateReadyButton,
+    UpdateWaiting
+};
 struct SmokeStage {
     const char* name;
     SmokeView view;
@@ -34,6 +64,18 @@ constexpr std::array Stages{
     SmokeStage{"empty-200", SmokeView::Empty, 900, 560, 200},
     SmokeStage{"empty-200-list", SmokeView::Scrolled, 900, 560, 200},
     SmokeStage{"empty-75", SmokeView::Empty, 900, 560, 75},
+    // One update walked through its states, in this order.
+    SmokeStage{"update-up-to-date", SmokeView::UpdateUpToDate},
+    SmokeStage{"update-available", SmokeView::UpdateAvailable},
+    SmokeStage{"update-available-narrow-150", SmokeView::UpdateAvailable, 900, 560, 150},
+    SmokeStage{"update-button", SmokeView::UpdateButton},
+    SmokeStage{"update-button-narrow", SmokeView::UpdateButton, 900, 560},
+    SmokeStage{"update-button-compact", SmokeView::UpdateButton, 900, 560, 200},
+    SmokeStage{"update-downloading", SmokeView::UpdateDownloading},
+    SmokeStage{"update-failed", SmokeView::UpdateFailed},
+    SmokeStage{"update-ready", SmokeView::UpdateReady},
+    SmokeStage{"update-ready-button", SmokeView::UpdateReadyButton},
+    SmokeStage{"update-waiting", SmokeView::UpdateWaiting},
 };
 constexpr int FramesPerStage = 5;
 
@@ -49,14 +91,87 @@ GameSettings SmokeSettings() {
 }
 
 bool Populated(SmokeView view) { return view >= SmokeView::List; }
+bool Updating(SmokeView view) { return view >= SmokeView::UpdateUpToDate; }
+
+constexpr int SmokeDownloadPercent = 42;
+constexpr std::uint64_t SmokeDownloadBytes = 9045317;
+constexpr const char* SmokeNotes = R"(Early preview. For testing. Windows only, unsigned (SmartScreen asks to confirm).
+
+Launcher 0.3.1, contains engine 0.3.1.
+
+- The launcher now updates itself: a button in the top bar shows when a new version is out
+- Settings has a switch for the check at startup
+
+Engine 0.3.1:
+
+- Breaking: Editor previews are editor scenes now. Migrate: rename the worker target in the project's CMakeLists.txt
+- Console scrolling keeps its place while new output arrives
+- A much longer line so the panel's wrapping can be judged: new standalone graphics are registered by default and show up in the Assets panel without restarting the editor
+)";
+
+class SmokeUpdates final : public UpdateBackend {
+public:
+    explicit SmokeUpdates(std::shared_ptr<UpdateSmokeState> state)
+        : _state(std::move(state)) {}
+    std::optional<AvailableUpdate> Pending() override { return std::nullopt; }
+    Result<std::optional<AvailableUpdate>> Check(const std::atomic<bool>*) override {
+        if (_state->upToDate) return std::optional<AvailableUpdate>{};
+        return std::optional<AvailableUpdate>(AvailableUpdate{"0.3.1", SmokeDownloadBytes, SmokeNotes});
+    }
+    Status Download(const std::function<void(int)>& progress, const std::atomic<bool>* cancel) override {
+        progress(SmokeDownloadPercent);
+        while (!_state->finishDownload && !cancel->load())
+            std::this_thread::yield();
+        if (cancel->load()) return Status::Failure("Download canceled");
+        if (_state->failDownload) return Status::Failure("Cannot download the update (check the internet connection)");
+        return Status::Success();
+    }
+    Status ApplyAfterExit(bool) override { return Status::Success(); }
+
+private:
+    std::shared_ptr<UpdateSmokeState> _state;
+};
 } // namespace
 
-UiSmoke::UiSmoke(LauncherLayout empty, LauncherLayout populated, std::filesystem::path output)
+UiSmoke::UiSmoke(LauncherLayout empty, LauncherLayout populated, LauncherLayout updating, std::filesystem::path output)
     : Game(SmokeSettings())
     , _output(std::move(output))
+    , _updateState(std::make_shared<UpdateSmokeState>())
     , _empty(std::move(empty))
     , _populated(std::move(populated))
+    , _updating(std::move(updating), std::make_unique<SmokeUpdates>(_updateState))
     , _ui(ToolUiOptions{.keyboardNavigation = true}) {}
+
+// Moves the one update on to this stage's state; the panel closes first (ClosePanel in Update).
+void UiSmoke::AdvanceUpdate() {
+    switch (Stages[_stage].view) {
+    case SmokeView::UpdateUpToDate: _updating.CheckForUpdates(); break;
+    case SmokeView::UpdateAvailable:
+        _updateState->upToDate = false;
+        _updating.CheckForUpdates();
+        break;
+    case SmokeView::UpdateDownloading:
+        _updating.DownloadUpdate();
+        _updating.OpenUpdatePanel();
+        break;
+    case SmokeView::UpdateFailed:
+        _updateState->failDownload = true;
+        _updateState->finishDownload = true;
+        _updating.OpenUpdatePanel();
+        break;
+    case SmokeView::UpdateReady:
+        _updateState->failDownload = false;
+        _updating.DownloadUpdate();
+        _updating.OpenUpdatePanel();
+        break;
+    case SmokeView::UpdateWaiting:
+        _runningCommand = std::make_unique<CommandActivity>(LauncherFolder());
+        _updating.RestartToUpdate();
+        _updating.OpenUpdatePanel();
+        break;
+    default: break;
+    }
+}
 
 void UiSmoke::Update(float realSeconds) {
     (void)realSeconds;
@@ -69,10 +184,11 @@ void UiSmoke::Update(float realSeconds) {
         return;
     }
     const auto& stage = Stages[_stage];
-    auto& model = Populated(stage.view) ? _populated : _empty;
+    auto& model = Updating(stage.view) ? _updating : Populated(stage.view) ? _populated : _empty;
     if (_frame == 0) {
         SetWindowSize({stage.width, stage.height});
         model.ClosePanel();
+        if (Updating(stage.view)) AdvanceUpdate();
         model.SelectTab(stage.view == SmokeView::Engines ? LauncherTab::Engines : LauncherTab::Projects);
         model.Filter().clear();
         if (stage.view == SmokeView::Create) model.Create();
@@ -88,7 +204,7 @@ void UiSmoke::Update(float realSeconds) {
 void UiSmoke::DrawToolOverlay() const {
     if (_stage == Stages.size()) return;
     const auto& stage = Stages[_stage];
-    auto& model = Populated(stage.view) ? _populated : _empty;
+    auto& model = Updating(stage.view) ? _updating : Populated(stage.view) ? _populated : _empty;
     _ui.BeginFrame(stage.scale);
     DrawLauncher(model);
     // Inspect that the list remains reachable when the smallest window is zoomed to 200%.

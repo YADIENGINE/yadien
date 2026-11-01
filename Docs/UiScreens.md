@@ -7,6 +7,7 @@ saves, notices) lives in one application model (`Model/LauncherModel`); screens 
 ```
 Apps/Ui/
   InstallerHooks                   Velopack's install / uninstall hooks (PATH); runs first in Main.cpp
+  Update/VelopackUpdates           The update backend (LauncherVelopack); the presentation stays free of Velopack
   Main.cpp, LauncherEntryPoint.h   wWinMain; resolves layout, runs the window (raylib and <windows.h> separate)
   LauncherApplication              engine Game: ToolUiContext + model; Tick → DrawLauncher every frame
   Model/LauncherModel              all state and actions (below)
@@ -20,7 +21,7 @@ Apps/Ui/
 | Function | File | Region |
 | --- | --- | --- |
 | `DrawLauncher` | `LauncherFrame.cpp` | Whole window: top bar, notice, tab, status bar; then panel and confirmation popup |
-| `DrawTopBar` | `LauncherFrame.cpp` | Name, tabs (Projects / Engines), system status dot, Settings |
+| `DrawTopBar` | `LauncherFrame.cpp` | Name, tabs (Projects / Engines), launcher update button when one is offered, system status dot, Settings |
 | `DrawNotice` | `LauncherFrame.cpp` | `CurrentNotice()`; `SettingsError()` + "Start with defaults" |
 | `DrawStatusBar` | `LauncherFrame.cpp` | Launcher version, project count, application / job state, "Developer mode" |
 | `DrawProjectsTab` | `ProjectsTab.cpp` | Persistent toolbar (Create, Import, Projects Folder, filter, sort), bounded list, project inspector |
@@ -30,6 +31,7 @@ Apps/Ui/
 | `DrawSystemCheckPanel` | `SystemCheckPanel.cpp` | Items (status, details), MSVC installation, recheck |
 | `DrawEngineUpdatePanel` | `EngineUpdatePanel.cpp` | Update / Repair / Replace confirmation: notes, may break, files to overwrite / delete |
 | `DrawJobPanel` | `JobPanel.cpp` | Foreground job: title, step (n / total), spinner, live output, Cancel; error + output + Back |
+| `DrawUpdatePanel` | `UpdatePanel.cpp` | Launcher update: version, size, notes; Update / Later / Skip, download progress + Cancel / Hide, Restart now, waiting for commands, failure + Try again |
 | `DrawConfirmation` | `Confirmation.cpp` | Remove? / developer mode warning / engine commit message |
 
 ## Model
@@ -47,6 +49,7 @@ text edited directly by screens.
 | Engine update | `PendingChange()`, `ChangeProject()`, `PlanRunning()`, `Plan()`, `PlanError()` | `ConfirmEngineChange`, `ClosePanel` |
 | System check | `System()`, `Report()`, `SystemCheckRunning()` | `RunSystemCheck`, `InstallMsvc` |
 | Settings | `OnPath()`, `Mode()`, `LicenseNoticesAvailable()`, `AudioTools()`, `AudioPackages()` | `SetOnPath`, `OpenInstallFolder`, `OpenLicenseNotices`, `InstallAudioTools` (job), `RemoveAudioTools`, `AskDeveloperMode`, `LeaveDeveloperMode` |
+| Launcher update | `UpdatesSupported()`, `UpdateState()`, `Update()`, `UpdateNotes()`, `UpdateProgress()`, `UpdateError()`, `UpdateOffered()`, `ChecksForUpdates()` | `SetChecksForUpdates`, `CheckForUpdates`, `OpenUpdatePanel`, `DownloadUpdate`, `CancelUpdateDownload`, `SkipUpdate`, `RestartToUpdate`, `CancelUpdateRestart` |
 | Confirmation | `Pending()`, `PendingProject()`, `ConfirmationInput()` | `Confirm`, `CancelConfirmation` |
 | Job | `CurrentJob()` (`Title`, `State`, `StepText`, `StepIndex`, `StepCount`, `Error`), `JobFailureTitle()`, `JobOutput()` | `CancelJob`, `DismissJob` |
 

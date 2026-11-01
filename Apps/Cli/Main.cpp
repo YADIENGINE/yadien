@@ -8,6 +8,7 @@
 #include "Platform/KnownFolders.h"
 #include "Platform/Text.h"
 #include "Settings/LauncherLayout.h"
+#include "System/CommandActivity.h"
 
 int wmain(int argc, wchar_t** argv) {
     SetConsoleOutputCP(CP_UTF8);
@@ -20,6 +21,8 @@ int wmain(int argc, wchar_t** argv) {
         std::cerr << "error: " << layout.Error() << "\n";
         return 2;
     }
+    // A launcher update waits while this lives (design D15): it would close the command and everything it started.
+    const CommandActivity activity(ExecutablePath().parent_path());
     std::error_code error;
     return RunCommandLine(arguments, layout.Value(), std::filesystem::current_path(error));
 }

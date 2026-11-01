@@ -103,9 +103,10 @@ def setup_name(product: str, version: str) -> str:
 
 
 def pack(stage_dir: Path, releases: Path, brand: Path, product: str, executable: str, version: str,
-         runner=subprocess.run, vpk: str | None = None, notes: Path | None = None, overwrite: bool = False) -> Path:
+         runner=subprocess.run, vpk: str | None = None, notes: Path | None = None, overwrite: bool = False,
+         extra: list[str] | None = None) -> Path:
     """`notes` (Markdown) travels in the package; Velopack lists them in releases.win.json. `overwrite` answers vpk's
-    question about a version that is already in `releases`."""
+    question about a version that is already in `releases`. `extra`: more vpk pack options."""
     for name in ("Icon.ico", "Splash.png"):
         if not (brand / name).is_file():
             raise PackageFailed(f"{brand / name} is missing; configure the launcher build first")
@@ -121,6 +122,7 @@ def pack(stage_dir: Path, releases: Path, brand: Path, product: str, executable:
                str(brand / "Splash.png"), "--splashProgressColor", SPLASH_PROGRESS]
     if notes is not None:
         command += ["--releaseNotes", str(notes)]
+    command += extra or []
     print(f"> {subprocess.list2cmdline(command)}", flush=True)
     if runner(command).returncode != 0:
         raise PackageFailed("vpk pack failed")

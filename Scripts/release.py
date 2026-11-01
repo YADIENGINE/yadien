@@ -419,6 +419,7 @@ def build_installer(repository: Path, worktree: Path, previous_tag: str | None, 
     dev = [sys.executable, str(repository / "Scripts" / "dev.py"), "--engine", str(worktree), "--build-dir",
            str(repository / "build" / RELEASE_BUILD)]
     run([*dev, "test"], repository)
+    run([*dev, "update-test"], repository)  # A release whose update is broken strands its users on it
     restore_previous_package(repository, releases, product, previous_tag)
     run([*dev, "package", "--yes", "--notes", str(notes_file)], repository)
     stamp_path.write_text(json.dumps(stamp) + "\n", encoding="utf-8", newline="\n")

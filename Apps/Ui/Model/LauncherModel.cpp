@@ -19,9 +19,10 @@ constexpr const char* DevelopmentBranch = "main";
 std::string ProjectName(const ProjectRow& row) { return row.info.name; }
 } // namespace
 
-LauncherModel::LauncherModel(LauncherLayout layout)
+LauncherModel::LauncherModel(LauncherLayout layout, std::unique_ptr<UpdateBackend> updates, bool justUpdated)
     : _layout(std::move(layout))
-    , _engines(EngineLibrary::Scan(_layout.enginesFolder)) {
+    , _engines(EngineLibrary::Scan(_layout.enginesFolder))
+    , _updates(std::move(updates), [this] { return _job.has_value() || CommandsRunning(LauncherFolder()); }) {
     std::error_code error;
     const bool firstStart = !std::filesystem::exists(_layout.SettingsFile(), error);
     if (Result<LauncherSettings> settings = LoadLauncherSettings(_layout.SettingsFile()); settings.Ok())
@@ -41,6 +42,10 @@ LauncherModel::LauncherModel(LauncherLayout layout)
         Save();
         _panel = LauncherPanel::SystemCheck;
     }
+    if (_settings.checkForUpdates) _updates.Check(false);
+    if (justUpdated)
+        ShowNotice(NoticeLevel::Info, std::string("Updated to ") + LAUNCHER_VERSION,
+                   "Your projects and settings were not changed.");
 }
 
 LauncherModel::~LauncherModel() = default;
@@ -54,6 +59,12 @@ void LauncherModel::Tick() {
     for (const std::function<void()>& request : requests)
         request();
     FinishJobs();
+    _updates.Tick();
+    if (_updates.QuitRequested()) _quit = true;
+    if (const auto& update = _updates.Update(); update && update->version != _updateNotesVersion) {
+        _updateNotesVersion = update->version;
+        _updateNotes = ParseUpdateNotes(update->notes);
+    }
     if (_visibleFilter != _filter) {
         _visibleFilter = _filter;
         _visible = ::VisibleRows(_rows, _filter, _settings.projectSort);
@@ -85,6 +96,7 @@ void LauncherModel::ClosePanel() {
             _planJob.reset();
             _plan.reset();
         }
+        if (_panel == LauncherPanel::Update) _updates.Dismiss();
         _panel = LauncherPanel::None;
     });
 }
@@ -611,8 +623,66 @@ void LauncherModel::StartJob(std::unique_ptr<BackgroundJob> job, std::string fai
                              std::function<void()> onSuccess) {
     _jobOutput.clear();
     _jobLine = 0;
-    _job = ForegroundJob{std::move(job), std::move(failureTitle), std::move(onSuccess)};
+    _job = ForegroundJob{std::move(job), std::move(failureTitle), std::move(onSuccess),
+                         std::make_unique<CommandActivity>(LauncherFolder())};
     _panel = LauncherPanel::Job;
+}
+
+// --- Launcher update ---
+
+bool LauncherModel::UpdateOffered() const {
+    const std::optional<AvailableUpdate>& update = _updates.Update();
+    if (!update) return false;
+    return _updates.Phase() != UpdatePhase::Available || update->version != _settings.skippedUpdate;
+}
+
+void LauncherModel::SetChecksForUpdates(bool enabled) {
+    Queue([this, enabled] {
+        _settings.checkForUpdates = enabled;
+        Save();
+    });
+}
+
+void LauncherModel::CheckForUpdates() {
+    Queue([this] {
+        if (_job) return;
+        if (!_settings.skippedUpdate.empty()) {
+            _settings.skippedUpdate.clear();
+            Save();
+        }
+        _updates.Check(true);
+        _panel = LauncherPanel::Update;
+    });
+}
+
+void LauncherModel::OpenUpdatePanel() {
+    Queue([this] {
+        if (!_job) _panel = LauncherPanel::Update;
+    });
+}
+
+void LauncherModel::DownloadUpdate() {
+    Queue([this] { _updates.Download(); });
+}
+
+void LauncherModel::CancelUpdateDownload() {
+    Queue([this] { _updates.CancelDownload(); });
+}
+
+void LauncherModel::SkipUpdate() {
+    Queue([this] {
+        if (const auto& update = _updates.Update()) _settings.skippedUpdate = update->version;
+        Save();
+        _panel = LauncherPanel::None;
+    });
+}
+
+void LauncherModel::RestartToUpdate() {
+    Queue([this] { _updates.Restart(); });
+}
+
+void LauncherModel::CancelUpdateRestart() {
+    Queue([this] { _updates.CancelRestart(); });
 }
 
 void LauncherModel::FinishJobs() {
