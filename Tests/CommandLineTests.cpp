@@ -44,6 +44,9 @@ TEST_CASE("Engine commands run the project's engine with the launcher's Python",
     CHECK(command.Value().arguments[2] == PathToUtf8(temp.Path() / "Game" / "Engine"));
     CHECK(command.Value().pathPrefix.size() == 3);
 
+    WriteFakeProject(temp.Path() / "Current", "Current", {.toolsContract = 2});
+    CHECK(EngineCommand(toolchain, InspectProject(temp.Path() / "Current"), {"build"}).Ok());
+
     WriteFakeProject(temp.Path() / "Future", "Future", {.toolsContract = 99});
     CHECK_FALSE(EngineCommand(toolchain, InspectProject(temp.Path() / "Future"), {"build"}).Ok());
     CHECK_FALSE(SupportsToolsContract(0));

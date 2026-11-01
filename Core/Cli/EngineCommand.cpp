@@ -5,7 +5,7 @@
 #include "Platform/Text.h"
 
 namespace {
-constexpr std::array SupportedContracts = {1};
+constexpr std::array SupportedContracts = {1, 2};
 } // namespace
 
 bool SupportsToolsContract(int contract) {
