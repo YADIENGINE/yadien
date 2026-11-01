@@ -1,0 +1,22 @@
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.wav binary
+*.ogg binary
+*.ttf binary
+*.ico binary
+
+# Contributor-only files are excluded from launcher copies (import uses git archive)
+/CLAUDE.md export-ignore
+/AGENTS.md export-ignore
+/Docs/Design export-ignore
+
+# Preserve vendored sources byte for byte from upstream (ThirdParty/README.md)
+/ThirdParty/raylib/** -text
+/ThirdParty/nlohmann_json/** -text
+/ThirdParty/imgui/** -text
+/ThirdParty/rlImGui/** -text
+/ThirdParty/Catch2/** -text
+/ThirdParty/NotoSans/** -text
+/ThirdParty/libvterm/** -text
