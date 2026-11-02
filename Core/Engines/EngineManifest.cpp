@@ -1,5 +1,7 @@
 #include "Engines/EngineManifest.h"
 #include <nlohmann/json.hpp>
+#include <algorithm>
+#include <system_error>
 #include "Platform/FileSystem.h"
 #include "Platform/Text.h"
 
@@ -12,19 +14,38 @@ std::vector<std::string> Strings(const nlohmann::json& value) {
     return texts;
 }
 
-std::vector<EngineNote> ReadNotes(const nlohmann::json& notes) {
+EngineNote ReadNote(const nlohmann::json& note, const EngineVersion& version) {
+    EngineNote entry{version, note.value("date", ""), Strings(note.value("changes", nlohmann::json())), {}};
+    for (const nlohmann::json& breaking : note.value("breaking", nlohmann::json::array()))
+        if (breaking.is_object())
+            entry.breaking.push_back({breaking.value("change", ""), breaking.value("migrate", "")});
+    return entry;
+}
+
+std::vector<EngineNote> ReadManifestNotes(const nlohmann::json& notes) {
     std::vector<EngineNote> result;
     if (!notes.is_array()) return result;
     for (const nlohmann::json& note : notes) {
         if (!note.is_object()) continue;
         const std::optional<EngineVersion> version = EngineVersion::Parse(note.value("version", ""));
-        if (!version) continue;
-        EngineNote entry{*version, note.value("date", ""), Strings(note.value("changes", nlohmann::json())), {}};
-        for (const nlohmann::json& breaking : note.value("breaking", nlohmann::json::array()))
-            if (breaking.is_object())
-                entry.breaking.push_back({breaking.value("change", ""), breaking.value("migrate", "")});
-        result.push_back(std::move(entry));
+        if (version) result.push_back(ReadNote(note, *version));
     }
+    return result;
+}
+
+std::vector<EngineNote> ReadNoteFiles(const std::filesystem::path& folder) {
+    std::vector<EngineNote> result;
+    std::error_code error;
+    std::filesystem::directory_iterator entry(folder, error);
+    const std::filesystem::directory_iterator end;
+    for (; !error && entry != end; entry.increment(error)) {
+        const std::filesystem::path& file = entry->path();
+        const std::optional<EngineVersion> version = EngineVersion::Parse(PathToUtf8(file.stem()));
+        if (file.extension() != ".json" || !version) continue;
+        Result<nlohmann::json> note = ReadJsonFile(file);
+        if (note.Ok() && note.Value().is_object()) result.push_back(ReadNote(note.Value(), *version));
+    }
+    std::ranges::sort(result, [](const EngineNote& a, const EngineNote& b) { return b.version < a.version; });
     return result;
 }
 } // namespace
@@ -45,7 +66,11 @@ Result<EngineManifest> LoadEngineManifest(const std::filesystem::path& engineFol
     manifest.version = *version;
     manifest.toolsContract = contract.get<int>();
     manifest.repository = data.value("repository", "");
-    manifest.notes = ReadNotes(data.value("notes", nlohmann::json()));
+    const std::filesystem::path notesFolder = engineFolder / EngineNotesFolder;
+    std::error_code error;
+    manifest.notes = std::filesystem::is_directory(notesFolder, error)
+                         ? ReadNoteFiles(notesFolder)
+                         : ReadManifestNotes(data.value("notes", nlohmann::json()));
     return manifest;
 }
 

@@ -12,8 +12,8 @@ The manifests are the desired state. A version without its pushed tag (engine) o
 Every engine tag also gets a GitHub release holding its EngineCopy.json: that is what the launcher lists and checks
 its downloads against (Docs/Engines.md).
 
-Steps: check -> engine (tests, commit, push, tag, record) -> launcher (pin, commit) -> release notes -> tests
-and installer, built in a worktree at the pinned engine commit -> you try the installer and confirm -> push, tag,
+Steps: check -> engine (tests, commit, push, tag, record) -> launcher (commit) -> release notes -> tests
+and installer, built in a worktree at the tag of the engine it ships -> you try the installer and confirm -> push, tag,
 GitHub release -> the enclosing project's submodule pointers, committed but not pushed.
 The same notes go into the package (`vpk pack --releaseNotes`, read back from releases.win.json) and the GitHub release.
 Only the standard library; the engine's manifest rules come from the engine checkout dev.py puts on sys.path.
@@ -30,11 +30,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from engine_location import MANIFEST_FILE, REPOSITORY  # noqa: E402
-from import_engine import COPY_FILE, ImportFailed, engine_copy, parse_version  # noqa: E402
+from import_engine import (COPY_FILE, NOTES_FOLDER, ImportFailed, archive_files, engine_copy, parse_version,  # noqa: E402
+                           read_manifest)
 from package import LAUNCHER_MANIFEST, PackageFailed, setup_name  # noqa: E402
 
 BRANCH = "main"
-ENGINE_POINTER = "Engine"
 ENGINES_FOLDER = "Engines"
 RELEASE_ENGINE = "ReleaseEngine"  # build/<this>/: worktree of the engine commit the release is built against
 RELEASE_BUILD = "ReleaseBuild"  # build/<this>/: its own build tree, so development builds keep theirs
@@ -214,14 +214,18 @@ def engine_release_message(version: str) -> str:
     return f"Release engine {version}"
 
 
-def check_engine(engine: Path, version: str) -> None:
-    from Tools.manifest import note_problems
+def engine_note_file(version: str) -> str:
+    return f"{NOTES_FOLDER}/{version}.json"
 
-    problems = note_problems(read_json(engine / MANIFEST_FILE))
+
+def check_engine(engine: Path, version: str) -> None:
+    from Tools.manifest import load_notes, note_problems
+
+    problems = note_problems(read_json(engine / MANIFEST_FILE), load_notes(engine))
     if problems:
         raise ReleaseFailed(f"{engine / MANIFEST_FILE}:\n  " + "\n  ".join(problems))
     check_branch(engine, "The engine")
-    check_clean(engine, "The engine", (MANIFEST_FILE,))
+    check_clean(engine, "The engine", (MANIFEST_FILE, engine_note_file(version)))
     latest = latest_tag_version(engine)
     if latest is not None and parse_version(version) <= latest:
         raise ReleaseFailed(f"Engine version {version} is not newer than the latest tag v{'.'.join(map(str, latest))}")
@@ -236,44 +240,24 @@ def release_engine(engine: Path, version: str, run_tests) -> None:
     run_tests()
     tag = f"v{version}"
     message = engine_release_message(version)
-    if MANIFEST_FILE in dirty_paths(engine):
-        git(engine, "add", MANIFEST_FILE)
+    git(engine, "add", MANIFEST_FILE)
+    if (engine / engine_note_file(version)).is_file():
+        git(engine, "add", engine_note_file(version))
+    if not git_succeeds(engine, "diff", "--cached", "--quiet"):
         git(engine, "commit", "-m", message)
     run(["git", "push", "origin", BRANCH], engine)
     tag_and_push(engine, tag, message)
     print(f"Engine {version} released ({tag}).", flush=True)
 
 
-def indexed_pointer(repository: Path) -> str:
-    return git(repository, "ls-files", "--stage", "--", ENGINE_POINTER).split()[1]
-
-
-def set_pointer(repository: Path, commit: str) -> None:
-    git(repository, "update-index", "--add", "--cacheinfo", f"160000,{commit},{ENGINE_POINTER}")
-
-
-def pointer_target(engine: Path, repository: Path, shipped: str) -> str:
-    """The commit the launcher builds against: its pointer, moved up to the engine it ships when behind it. A pointer
-    already past that tag stays; `dev.py pin-engine` is how it moves further."""
-    pointer = indexed_pointer(repository)
-    tag_commit = git(engine, "rev-parse", f"v{shipped}^{{commit}}")
-    if git_succeeds(engine, "merge-base", "--is-ancestor", tag_commit, pointer):
-        return pointer
-    return tag_commit
-
-
-def commit_launcher(engine: Path, repository: Path, launcher: dict) -> None:
-    set_pointer(repository, pointer_target(engine, repository, launcher["engine"]))
+def commit_launcher(repository: Path, launcher: dict) -> None:
     git(repository, "add", LAUNCHER_MANIFEST)
     if not git_succeeds(repository, "diff", "--cached", "--quiet"):
         git(repository, "commit", "-m", f"Release launcher {launcher['version']}")
-    pointer = indexed_pointer(repository)
-    if not git(engine, "branch", "-r", "--contains", pointer):
-        raise ReleaseFailed(f"The launcher's engine pointer {pointer[:10]} is not pushed; push the engine first")
 
 
 def prepare_worktree(engine: Path, path: Path, commit: str) -> None:
-    """The engine exactly as the pointer says, whatever the shared checkout holds right now."""
+    """The engine exactly as the tag says, whatever the shared checkout holds right now."""
     if (path / ".git").exists():
         git(path, "checkout", "--force", "--detach", commit)
         return
@@ -331,7 +315,7 @@ def check_launcher_tools(repository: Path) -> None:
 def check_launcher(repository: Path, engine: Path, launcher: dict, pending_engine: str | None) -> None:
     check_launcher_tools(repository)
     check_branch(repository, "The launcher")
-    check_clean(repository, "The launcher", (LAUNCHER_MANIFEST, ENGINE_POINTER))
+    check_clean(repository, "The launcher", (LAUNCHER_MANIFEST,))
     latest = latest_tag_version(repository)
     tag = f"v{launcher['version']}"
     if latest is not None and parse_version(launcher["version"]) < latest:
@@ -346,7 +330,7 @@ def check_launcher(repository: Path, engine: Path, launcher: dict, pending_engin
 
 def build_installer(repository: Path, worktree: Path, previous_tag: str | None, product: str, version: str,
                     notes: str) -> Path:
-    """Tests and installer from the committed launcher, the pinned engine and these notes; reused while all stay."""
+    """Tests and installer from the committed launcher, the shipped engine and these notes; reused while all stay."""
     package_dir = repository / "build" / "Package"
     releases = package_dir / "Releases"
     setup = releases / setup_name(product, version)
@@ -524,10 +508,14 @@ def release(engine: Path, repository: Path = REPOSITORY, dry_run: bool = False) 
     if plan.launcher:
         previous_tag = latest_release_tag(repository)
         previous = carried_at_tag(repository, previous_tag) if previous_tag else []
-        commit_launcher(engine, repository, launcher)
+        commit_launcher(repository, launcher)
         worktree = repository / "build" / RELEASE_ENGINE
-        prepare_worktree(engine, worktree, indexed_pointer(repository))
-        shipped = json.loads(git(engine, "show", f"v{launcher['engine']}:{MANIFEST_FILE}"))
+        prepare_worktree(engine, worktree, git(engine, "rev-parse", f"v{launcher['engine']}^{{commit}}"))
+        shipped_tag = f"v{launcher['engine']}"
+        try:
+            shipped = read_manifest(archive_files(engine, shipped_tag), shipped_tag)
+        except ImportFailed as error:
+            raise ReleaseFailed(str(error)) from error
         notes = release_notes(launcher, shipped, previous)
         setup = build_installer(repository, worktree, previous_tag, product, plan.launcher, notes)
         if not confirmed(setup):

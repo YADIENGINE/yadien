@@ -11,12 +11,10 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 option(LAUNCHER_BUILD_TESTS "Build the core's tests" ON)
 option(LAUNCHER_BUILD_UI "Build the windowed launcher (needs the engine's raylib runtime and ToolUi)" ON)
 
-# The launcher builds against an engine checkout (active development), never against the stable Engines/ copies:
-# its own Engine/ submodule, or the enclosing project's Engine/ when the launcher sits inside a project
-# (Scripts/dev.py passes it; Docs/Development.md).
-set(LAUNCHER_ENGINE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Engine" CACHE PATH "Engine checkout the launcher builds against")
+# The launcher builds against an engine checkout, which Scripts/dev.py chooses and passes (Docs/Development.md).
+set(LAUNCHER_ENGINE_DIR "" CACHE PATH "Engine checkout the launcher builds against")
 if(NOT EXISTS "${LAUNCHER_ENGINE_DIR}/EngineManifest.json")
-    message(FATAL_ERROR "No engine at ${LAUNCHER_ENGINE_DIR}; run: git submodule update --init Engine")
+    message(FATAL_ERROR "No engine at '${LAUNCHER_ENGINE_DIR}'; use Scripts/dev.py or pass -DLAUNCHER_ENGINE_DIR=PATH")
 endif()
 
 set(ENGINE_BUILD_RUNTIME ${LAUNCHER_BUILD_UI} CACHE BOOL "" FORCE)

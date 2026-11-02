@@ -12,12 +12,13 @@ D3–D19); karar değişirse orada güncellenir.
 sözleşme engine `Docs/ToolsContract.md` (komutlar, çıkış kodları, manifest).
 
 ## Engine
-- `Engine/` submodule'dür (engine reposu, `main`): aktif geliştirme, launcher buna karşı derlenir. Değişiklik iki
-  adımlı: `git -C Engine switch main`, orada commit + push, sonra burada pointer commit'i. Commit / push öncesi
+- Launcher'ın penceresi engine'in `ToolUi`'ıyla derlenir; submodule yoktur, checkout'u `dev.py` seçer
+  (`Scripts/engine_location.py`): oyun içinde (`<oyun>/Launcher/`) oyunun `Engine/`'i, tek başına clone'da
+  `LauncherManifest.json` `engine` tag'indeki `ToolCache/Engine`, `--engine PATH` ikisini de ezer. Sıra: engine →
+  launcher → oyun (`Docs/Development.md` → Developing inside a game).
+- Release, geliştirme checkout'una değil gönderilen engine'in tag'ine karşı derlenir: yayımlanmamış `ToolUi` değişikliğine
+  bağlı launcher, önce o değişikliği taşıyan engine sürümünü ister. Engine'de commit / push öncesi
   `git -C Engine status` ve `git -C Engine pull --rebase`; başka bir session aynı engine'de çalışıyor olabilir.
-- Bir oyunun içinde (`<oyun>/Launcher/`) launcher oyunun `Engine/`'ine karşı derlenir, kendi `Engine/` submodule'ü
-  başlatılmaz; pointer'ı `python Scripts/dev.py pin-engine` ile çekilir. Sıra: engine → launcher → oyun
-  (`Docs/Development.md` → Bir oyunun içinde geliştirmek).
 - Launcher tek stable engine taşır (`LauncherManifest.json` `engine`; `dev.py` tag'inden `build/Engines/`'e alır, repoda
   yok); diğer sürümleri GitHub'dan indirir ve dosyalarını kayda göre denetler. Proje sürümü değiştirirken önce projenin
   geçici kopyasında dener (`Docs/Engines.md`).

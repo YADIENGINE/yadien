@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from Scripts.import_engine import COPY_FILE, ImportFailed, import_engine
+from Scripts.import_engine import COPY_FILE, ImportFailed, import_engine, read_manifest
 
 GIT_ENV = os.environ | {"GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "Test",
                         "GIT_COMMITTER_EMAIL": "t@t"}
@@ -22,6 +22,27 @@ def git(folder: Path, *args: str) -> str:
 def manifest(version: str) -> str:
     return json.dumps({"name": "TestEngine", "version": version, "toolsContract": 1,
                        "notes": [{"version": version, "date": "2026-01-01", "changes": ["x"], "breaking": []}]})
+
+
+class ReadManifestTests(unittest.TestCase):
+    IDENTITY = {"name": "TestEngine", "version": "0.10.0", "toolsContract": 1}
+
+    def files(self, *versions: str) -> dict[str, bytes]:
+        note = json.dumps({"date": "2026-01-01", "changes": ["x"], "breaking": []}).encode()
+        return {"EngineManifest.json": json.dumps(self.IDENTITY).encode(),
+                **{f"ReleaseNotes/{version}.json": note for version in versions}}
+
+    def test_note_files_become_the_notes_newest_first_by_number(self):
+        notes = read_manifest(self.files("0.9.0", "0.10.0"), "v0.10.0")["notes"]
+        self.assertEqual([note["version"] for note in notes], ["0.10.0", "0.9.0"])
+
+    def test_a_version_without_its_note_file_is_refused(self):
+        with self.assertRaisesRegex(ImportFailed, "ReleaseNotes/0.10.0.json"):
+            read_manifest(self.files("0.9.0"), "v0.10.0")
+
+    def test_older_tags_keep_their_notes_in_the_manifest(self):
+        files = {"EngineManifest.json": manifest("0.2.0").encode()}
+        self.assertEqual(read_manifest(files, "v0.2.0")["notes"][0]["version"], "0.2.0")
 
 
 class ImportTests(unittest.TestCase):

@@ -33,6 +33,24 @@ TEST_CASE("An update shows the notes of every version it brings, skipped ones in
     CHECK(notes[1].version == EngineVersion{0, 2, 1});
 }
 
+TEST_CASE("Notes come from one file per version, newest first by number", "[engines]") {
+    TempFolder temp;
+    WriteFakeEngine(temp.Path(), {.version = "0.10.0"});
+    temp.Write("ReleaseNotes/0.9.0.json", R"({"date": "2026-01-01", "changes": ["Older"], "breaking": []})");
+    temp.Write("ReleaseNotes/0.10.0.json",
+               R"({"date": "2026-01-02", "changes": ["Newer"],
+                   "breaking": [{"change": "Renamed X", "migrate": "Use Y"}]})");
+    temp.Write("ReleaseNotes/draft.json", R"({"changes": ["Not a version"]})");
+    Result<EngineManifest> manifest = LoadEngineManifest(temp.Path());
+    REQUIRE(manifest.Ok());
+    REQUIRE(manifest.Value().notes.size() == 2);
+    CHECK(manifest.Value().notes[0].version == EngineVersion{0, 10, 0});
+    CHECK(manifest.Value().notes[0].changes == std::vector<std::string>{"Newer"});
+    REQUIRE(manifest.Value().notes[0].breaking.size() == 1);
+    CHECK(manifest.Value().notes[0].breaking[0].migrate == "Use Y");
+    CHECK(manifest.Value().notes[1].version == EngineVersion{0, 9, 0});
+}
+
 TEST_CASE("A manifest without identity is rejected", "[engines]") {
     TempFolder temp;
     temp.Write("EngineManifest.json", R"({"name": "X", "version": "1.0"})");

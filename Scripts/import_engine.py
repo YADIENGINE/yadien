@@ -27,6 +27,7 @@ from engine_location import default_engine  # noqa: E402
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 MANIFEST_FILE = "EngineManifest.json"
+NOTES_FOLDER = "ReleaseNotes"
 COPY_FILE = "EngineCopy.json"
 COPY_FORMAT = 1
 FOLDER_PREFIX = "Engine"
@@ -84,16 +85,31 @@ def archive_files(engine: Path, tag: str) -> dict[str, bytes]:
     return files
 
 
+def read_notes(files: dict[str, bytes], manifest: dict) -> list:
+    """Newest first: every ReleaseNotes/<version>.json; engines before that folder keep them in the manifest."""
+    found = {}
+    for path, content in files.items():
+        folder, _, name = path.rpartition("/")
+        version = parse_version(name.removesuffix(".json")) if name.endswith(".json") else None
+        if folder == NOTES_FOLDER and version is not None:
+            found[version] = {**json.loads(content.decode("utf-8")), "version": name.removesuffix(".json")}
+    if not found:
+        return manifest.get("notes")
+    return [found[version] for version in sorted(found, reverse=True)]
+
+
 def read_manifest(files: dict[str, bytes], tag: str) -> dict:
+    """The tag's manifest, with its notes in `notes` wherever the tag keeps them."""
     if MANIFEST_FILE not in files:
         raise ImportFailed(f"{tag} has no {MANIFEST_FILE}")
     manifest = json.loads(files[MANIFEST_FILE].decode("utf-8"))
     version = manifest.get("version", "")
     if f"v{version}" != tag:
         raise ImportFailed(f"Tag {tag} holds engine version {version}; tags are named v<version>")
-    notes = manifest.get("notes")
+    notes = read_notes(files, manifest)
     if not isinstance(notes, list) or not notes or notes[0].get("version") != version:
-        raise ImportFailed(f"{tag}: the newest note in {MANIFEST_FILE} must be version {version}")
+        raise ImportFailed(f"{tag}: the newest note must be version {version} ({NOTES_FOLDER}/{version}.json)")
+    manifest["notes"] = notes
     if not isinstance(manifest.get("toolsContract"), int) or not manifest.get("name"):
         raise ImportFailed(f"{tag}: {MANIFEST_FILE} needs name and toolsContract")
     return manifest

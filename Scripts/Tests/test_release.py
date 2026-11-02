@@ -9,9 +9,8 @@ from pathlib import Path
 
 from Scripts.import_engine import import_engine
 from Scripts.release import (LAUNCHER_MANIFEST, REPOSITORY, ReleaseFailed, carried_at_tag, check_clean, commit_launcher,
-                             commit_project_pointers, engine_release_body, engine_release_tags, indexed_pointer,
-                             make_plan, manifest_problems, new_engine_notes, release_engine, release_files,
-                             release_notes, set_pointer)
+                             commit_project_pointers, engine_release_body, engine_release_tags, make_plan,
+                             manifest_problems, new_engine_notes, release_engine, release_files, release_notes)
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "Test",
            "GIT_COMMITTER_EMAIL": "t@t"}
@@ -151,13 +150,18 @@ class ReleaseFilesTests(TempFolderTests):
 
 
 class GitTests(TempFolderTests):
-    def test_the_engine_release_commits_only_the_manifest_and_pushes_the_tag(self):
+    def test_the_engine_release_commits_only_the_manifest_and_its_note_and_pushes_the_tag(self):
         engine = self.repository("engine")
         (engine / "EngineManifest.json").write_text('{"version": "0.4.0"}\n', newline="\n")
+        (engine / "ReleaseNotes").mkdir()
+        (engine / "ReleaseNotes" / "0.4.0.json").write_text("{}\n", newline="\n")
+        (engine / "Other.txt").write_text("someone's work")
         ran = []
         release_engine(engine, "0.4.0", lambda: ran.append(True))
         self.assertEqual(ran, [True])
         self.assertEqual(git(engine, "log", "-1", "--format=%s"), "Release engine 0.4.0")
+        self.assertEqual(sorted(git(engine, "show", "--name-only", "--format=", "HEAD").splitlines()),
+                         ["EngineManifest.json", "ReleaseNotes/0.4.0.json"])
         self.assertEqual(git(engine, "cat-file", "-t", "v0.4.0"), "tag")
         self.assertIn("refs/tags/v0.4.0", git(engine, "ls-remote", "--tags", "origin"))
         self.assertEqual(git(engine, "rev-parse", "HEAD"), git(engine, "rev-parse", "origin/main"))
@@ -236,35 +240,27 @@ class GitTests(TempFolderTests):
         git(engine, "push", "origin", "main", f"v{version}")
         return git(engine, "rev-parse", "HEAD")
 
-    def launcher_repository(self, engine: Path, carried: str) -> Path:
-        """A launcher that ships `carried`, with its Engine pointer at that tag."""
+    def launcher_repository(self, carried: str) -> Path:
+        """A launcher that ships `carried`."""
         repository = self.repository("launcher")
-        (repository / "Engine").mkdir()  # An uninitialized submodule's empty folder
         (repository / LAUNCHER_MANIFEST).write_text(json.dumps(launcher("1.0.0", carried)), newline="\n")
         git(repository, "add", "-A")
-        set_pointer(repository, git(engine, "rev-parse", f"v{carried}^{{commit}}"))
         git(repository, "commit", "-m", "start")
         return repository
 
-    def test_the_launcher_step_commits_the_version_and_moves_the_pointer(self):
-        engine = self.repository("engine")
-        self.engine_release(engine, "0.3.0")
-        repository = self.launcher_repository(engine, "0.3.0")
-        new_tag = self.engine_release(engine, "0.4.0")
+    def test_the_launcher_step_commits_the_version(self):
+        repository = self.launcher_repository("0.3.0")
         data = launcher("1.1.0", "0.4.0")
         (repository / LAUNCHER_MANIFEST).write_text(json.dumps(data), newline="\n")
-        commit_launcher(engine, repository, data)
+        commit_launcher(repository, data)
         self.assertEqual(git(repository, "log", "-1", "--format=%s"), "Release launcher 1.1.0")
-        self.assertEqual(indexed_pointer(repository), new_tag)
         self.assertEqual(git(repository, "status", "--porcelain"), "")
 
     def test_the_launcher_step_repeated_changes_nothing(self):
-        engine = self.repository("engine")
-        self.engine_release(engine, "0.3.0")
-        repository = self.launcher_repository(engine, "0.3.0")
+        repository = self.launcher_repository("0.3.0")
         head = git(repository, "rev-parse", "HEAD")
         data = json.loads((repository / LAUNCHER_MANIFEST).read_text())
-        commit_launcher(engine, repository, data)
+        commit_launcher(repository, data)
         self.assertEqual(git(repository, "rev-parse", "HEAD"), head)
 
     def test_tags_are_listed_oldest_first_without_other_names(self):
@@ -278,33 +274,6 @@ class GitTests(TempFolderTests):
         data = engine_manifest("0.3.0")
         data["notes"][0]["breaking"] = [{"change": "A renamed.", "migrate": "Use B."}]
         self.assertEqual(engine_release_body(data), "- Breaking: A renamed. Migrate: Use B.\n- engine change 0.3.0\n")
-
-    def test_a_pointer_past_the_carried_engine_stays(self):
-        engine = self.repository("engine")
-        self.engine_release(engine, "0.3.0")
-        repository = self.launcher_repository(engine, "0.3.0")
-        (engine / "Later.txt").write_text("x")
-        git(engine, "add", "-A")
-        git(engine, "commit", "-m", "later")
-        git(engine, "push", "origin", "main")
-        later = git(engine, "rev-parse", "HEAD")
-        set_pointer(repository, later)
-        data = launcher("1.1.0", "0.3.0")
-        (repository / LAUNCHER_MANIFEST).write_text(json.dumps(data), newline="\n")
-        commit_launcher(engine, repository, data)
-        self.assertEqual(indexed_pointer(repository), later)
-
-    def test_an_unpushed_pointer_stops(self):
-        engine = self.repository("engine")
-        self.engine_release(engine, "0.3.0")
-        repository = self.launcher_repository(engine, "0.3.0")
-        (engine / "Later.txt").write_text("x")
-        git(engine, "add", "-A")
-        git(engine, "commit", "-m", "not pushed")
-        set_pointer(repository, git(engine, "rev-parse", "HEAD"))
-        data = launcher("1.1.0", "0.3.0")
-        with self.assertRaisesRegex(ReleaseFailed, "not pushed"):
-            commit_launcher(engine, repository, data)
 
     def test_unchanged_pointers_make_no_commit(self):
         project = self.repository("project")

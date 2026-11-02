@@ -4,16 +4,15 @@ Usage, from the launcher repository:
     python Scripts/dev.py build [--release]   configure when needed, then build (build/<Config>/)
     python Scripts/dev.py test                Debug build, then the core's C++ tests and the scripts' tests
     python Scripts/dev.py clean               delete build/
-    python Scripts/dev.py pin-engine          point the launcher's Engine submodule at the engine checkout's HEAD
     python Scripts/dev.py package             Release build, then the installer (Scripts/package.py, Docs/Packaging.md)
     python Scripts/dev.py release [--dry-run] publish what the manifests ask for (Scripts/release.py, Docs/Packaging.md)
     python Scripts/dev.py update-test [--keep] update an installed launcher to a next version from local files
     python Scripts/dev.py engine-test         move a real project between engine versions from local files
     python Scripts/dev.py engine-releases [--dry-run] publish the record of every engine tag that has none
 
-`--engine PATH` (before the command) picks the engine checkout; by default the launcher's own Engine/ submodule,
-or the enclosing project's Engine/ when the launcher sits inside a project (Scripts/engine_location.py). The MSVC
-environment comes from that engine's helper (Engine/Tools/msvc.py), so the launcher builds with the same compiler
+`--engine PATH` (before the command) picks the engine checkout; by default the enclosing project's Engine/ when the
+launcher sits inside a project, otherwise a clone at the tag LauncherManifest.json ships (Scripts/engine_location.py).
+The MSVC environment comes from that engine's helper (Engine/Tools/msvc.py), so the launcher builds with the same compiler
 setup as the engine's projects. `--build-dir PATH` (before the command) picks the build tree; by default build/.
 The installer always goes to build/Package/.
 """
@@ -26,7 +25,7 @@ import sys
 import unittest
 from pathlib import Path
 
-from engine_location import MANIFEST_FILE, REPOSITORY, default_engine, own_engine
+from engine_location import MANIFEST_FILE, REPOSITORY, default_engine
 
 BUILD = REPOSITORY / "build"
 ENGINE_CACHE_VARIABLE = "LAUNCHER_ENGINE_DIR"
@@ -36,13 +35,6 @@ def run(command: list[str], env: dict[str, str] | None = None, cwd: Path = REPOS
     print(f"> {subprocess.list2cmdline(command)}", flush=True)
     if subprocess.run(command, cwd=cwd, env=env).returncode != 0:
         raise SystemExit(1)
-
-
-def output(command: list[str], cwd: Path) -> str:
-    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise SystemExit(f"error: {subprocess.list2cmdline(command)}: {result.stderr.strip()}")
-    return result.stdout.strip()
 
 
 def cached(tree: Path, variable: str) -> str | None:
@@ -105,21 +97,6 @@ def test(engine: Path, tree: Path) -> None:
         raise SystemExit(1)
 
 
-def pin_engine(engine: Path) -> None:
-    """Records the engine checkout's HEAD as the launcher's Engine submodule commit (staged, not committed). The
-    commit must be on the engine's origin: the launcher repository may only point at pushed engine commits."""
-    commit = output(["git", "rev-parse", "HEAD"], engine)
-    output(["git", "fetch", "origin"], engine)
-    if not output(["git", "branch", "-r", "--contains", commit], engine):
-        raise SystemExit(f"error: engine commit {commit[:10]} is not pushed; push the engine first")
-    if engine == own_engine().resolve():
-        run(["git", "add", "Engine"])
-    else:
-        run(["git", "update-index", "--cacheinfo", f"160000,{commit},Engine"])
-    print(f"Engine pointer set to {commit[:10]}; commit it in the launcher repository "
-          f"(git -C {REPOSITORY} commit -m \"Update Engine\")")
-
-
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Build and test the launcher")
     parser.add_argument("--engine", type=Path, help="engine checkout (default: see Scripts/engine_location.py)")
@@ -129,7 +106,6 @@ def main(argv: list[str]) -> int:
     command.add_argument("--release", action="store_true")
     commands.add_parser("test")
     commands.add_parser("clean")
-    commands.add_parser("pin-engine")
     command = commands.add_parser("package")
     command.add_argument("--notes", type=Path, help="Markdown release notes to put in the package")
     command.add_argument("--yes", action="store_true", help="overwrite this version in build/Package/Releases/")
@@ -145,7 +121,7 @@ def main(argv: list[str]) -> int:
     tree = args.build_dir.resolve()
     engine = (args.engine or default_engine()).resolve()
     if not (engine / MANIFEST_FILE).is_file():
-        print(f"error: no engine at {engine}; run: git submodule update --init Engine", file=sys.stderr)
+        print(f"error: no engine at {engine}", file=sys.stderr)
         return 2
     print(f"Engine: {engine}", flush=True)
     sys.path.insert(0, str(engine))
@@ -159,8 +135,6 @@ def main(argv: list[str]) -> int:
                 test(engine, tree)
             case "clean":
                 shutil.rmtree(tree, ignore_errors=True)
-            case "pin-engine":
-                pin_engine(engine)
             case "package":
                 from package import PackageFailed, package
 

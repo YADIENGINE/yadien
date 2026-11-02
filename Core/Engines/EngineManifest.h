@@ -28,8 +28,10 @@ struct EngineManifest {
 };
 
 inline constexpr const char* EngineManifestFile = "EngineManifest.json";
+inline constexpr const char* EngineNotesFolder = "ReleaseNotes";
 
-// Reads <engineFolder>/EngineManifest.json. Notes are optional for reading (older manifests had none).
+// Reads <engineFolder>/EngineManifest.json and the notes in <engineFolder>/ReleaseNotes/<version>.json; engines before
+// that folder keep them in the manifest's "notes". Notes are optional for reading.
 [[nodiscard]] Result<EngineManifest> LoadEngineManifest(const std::filesystem::path& engineFolder);
 
 // Notes of the versions after `from` up to and including the manifest's own version, newest first: what an update

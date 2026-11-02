@@ -2,8 +2,9 @@
 
 The launcher deals with engines in three places (engine `Docs/Design/README.md` D4, D16):
 
-- `Engine/`: submodule of the engine repo (`main`). Active development; the launcher builds against this. Not delivered
-  to users. Changes take two steps: commit + push on `main` inside `Engine/`, then commit the pointer here.
+- **The engine it builds against:** the launcher's window uses the engine's `ToolUi`, compiled into the executable. A
+  developer's checkout ([Development](Development.md)); a release uses the tag of the shipped engine. Not delivered to
+  users.
 - **The shipped engine:** `LauncherManifest.json` `engine`, one exact version. `dev.py` imports it from its tag into
   `<build>/Engines/Engine<version>/`, and the installer carries that folder, so the first project works offline. It is
   not in the repository.
@@ -12,7 +13,8 @@ The launcher deals with engines in three places (engine `Docs/Design/README.md` 
 
 ## New stable version
 
-Edit `EngineManifest.json` (`version` + `notes` at the top; rules in engine `Docs/ToolsContract.md` → Manifest), and
+Raise `version` in `EngineManifest.json` and add `ReleaseNotes/<version>.json` (rules in engine `Docs/ToolsContract.md` →
+Manifest), and
 usually `LauncherManifest.json` (`engine`, a new launcher `version` + note), then run `python Scripts/dev.py release`
 ([Packaging](Packaging.md#publish)). It commits, pushes and tags the engine, and publishes the tag's record.
 

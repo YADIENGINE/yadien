@@ -7,7 +7,6 @@ does not hardcode the engine name (the name comes from the engine manifest).
 ## Repo
 
 ```
-Engine/              submodule: engine repo, main (active development). The launcher builds against this.
 Core/                LauncherCore: headless core, include root (#include "Projects/NewProject.h")
   Jobs/              BackgroundJob / Job<T>: long task thread, step, output, cancellation (UI reads every frame)
   Platform/          Result/Status, UTF-8 ↔ UTF-16, files (atomic writes, tree copy), processes, BCrypt, known

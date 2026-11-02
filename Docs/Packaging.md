@@ -76,7 +76,7 @@ With `--keep`, the window goes through the same steps by hand; the panel's other
 Edit the manifests, then run one command:
 
 ```powershell
-# EngineManifest.json:   version + notes (rules: engine Docs/ToolsContract.md -> Manifest)
+# EngineManifest.json:   version, + ReleaseNotes/<version>.json (rules: engine Docs/ToolsContract.md -> Manifest)
 # LauncherManifest.json: version + notes + engine
 python Scripts/dev.py release --dry-run   # the plan and every check; changes nothing
 python Scripts/dev.py release
@@ -98,12 +98,11 @@ The manifests are the desired state. An engine version without a pushed tag and 
 GitHub release get released; the rest is left alone. If a run stops, fix the cause and run the same command again.
 
 1. **Checks.** Manifest rules, branch `main`, not behind origin, tools (`gh`, `vpk` at the locked version, `ToolCache/`).
-   Changes outside the manifests stop the run, as do unpushed engine commits: a release never commits someone else's work.
+   Changes outside the manifests and the new version's note file stop the run, as do unpushed engine commits: a release never commits someone else's work.
 2. **Engine.** Its tests (`python . test` in the checkout), commit the manifest, push, annotated tag, push the tag, and a
    GitHub release holding the record of its files; tags without one get theirs too.
-3. **Launcher.** Move the Engine pointer up to the shipped engine when it is behind
-   (a pointer past that tag stays; `dev.py pin-engine` moves it further), commit locally.
-4. **Installer.** Tests, the update test (above), the [engine test](Engines.md#test-it) and `dev.py package` in `build/ReleaseBuild/`, against a worktree of the pinned engine commit in
+3. **Launcher.** Commit the manifest locally.
+4. **Installer.** Tests, the update test (above), the [engine test](Engines.md#test-it) and `dev.py package` in `build/ReleaseBuild/`, against a worktree of the shipped engine's tag in
    `build/ReleaseEngine/`, so the shared engine checkout and the development build tree do not matter. If the previous
    release's full package is gone from `build/Package/Releases/`, `vpk download github` brings it back for the delta.
 5. **Your try.** The script prints the installer's path and asks before publishing (see Try it). Answering no keeps
