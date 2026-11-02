@@ -6,6 +6,7 @@ add_library(LauncherUiPresentation STATIC
     Screens/ScreenLayout.cpp
     Screens/LauncherFrame.cpp
     Screens/ProjectsTab.cpp
+    Screens/ProjectPreview.cpp
     Screens/EnginesTab.cpp
     Screens/NewProjectPanel.cpp
     Screens/SettingsPanel.cpp

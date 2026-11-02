@@ -3,14 +3,18 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <algorithm>
+#include <cctype>
 #include <cfloat>
 #include <chrono>
 #include <cmath>
+#include <optional>
 #include <string>
 #include "Model/LauncherModel.h"
 #include "Platform/Text.h"
+#include "Screens/ProjectPreview.h"
 #include "Screens/ScreenLayout.h"
 #include "System/DisplayText.h"
+#include "Update/UpdateNotes.h"
 #include "ToolUi/ToolPixel.h"
 #include "ToolUi/ToolTheme.h"
 #include "ToolUi/ToolWidgets.h"
@@ -35,6 +39,8 @@ constexpr float FirstRunActionWidth = 440.0f;
 constexpr float FirstRunActionHeight = 66.0f;
 constexpr float FirstRunMarkCell = 72.0f;
 constexpr float FirstRunMarkMargin = 48.0f;
+constexpr float FirstRunSetupNameWidth = 140.0f;
+constexpr float PreviewGap = 12.0f;
 
 const char* EngineSource(EngineKind kind) {
     switch (kind) {
@@ -44,6 +50,12 @@ const char* EngineSource(EngineKind kind) {
     case EngineKind::Missing     : return "Engine missing";
     }
     return "";
+}
+
+// "Yesterday" as it reads inside a sentence.
+std::string LowerFirst(std::string text) {
+    if (!text.empty()) text[0] = static_cast<char>(std::tolower(static_cast<unsigned char>(text[0])));
+    return text;
 }
 
 std::string LastOpenedText(const ProjectRow& row) {
@@ -208,6 +220,15 @@ void DrawDetailFacts(LauncherModel& model, std::size_t index) {
         DetailRow("Files", labelWidth);
         DrawLauncherActivity("Checking");
     }
+    if (details && details->lastBuild) {
+        const auto& build = *details->lastBuild;
+        DetailRow("Last build", labelWidth);
+        const std::string when = RelativeTimeText(build.finished, std::chrono::system_clock::now());
+        const std::string text = (build.ok ? ICON_FA_CHECK " Passed" : ICON_FA_XMARK " Failed") +
+                                 (when.empty() ? "" : ", " + LowerFirst(when));
+        ImGui::TextColored(ToolToneColor(build.ok ? ToolTone::Success : ToolTone::Error), "%s", text.c_str());
+        ToolTooltip((build.finished + " UTC").c_str());
+    }
     if (details && details->git) {
         const auto& git = *details->git;
         DetailRow("Branch", labelWidth);
@@ -240,6 +261,10 @@ void DrawProjectActions(LauncherModel& model) {
     const auto& row = model.Rows()[index];
     const auto actions = model.ActionsFor(index);
     const float scale = ToolUiScale();
+    if (const auto* details = model.DetailsFor(index); details && !details->lastFrame.empty()) {
+        DrawProjectPreview(details->lastFrame, ImGui::GetContentRegionAvail().x);
+        ImGui::Dummy({0, PreviewGap * scale - ImGui::GetStyle().ItemSpacing.y * 2});
+    }
     ToolPixelTile(row.info.name, DetailTile);
     ImGui::SameLine();
     ImGui::BeginGroup();
@@ -286,6 +311,14 @@ void DrawProjectActions(LauncherModel& model) {
         model.ChangeEngine(index, EngineChange::Repair);
     if (ActionButton(ICON_FA_ARROWS_ROTATE " Replace engine", actions.replaceEngine))
         model.ChangeEngine(index, EngineChange::Replace);
+    {
+        const auto* details = model.DetailsFor(index);
+        const std::uintmax_t bytes = details ? details->buildBytes : 0;
+        const std::string clean =
+            ICON_FA_BROOM " Clean build" + (bytes ? " (" + FormatDownloadSize(bytes) + ")" : std::string());
+        if (ActionButton(clean.c_str(), bytes > 0 && !model.CurrentJob())) model.AskCleanBuild(index);
+        ToolTooltip("Delete the build folders to free disk space. The next build compiles everything again.");
+    }
     if (model.Mode() == LauncherMode::Developer) {
         if (ActionButton(ICON_FA_CLOUD_ARROW_DOWN " Update from remote", actions.engineGit))
             model.UpdateEngineFromRemote(index);
@@ -406,35 +439,79 @@ bool FirstRunAction(const char* id, const char* icon, const char* title, const c
     return pressed;
 }
 
-void DrawFirstRunState(LauncherModel& model) {
-    switch (model.System()) {
-    case SystemState::Checking: DrawLauncherActivity("Checking build tools"); break;
-    case SystemState::Ready:
-        ImGui::TextColored(ToolToneColor(ToolTone::Success), ICON_FA_CHECK);
-        ImGui::SameLine();
-        LauncherMutedText("Build tools ready");
-        break;
-    case SystemState::Warning:
-    case SystemState::NotReady: {
-        const bool warning = model.System() == SystemState::Warning;
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextColored(ToolToneColor(warning ? ToolTone::Warning : ToolTone::Error),
-                           ICON_FA_TRIANGLE_EXCLAMATION " %s",
-                           warning ? "Build tools have warnings" : "Build tools need attention");
-        ImGui::SameLine();
-        if (ToolButton("Review")) model.OpenPanel(LauncherPanel::SystemCheck);
-        break;
+// One line of the setup list: its state, name and detail, and what to do about it. Returns the button's press.
+bool SetupRow(const char* name, const std::string& detail, std::optional<ToolTone> tone, const char* button,
+              float width) {
+    const float scale = ToolUiScale();
+    const auto start = ImGui::GetCursorPos();
+    const float height = ImGui::GetFrameHeight();
+    ImGui::Dummy({width, height});
+    const auto next = ImGui::GetCursorPos();
+    const float textY = start.y + ImGui::GetStyle().FramePadding.y;
+    const float buttonWidth = button ? ImGui::CalcTextSize(button).x + ImGui::GetStyle().FramePadding.x * 2 : 0.0f;
+    const float detailStart = FirstRunSetupNameWidth * scale;
+    ImGui::SetCursorPos({start.x, textY});
+    if (tone)
+        ToolStateCell(ToolToneColor(*tone));
+    else
+        ToolActivity();
+    ImGui::SetCursorPos({start.x + ToolMetrics::Gap * 2 * scale, textY});
+    ImGui::TextUnformatted(name);
+    ImGui::SetCursorPos({start.x + detailStart, textY});
+    const auto shown =
+        ToolClipMiddle(detail.c_str(), std::max(1.0f, width - detailStart - buttonWidth - ToolMetrics::Gap * scale));
+    ImGui::TextColored(ToolPalette::Secondary, "%s", shown.c_str());
+    if (shown != detail) ToolTooltip(detail.c_str());
+    bool pressed = false;
+    if (button) {
+        ImGui::SetCursorPos({start.x + width - buttonWidth, start.y});
+        pressed = ToolButton(button);
     }
+    ImGui::SetCursorPos(next);
+    ImGui::Dummy({0, 0}); // ImGui wants an item after moving the cursor
+    return pressed;
+}
+
+// What a first project needs, each with its way forward.
+void DrawFirstRunSetup(LauncherModel& model, float width) {
+    const auto system = model.System();
+    std::string tools = "Ready";
+    std::optional<ToolTone> toolsTone = ToolTone::Success;
+    const char* toolsButton = nullptr;
+    bool canInstall = false;
+    if (system == SystemState::Checking) {
+        tools = "Checking";
+        toolsTone.reset();
+    } else if (system != SystemState::Ready && model.Report()) {
+        const bool missing = system == SystemState::NotReady;
+        const CheckStatus wanted = missing ? CheckStatus::Missing : CheckStatus::Warning;
+        tools.clear();
+        for (const CheckItem& item : model.Report()->items) {
+            if (item.status != wanted) continue;
+            tools += (tools.empty() ? "" : ", ") + item.title;
+            canInstall = canInstall || item.fix == CheckFix::InstallMsvc;
+        }
+        tools += missing ? " missing" : " warning";
+        toolsTone = missing ? ToolTone::Error : ToolTone::Warning;
+        toolsButton = canInstall ? ICON_FA_DOWNLOAD " Install" : "Review";
+    }
+    if (SetupRow("Build tools", tools, toolsTone, toolsButton, width)) {
+        if (canInstall)
+            model.InstallMsvc();
+        else
+            model.OpenPanel(LauncherPanel::SystemCheck);
     }
     const auto& engines = model.Engines().Engines();
-    if (!engines.empty()) {
-        const std::string installed = "Engine " + engines.front().manifest.version.ToString() + " installed";
-        ImGui::TextColored(ToolToneColor(ToolTone::Success), ICON_FA_CHECK);
-        ImGui::SameLine();
-        LauncherMutedText(installed.c_str());
-    } else {
-        LauncherToneText(ICON_FA_TRIANGLE_EXCLAMATION " No engine installed", ToolTone::Error);
-    }
+    const bool hasEngine = !engines.empty();
+    const std::string engine =
+        hasEngine ? engines.front().manifest.version.ToString() + " installed" : "None installed";
+    if (SetupRow("Engine", engine, hasEngine ? ToolTone::Success : ToolTone::Error, hasEngine ? nullptr : "Engines",
+                 width))
+        model.SelectTab(LauncherTab::Engines);
+    if (SetupRow("Projects folder", LauncherShortPath(model.ProjectsFolder(), width), ToolTone::Success,
+                 ICON_FA_FOLDER_OPEN " Change", width))
+        model.BrowseProjectsFolder();
+    ToolTooltip("Choose the default projects folder and find the projects in it");
 }
 
 // No projects yet: the screen is about starting one, not an empty list.
@@ -466,12 +543,7 @@ void DrawFirstRun(LauncherModel& model) {
                        false, width))
         model.Import();
     ImGui::Dummy({0, ToolMetrics::Gap * scale});
-    DrawFirstRunState(model);
-    ImGui::Dummy({0, ToolMetrics::Gap * scale});
-    LauncherFieldLabel("PROJECTS FOLDER");
-    LauncherPathText(model.ProjectsFolder(), width);
-    if (ToolButton(ICON_FA_FOLDER_OPEN " Change")) model.BrowseProjectsFolder();
-    ToolTooltip("Choose the default projects folder and find the projects in it");
+    DrawFirstRunSetup(model, width);
     ImGui::EndGroup();
 }
 } // namespace

@@ -23,6 +23,8 @@ void DrawNewProjectPanel(LauncherModel& model);
 void DrawSettingsPanel(LauncherModel& model);
 void DrawSystemCheckPanel(LauncherModel& model);
 void DrawEngineUpdatePanel(LauncherModel& model);
+// The engine trial's steps and how far each got; shown while it runs and with its result.
+void DrawEngineTrialSteps(const LauncherModel& model);
 void DrawJobPanel(LauncherModel& model);
 void DrawUpdatePanel(LauncherModel& model);
 

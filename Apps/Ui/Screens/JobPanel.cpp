@@ -36,19 +36,25 @@ void DrawJobPanel(LauncherModel& model) {
         ImGui::PushTextWrapPos(0);
         ImGui::TextUnformatted(state == JobState::Failed ? model.JobFailureTitle().c_str() : job->Title().c_str());
         ImGui::PopTextWrapPos();
-        const int step = job->StepIndex();
-        const int count = job->StepCount();
-        const std::string stepText = job->StepText() + " (" + std::to_string(step) + "/" + std::to_string(count) + ")";
-        if (running)
-            DrawLauncherActivity(stepText.c_str());
-        else {
-            ImGui::PushTextWrapPos(0);
-            ImGui::TextUnformatted(stepText.c_str());
-            ImGui::PopTextWrapPos();
-        }
-        if (count > 0) {
-            const float progress = std::clamp(static_cast<float>(step) / static_cast<float>(count), 0.0f, 1.0f);
-            ImGui::ProgressBar(progress, {-1, ProgressHeight * ToolUiScale()}, "");
+        if (model.TrialRunning()) {
+            DrawEngineTrialSteps(model);
+            LauncherMutedText("Your project is not changed while this runs.");
+        } else {
+            const int step = job->StepIndex();
+            const int count = job->StepCount();
+            const std::string stepText =
+                job->StepText() + " (" + std::to_string(step) + "/" + std::to_string(count) + ")";
+            if (running)
+                DrawLauncherActivity(stepText.c_str());
+            else {
+                ImGui::PushTextWrapPos(0);
+                ImGui::TextUnformatted(stepText.c_str());
+                ImGui::PopTextWrapPos();
+            }
+            if (count > 0) {
+                const float progress = std::clamp(static_cast<float>(step) / static_cast<float>(count), 0.0f, 1.0f);
+                ImGui::ProgressBar(progress, {-1, ProgressHeight * ToolUiScale()}, "");
+            }
         }
         if (state == JobState::Failed)
             LauncherToneText(job->Error().c_str(), ToolTone::Error);

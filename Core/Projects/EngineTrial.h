@@ -31,6 +31,9 @@ struct EngineTrial {
 // Copying, then the three build steps.
 inline constexpr int EngineTrialSteps = 4;
 
+// What a trial of this project goes through, in order: the copy, then the checks Project.json has a section for.
+[[nodiscard]] std::vector<std::string> EngineTrialStepNames(const std::filesystem::path& projectRoot);
+
 // `folder` is the launcher's own and is removed before and after. A canceled trial is a failure ("Canceled").
 [[nodiscard]] Result<EngineTrial> RunEngineTrial(const EngineUpdatePlan& plan, const std::filesystem::path& folder,
                                                  const EngineRunner& runEngine, JobContext& job);

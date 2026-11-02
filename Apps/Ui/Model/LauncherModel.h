@@ -14,6 +14,7 @@
 #include "System/Toolchain.h"
 #include "Update/UpdateController.h"
 #include "Update/UpdateNotes.h"
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -30,7 +31,15 @@ enum class LauncherTab { Projects, Engines };
 enum class LauncherPanel { None, NewProject, Settings, SystemCheck, EngineUpdate, Job, Update };
 // Small confirmations: remove a project from the list, enter developer mode (warning), publish engine changes
 // (commit message).
-enum class Confirmation { None, RemoveProject, DeveloperMode, PublishEngine, RemoveEngine };
+enum class Confirmation { None, RemoveProject, DeveloperMode, PublishEngine, RemoveEngine, CleanBuild };
+enum class TrialStepStatus { Waiting, Running, Passed, Failed };
+
+// One step of the engine trial, as its screen shows it.
+struct TrialStepView {
+    std::string name;
+    TrialStepStatus status = TrialStepStatus::Waiting;
+    std::optional<double> seconds; // Known once it has run; the time so far while it runs
+};
 // Update: another stable version, the newest by default; Repair: the same version back over edits; Replace: a stable
 // engine for an unregistered / missing one.
 enum class EngineChange { Update, Repair, Replace };
@@ -123,7 +132,8 @@ public:
     void Open(std::size_t row); // Job: check, build editor, start it; then the launcher closes
     void Run(std::size_t row);  // Job: the engine's run (until the game closes)
     void ShowInFolder(std::size_t row);
-    void AskRemove(std::size_t row); // → Confirmation::RemoveProject
+    void AskCleanBuild(std::size_t row); // → Confirmation::CleanBuild, then a job
+    void AskRemove(std::size_t row);     // → Confirmation::RemoveProject
     void RemoveMissing();
     void ChangeEngine(std::size_t row, EngineChange change); // → EngineUpdate panel, plan in the background
     void UpdateEngineFromRemote(std::size_t row);            // Developer: job
@@ -178,6 +188,9 @@ public:
     void ConfirmEngineChange();
     // The last trial, shown until the panel closes; why moving the project failed afterwards (close the editor).
     [[nodiscard]] const std::optional<EngineTrial>& Trial() const { return _trial; }
+    // The steps of the running or last trial, with how far each got.
+    [[nodiscard]] bool TrialRunning() const { return _trialRunning; }
+    [[nodiscard]] std::vector<TrialStepView> TrialSteps() const;
     [[nodiscard]] const std::string& SwitchError() const { return _switchError; }
     [[nodiscard]] std::string TrialReport() const; // For the clipboard
     void SwitchEngine();                           // Job: ApplyEngineUpdate, whatever the trial said
@@ -261,6 +274,7 @@ private:
     void StartSystemCheck();
     void StartEngineCatalog();
     void MeasureEngines();
+    void TrackTrial();
     void StartPlan(const EngineVersion& version);
     void StartTrial();
     void RescanEngines();
@@ -295,6 +309,11 @@ private:
     std::filesystem::path _changeRoot;
     EngineVersion _changeVersion;
     std::optional<EngineTrial> _trial;
+    bool _trialRunning = false;
+    std::vector<std::string> _trialStepNames;
+    std::map<std::string, double> _trialStepSeconds;
+    std::string _trialStep; // The step running now
+    std::chrono::steady_clock::time_point _trialStepStart;
     std::string _switchError;
     EngineTrialRunner _trials;
     std::optional<EngineVersion> _shownEngine;

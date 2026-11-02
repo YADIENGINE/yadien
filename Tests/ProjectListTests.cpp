@@ -187,6 +187,48 @@ TEST_CASE("Details report edited copies; clean ones are clean", "[projects]") {
     CHECK(details[1].integrity->modified == std::vector<std::string>{"Tools/cli.py"});
 }
 
+TEST_CASE("Details read the build folders: size, newest result and the last frame", "[projects]") {
+    TempFolder temp;
+    LauncherSettings settings;
+    WriteFakeProject(temp.Path() / "Game", "Game", {});
+    temp.Write("Game/Project.json", R"({"version": 1, "name": "Game", "game": {"buildDirectory": "build"},
+        "editor": {"buildDirectory": "build/editor"}, "tests": {"buildDirectory": "build"}})");
+    settings.projects = {Entry(temp.Path() / "Game")};
+    const auto inspect = [&] {
+        return InspectProjectDetails(InspectProjectRows(settings, EngineLibrary{}), LauncherMode::User).front();
+    };
+    const ProjectDetails none = inspect();
+    CHECK_FALSE(none.lastBuild);
+    CHECK(none.buildBytes == 0);
+    CHECK(none.lastFrame.empty());
+
+    temp.Write("Game/build/app.bin", "12345");
+    temp.Write("Game/build/LastBuild.json", R"({"ok": true, "finished": "2026-11-01T10:00:00Z"})");
+    temp.Write("Game/build/editor/LastBuild.json", R"({"ok": false, "finished": "2026-11-02T10:00:00Z"})");
+    temp.Write("Game/build/editor/LastFrame.png", "png");
+    const ProjectDetails built = inspect();
+    REQUIRE(built.lastBuild);
+    CHECK_FALSE(built.lastBuild->ok);
+    CHECK(built.lastBuild->finished == "2026-11-02T10:00:00Z");
+    CHECK(built.lastFrame == temp.Path() / "Game/build/editor/LastFrame.png");
+    CHECK(built.buildBytes > 5);
+
+    temp.Write("Game/build/LastBuild.json", "not json");
+    temp.Write("Game/build/editor/LastBuild.json", R"({"ok": "yes"})");
+    CHECK_FALSE(inspect().lastBuild); // Only informs: a damaged file is the same as none
+}
+
+TEST_CASE("Cleaning a build removes the build folders and nothing else", "[projects]") {
+    TempFolder temp;
+    temp.Write("Game/Project.json", R"({"version": 1, "game": {"buildDirectory": "build"}})");
+    temp.Write("Game/build/app.bin", "x");
+    temp.Write("Game/Source/Main.cpp", "x");
+    CHECK(CleanProjectBuild(temp.Path() / "Game").Ok());
+    CHECK_FALSE(std::filesystem::exists(temp.Path() / "Game/build"));
+    CHECK(std::filesystem::exists(temp.Path() / "Game/Source/Main.cpp"));
+    CHECK(CleanProjectBuild(temp.Path() / "Game").Ok()); // Already clean
+}
+
 TEST_CASE("Scan finds project folders without entering projects or build output", "[projects]") {
     TempFolder temp;
     temp.Write("Games/One/Project.json", "{}");

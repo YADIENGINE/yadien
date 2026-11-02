@@ -6,6 +6,7 @@
 
 namespace {
 constexpr const char* CanceledError = "Canceled";
+constexpr const char* CopyStepName = "Copying the project";
 constexpr std::string_view ErrorSummaryStart = "Errors ("; // Engine Docs/ToolsContract.md: the end of a failed build
 constexpr std::size_t MaxErrorLines = 40;
 constexpr int ProjectWorkFailed = 1; // Engine Docs/ToolsContract.md: exit codes
@@ -69,10 +70,19 @@ Result<EngineTrial> RunChecks(const std::filesystem::path& folder, const nlohman
 }
 } // namespace
 
+std::vector<std::string> EngineTrialStepNames(const std::filesystem::path& projectRoot) {
+    std::vector<std::string> names{CopyStepName};
+    const Result<nlohmann::json> project = ReadJsonFile(projectRoot / ProjectFile);
+    if (!project.Ok() || !project.Value().is_object()) return names;
+    for (const TrialCheck& check : TrialChecks())
+        if (project.Value().contains(check.section)) names.emplace_back(check.name);
+    return names;
+}
+
 Result<EngineTrial> RunEngineTrial(const EngineUpdatePlan& plan, const std::filesystem::path& folder,
                                    const EngineRunner& runEngine, JobContext& job) {
     using Answer = Result<EngineTrial>;
-    job.Step("Copying the project");
+    job.Step(CopyStepName);
     if (Status removed = RemoveTree(folder); !removed.Ok()) return Answer::Failure(removed.Error());
     if (Status prepared = PrepareCopy(plan, folder); !prepared.Ok()) {
         (void)RemoveTree(folder);

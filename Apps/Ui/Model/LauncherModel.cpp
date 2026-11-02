@@ -68,6 +68,7 @@ void LauncherModel::Tick() {
     for (const std::function<void()>& request : requests)
         request();
     FinishJobs();
+    TrackTrial();
     MeasureEngines();
     _updates.Tick();
     if (_updates.QuitRequested()) _quit = true;
@@ -273,6 +274,15 @@ void LauncherModel::ShowInFolder(std::size_t row) {
         if (const ProjectRow* found = RowAt(row))
             if (Status opened = OpenFolder(found->entry.root); !opened.Ok())
                 ShowNotice(NoticeLevel::Error, "Could not show the folder", opened.Error());
+    });
+}
+
+void LauncherModel::AskCleanBuild(std::size_t row) {
+    Queue([this, row] {
+        if (const ProjectRow* found = RowAt(row); found && !_job) {
+            _confirmation = Confirmation::CleanBuild;
+            _confirmationRoot = found->entry.root;
+        }
     });
 }
 
@@ -498,6 +508,47 @@ void LauncherModel::ConfirmEngineChange() {
     });
 }
 
+// Times each step of the running trial from the job's step text.
+void LauncherModel::TrackTrial() {
+    if (!_trialRunning) return;
+    const auto now = std::chrono::steady_clock::now();
+    const bool finished = !_job || _job->job->Finished();
+    const std::string step = finished ? std::string() : _job->job->StepText();
+    if (step == _trialStep && !finished) return;
+    if (!_trialStep.empty())
+        _trialStepSeconds[_trialStep] = std::chrono::duration<double>(now - _trialStepStart).count();
+    _trialStep = step;
+    _trialStepStart = now;
+    if (finished) _trialRunning = false;
+}
+
+std::vector<TrialStepView> LauncherModel::TrialSteps() const {
+    // A verdict names the step that stopped it: those before it passed, those after it never ran.
+    const auto stopped = _trial && _trial->verdict != TrialVerdict::Passed
+                             ? std::ranges::find(_trialStepNames, _trial->check)
+                             : _trialStepNames.end();
+    std::vector<TrialStepView> steps;
+    for (auto name = _trialStepNames.begin(); name != _trialStepNames.end(); ++name) {
+        TrialStepView view{*name};
+        if (const auto seconds = _trialStepSeconds.find(*name); seconds != _trialStepSeconds.end())
+            view.seconds = seconds->second;
+        if (_trial) {
+            view.status = stopped == _trialStepNames.end() || name < stopped ? TrialStepStatus::Passed
+                          : name == stopped                                  ? TrialStepStatus::Failed
+                                                                             : TrialStepStatus::Waiting;
+            if (_trial->verdict != TrialVerdict::Passed && stopped == _trialStepNames.end())
+                view.status = view.seconds ? TrialStepStatus::Passed : TrialStepStatus::Waiting;
+        } else if (_trialRunning && *name == _trialStep) {
+            view.status = TrialStepStatus::Running;
+            view.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - _trialStepStart).count();
+        } else if (view.seconds) {
+            view.status = TrialStepStatus::Passed;
+        }
+        steps.push_back(std::move(view));
+    }
+    return steps;
+}
+
 void LauncherModel::StartTrial() {
     const ProjectRow* row = RowFor(_changeRoot);
     const std::string name = row ? ProjectName(*row) : PathToUtf8(_changeRoot.filename());
@@ -514,6 +565,10 @@ void LauncherModel::StartTrial() {
     }
     _trial.reset();
     _switchError.clear();
+    _trialRunning = true;
+    _trialStepNames = EngineTrialStepNames(_changeRoot);
+    _trialStepSeconds.clear();
+    _trialStep.clear();
     auto job = std::make_unique<Job<EngineTrial>>(
         "Trying engine " + version + " on " + name, EngineTrialSteps,
         [plan = *_plan, run = std::move(run)](JobContext& context) { return run(plan, context); });
@@ -818,6 +873,22 @@ void LauncherModel::Confirm() {
             _report.reset();
             StartSystemCheck();
             return;
+        case Confirmation::CleanBuild: {
+            _confirmation = Confirmation::None;
+            const ProjectRow* row = RowFor(_confirmationRoot);
+            if (_job || !row) return;
+            auto job = std::make_unique<Job<void>>("Cleaning the build of " + ProjectName(*row), 1,
+                                                   [root = row->entry.root](JobContext& context) -> Status {
+                                                       context.Step("Deleting the build folders");
+                                                       return CleanProjectBuild(root);
+                                                   });
+            StartJob(std::move(job), "Could not clean the build. Close the project's editor and game, then try again.",
+                     [this] {
+                         _panel = LauncherPanel::None;
+                         ReloadRows();
+                     });
+            return;
+        }
         case Confirmation::RemoveEngine: {
             const EngineVersion version = _confirmationEngine;
             const AvailableEngine* engine = _engines.Find(version);

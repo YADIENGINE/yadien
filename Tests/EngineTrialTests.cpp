@@ -105,6 +105,16 @@ TEST_CASE("A tool problem is not the project's failure", "[engine-trial]") {
     CHECK_FALSE(trial.Value().reason.empty());
 }
 
+TEST_CASE("The steps shown are the ones the project will go through", "[engine-trial]") {
+    TempFolder temp;
+    temp.Write("Project.json", R"({"version": 1, "name": "Game", "game": {"buildDirectory": "build"}, "tests": {}})");
+    CHECK(EngineTrialStepNames(temp.Path()) ==
+          std::vector<std::string>{"Copying the project", "Game build", "Project tests"});
+    temp.Write("Project.json", R"({"version": 1, "name": "Game"})");
+    CHECK(EngineTrialStepNames(temp.Path()) == std::vector<std::string>{"Copying the project"});
+    CHECK(EngineTrialStepNames(temp.Path() / "Missing") == std::vector<std::string>{"Copying the project"});
+}
+
 TEST_CASE("Only what Project.json names is tried", "[engine-trial]") {
     TrialProject project;
     project.temp.Write("Game/Project.json", R"({"version": 1, "name": "Game", "game": {"buildDirectory": "build"}})");

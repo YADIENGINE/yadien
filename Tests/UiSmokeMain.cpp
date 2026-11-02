@@ -1,7 +1,10 @@
+#include <raylib.h>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
+#include <string>
 #include <thread>
 #include "Platform/Text.h"
 #include "Settings/LauncherSettings.h"
@@ -64,6 +67,26 @@ int main(int argc, char** argv) {
     const auto second = temp.Path() / "Experiments" / "A longer project folder with spaces and UTF-8 - Çalışma";
     WriteFakeProject(first, "Workspace", FakeEngine{});
     WriteFakeProject(second, "A longer project title · Çalışma", FakeEngine{});
+    // As a project with all its sections looks once it has been built and opened in the editor.
+    for (const auto& project : {first, second}) {
+        std::ofstream(project / "Project.json")
+            << R"({"version": 1, "name": ")"
+            << (project == first ? "Workspace"
+                                 : "A longer project title \xC2\xB7 \xC3\x87"
+                                   "al\xC4\xB1\xC5\x9Fma")
+            << R"(", "game": {"buildDirectory": "build"}, "editor": {"buildDirectory": "build/editor"}, "tests": {}})";
+        std::filesystem::create_directories(project / "build" / "editor");
+        std::ofstream(project / "build" / "LastBuild.json") << R"({"ok": true, "finished": "2026-11-02T09:15:00Z"})";
+        std::ofstream(project / "build" / "app.bin") << std::string(3 * 1024 * 1024, 'x');
+    }
+    {
+        const Image frame = GenImageGradientLinear(480, 270, 45, Color{23, 38, 43, 255}, Color{74, 125, 138, 255});
+        const auto file = temp.Path() / "LastFrame.png";
+        ExportImage(frame, PathToUtf8(file).c_str());
+        UnloadImage(frame);
+        for (const auto& project : {first, second})
+            std::filesystem::copy_file(file, project / "build" / "editor" / "LastFrame.png");
+    }
     settings.projects = {{first, ""}, {second, ""}};
     if (!SaveLauncherSettings(populated.SettingsFile(), settings).Ok()) return 1;
     if (!CheckWorkspaceModel({empty.enginesFolder, empty.toolsFolder, temp.Path() / "ScanData"}, first)) {

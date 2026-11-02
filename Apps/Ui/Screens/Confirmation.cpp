@@ -24,6 +24,7 @@ const char* ConfirmationTitle(Confirmation confirmation) {
     case Confirmation::DeveloperMode: return "Enter developer mode?";
     case Confirmation::PublishEngine: return "Publish engine changes";
     case Confirmation::RemoveEngine : return "Remove engine?";
+    case Confirmation::CleanBuild   : return "Clean build?";
     }
     return "";
 }
@@ -35,6 +36,7 @@ const char* ConfirmLabel(Confirmation confirmation) {
     case Confirmation::DeveloperMode: return "Enter developer mode";
     case Confirmation::PublishEngine: return "Publish";
     case Confirmation::RemoveEngine : return "Remove";
+    case Confirmation::CleanBuild   : return "Clean build";
     }
     return "";
 }
@@ -69,7 +71,8 @@ void DrawConfirmation(LauncherModel& model) {
         bool submitted = false;
         auto& input = model.ConfirmationInput();
         if (ImGui::BeginChild("##confirmation-body", {0, -LauncherFooterHeight()})) {
-            if (pending == Confirmation::RemoveProject || pending == Confirmation::PublishEngine) {
+            if (pending == Confirmation::RemoveProject || pending == Confirmation::PublishEngine ||
+                pending == Confirmation::CleanBuild) {
                 if (const auto* project = model.PendingProject()) {
                     ImGui::PushTextWrapPos(0);
                     ImGui::TextUnformatted(project->info.name.c_str());
@@ -84,6 +87,10 @@ void DrawConfirmation(LauncherModel& model) {
                 LauncherMutedText("Delete this downloaded engine from this computer? It can be downloaded again.");
                 break;
             }
+            case Confirmation::CleanBuild:
+                LauncherMutedText("Delete this project's build folders? Your files stay; the next build compiles "
+                                  "everything again, which can take a while.");
+                break;
             case Confirmation::RemoveProject:
                 LauncherMutedText("Remove this project from the launcher list? Your project files stay on disk.");
                 break;
@@ -107,7 +114,8 @@ void DrawConfirmation(LauncherModel& model) {
         ImGui::EndChild();
         const bool canConfirm = pending != Confirmation::PublishEngine || !input.commitMessage.empty();
         ImGui::Separator();
-        const bool removing = pending == Confirmation::RemoveProject || pending == Confirmation::RemoveEngine;
+        const bool removing = pending == Confirmation::RemoveProject || pending == Confirmation::RemoveEngine ||
+                              pending == Confirmation::CleanBuild;
         const std::array buttons{LauncherFooterButton{"Cancel"},
                                  LauncherFooterButton{ConfirmLabel(pending), !removing, canConfirm,
                                                       removing ? ToolTone::Error : ToolTone::Accent}};

@@ -5,10 +5,13 @@
 #include <string>
 #include "Model/LauncherModel.h"
 #include "Screens/ScreenLayout.h"
+#include "ToolUi/ToolPixel.h"
 #include "ToolUi/ToolTheme.h"
 #include "ToolUi/ToolWidgets.h"
 
 namespace {
+constexpr float StepNameOffset = 20.0f; // Past the step's state mark
+
 std::string VersionLabel(const LauncherModel& model, const EngineVersion& version) {
     return version.ToString() + (model.VersionDownloaded(version) ? "" : " (download)");
 }
@@ -99,6 +102,12 @@ void DrawReview(LauncherModel& model) {
     if (pressed == 1) model.ConfirmEngineChange();
 }
 
+std::string DurationText(double seconds) {
+    const int whole = static_cast<int>(seconds + 0.5);
+    if (whole < 60) return std::to_string(whole) + " s";
+    return std::to_string(whole / 60) + " min " + std::to_string(whole % 60) + " s";
+}
+
 void DrawTrialErrors(const EngineTrial& trial) {
     if (trial.errors.empty()) return;
     ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
@@ -142,6 +151,8 @@ void DrawTrialResult(LauncherModel& model, const EngineTrial& trial) {
             break;
         }
         ImGui::PopTextWrapPos();
+        ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
+        DrawEngineTrialSteps(model);
         DrawTrialErrors(trial);
         if (!moving && ToolSectionHeader("Release notes and migration steps")) DrawLauncherNotes(plan->notes);
     }
@@ -170,6 +181,41 @@ void DrawTrialResult(LauncherModel& model, const EngineTrial& trial) {
     }
 }
 } // namespace
+
+void DrawEngineTrialSteps(const LauncherModel& model) {
+    const auto steps = model.TrialSteps();
+    const float scale = ToolUiScale();
+    const float nameOffset = StepNameOffset * scale;
+    const float rowHeight = ImGui::GetTextLineHeight();
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+                        {ImGui::GetStyle().ItemSpacing.x, ToolMetrics::Space * scale * 0.5f});
+    for (const TrialStepView& step : steps) {
+        const auto start = ImGui::GetCursorPos();
+        const float width = ImGui::GetContentRegionAvail().x;
+        ImGui::Dummy({width, rowHeight});
+        const auto next = ImGui::GetCursorPos();
+        ImGui::SetCursorPos(start);
+        switch (step.status) {
+        case TrialStepStatus::Running: ToolActivity(); break;
+        case TrialStepStatus::Passed : ToolStateCell(ToolToneColor(ToolTone::Success)); break;
+        case TrialStepStatus::Failed : ToolStateCell(ToolToneColor(ToolTone::Error)); break;
+        case TrialStepStatus::Waiting: ToolStateCell(ToolPalette::Control); break;
+        }
+        ImGui::SetCursorPos({start.x + nameOffset, start.y});
+        const auto color = step.status == TrialStepStatus::Failed    ? ToolToneColor(ToolTone::Error)
+                           : step.status == TrialStepStatus::Waiting ? ToolPalette::Muted
+                                                                     : ToolPalette::Text;
+        ImGui::TextColored(color, "%s", step.name.c_str());
+        if (step.seconds) {
+            const std::string duration = DurationText(*step.seconds);
+            ImGui::SetCursorPos({start.x + width - ImGui::CalcTextSize(duration.c_str()).x, start.y});
+            ImGui::TextColored(ToolPalette::Muted, "%s", duration.c_str());
+        }
+        ImGui::SetCursorPos(next);
+        ImGui::Dummy({0, 0}); // ImGui wants an item after moving the cursor
+    }
+    ImGui::PopStyleVar();
+}
 
 void DrawEngineUpdatePanel(LauncherModel& model) {
     if (const std::optional<EngineTrial>& trial = model.Trial(); trial && model.Plan())

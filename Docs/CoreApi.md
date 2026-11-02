@@ -91,8 +91,12 @@ std::vector<ProjectDetails> slow = InspectProjectDetails(rows, mode, cancel); //
 
 - `ProjectActions { open, run, showInFolder, updateEngine, repairEngine, replaceEngine, engineGit, remove }`; target
   version `UpdateTarget` / `RepairTarget` / `ReplaceTarget`.
-- `ProjectDetails { root, integrity, git, error }`: engine copy read-only check (`CopyIntegrity`: modified / missing /
-  added files) and git engine state in developer mode (`EngineGitStatus`).
+- `ProjectDetails { root, integrity, git, error, lastBuild, buildBytes, lastFrame }`: engine copy read-only check
+  (`CopyIntegrity`: modified / missing / added files), git engine state in developer mode (`EngineGitStatus`) and the
+  build folders: their size and the status files engine `Docs/ToolsContract.md` describes, absent with older engines.
+  `CleanProjectBuild(root)` deletes those folders.
+- `RemoveDownloadedEngine(engine)` (`Engines/EngineLibrary.h`), `FolderSize(folder)` (`Platform/FileSystem.h`).
+- `EngineTrialStepNames(root)`: the steps a trial of this project goes through.
 - `ProjectsUsing(rows, version)`: "N projects use this" in the Engines tab.
 - `Git`: "engine managed by git" note; engine buttons disabled in user mode. `Unregistered`: "unknown source" warning +
   Replace engine.

@@ -23,13 +23,13 @@ Apps/Ui/
 | `DrawLauncher` | `LauncherFrame.cpp` | Whole window: top bar, notice, tab; then panel and confirmation popup |
 | `DrawTopBar` | `LauncherFrame.cpp` | Pixel product name, tabs (Projects / Engines), launcher update when one is offered, "Developer", system / job state (opens System check), Settings |
 | `DrawNotice` | `LauncherFrame.cpp` | `CurrentNotice()`; `SettingsError()` + "Start with defaults" |
-| `DrawProjectsTab` | `ProjectsTab.cpp` | No projects: first-run screen (New project, Add existing, build tools and engine state, projects folder). Otherwise toolbar (filter, sort, Add existing, New project), list with tiles, details of the selected project (the model always keeps a visible row selected) |
+| `DrawProjectsTab` | `ProjectsTab.cpp` | No projects: first-run screen (New project, Add existing, and a setup list: build tools with Install or Review, engine, projects folder with Change). Otherwise toolbar (filter, sort, Add existing, New project), list with tiles, details of the selected project (`ProjectPreview.cpp`: the editor's last frame; the last build's result; Clean build; the model always keeps a visible row selected) |
 | `DrawEnginesTab` | `EnginesTab.cpp` | Same layout as Projects: version list (status, projects using it, size on disk), details of the selected version (Download or Show in folder, facts, notes with breaking changes highlighted, Remove from this computer); "dev (main)" in developer mode |
 | `DrawNewProjectPanel` | `NewProjectPanel.cpp` | Name (Enter creates), location (Browse), engine selection, live validation once a name is typed, Create |
 | `DrawSettingsPanel` | `SettingsPanel.cpp` | PATH, open install folder, developer mode, and licenses |
 | `DrawSystemCheckPanel` | `SystemCheckPanel.cpp` | Items (status, details), MSVC installation, recheck |
-| `DrawEngineUpdatePanel` | `EngineUpdatePanel.cpp` | Update / Repair / Replace confirmation: notes, may break, files to overwrite / delete |
-| `DrawJobPanel` | `JobPanel.cpp` | Foreground job: title, step (n / total), spinner, live output, Cancel; error + output + Back |
+| `DrawEngineUpdatePanel` | `EngineUpdatePanel.cpp` | Update / Repair / Replace confirmation: notes, may break, files to overwrite / delete; the trial's result with its steps (`DrawEngineTrialSteps`) |
+| `DrawJobPanel` | `JobPanel.cpp` | Foreground job: title, step (n / total), spinner, live output, Cancel; error + output + Back. An engine trial shows its steps with their times instead of the step line |
 | `DrawUpdatePanel` | `UpdatePanel.cpp` | Launcher update: version, size, notes; Update / Later / Skip, download progress + Cancel / Hide, Restart now, waiting for commands, failure + Try again |
 | `DrawConfirmation` | `Confirmation.cpp` | Remove project? / Remove engine? / developer mode warning / engine commit message |
 
@@ -49,7 +49,8 @@ text edited directly by screens.
 | System check | `System()`, `Report()`, `SystemCheckRunning()` | `RunSystemCheck`, `InstallMsvc` |
 | Settings | `OnPath()`, `Mode()`, `LicenseNoticesAvailable()`, `AudioTools()`, `AudioPackages()` | `SetOnPath`, `OpenInstallFolder`, `OpenLicenseNotices`, `InstallAudioTools` (job), `RemoveAudioTools`, `AskDeveloperMode`, `LeaveDeveloperMode` |
 | Launcher update | `UpdatesSupported()`, `UpdateState()`, `Update()`, `UpdateNotes()`, `UpdateProgress()`, `UpdateError()`, `UpdateOffered()`, `ChecksForUpdates()` | `SetChecksForUpdates`, `CheckForUpdates`, `OpenUpdatePanel`, `DownloadUpdate`, `CancelUpdateDownload`, `SkipUpdate`, `RestartToUpdate`, `CancelUpdateRestart` |
-| Confirmation | `Pending()`, `PendingProject()`, `PendingEngine()`, `ConfirmationInput()` | `Confirm`, `CancelConfirmation` |
+| Engine trial | `TrialRunning()`, `TrialSteps()` (`TrialStepView`: name, status, seconds) | — |
+| Confirmation | `Pending()` (`RemoveProject`, `RemoveEngine`, `CleanBuild`, `DeveloperMode`, `PublishEngine`), `PendingProject()`, `PendingEngine()`, `ConfirmationInput()` | `Confirm`, `CancelConfirmation`, `AskCleanBuild` |
 | Job | `CurrentJob()` (`Title`, `State`, `StepText`, `StepIndex`, `StepCount`, `Error`), `JobFailureTitle()`, `JobOutput()` | `CancelJob`, `DismissJob` |
 
 - Row metadata comes from `ProjectRow`: version `Version()`, a quiet arrow for `update` (the details panel offers it, with
@@ -64,7 +65,8 @@ text edited directly by screens.
 ## Rules
 
 - Screens implement no business logic: no files / processes / git / saves, no core function calls; only the model. If
-  the model lacks something, add it to the model rather than imitate it in the screen.
+  the model lacks something, add it to the model rather than imitate it in the screen. The one exception is
+  `ProjectPreview.cpp`, which loads the frame's texture: a texture belongs to the window.
 - Appearance uses the engine's shared tool UI: `ToolUi/ToolTheme.h` (colors `ToolToneColor`, fonts `ToolFont`, scale
   `ToolUiScale()`), `ToolUi/ToolWidgets.h`; icons are Font Awesome (`<extras/IconsFontAwesome6.h>`, `ICON_FA_*`). Theme
   / widget changes belong in the engine (shared with the editor); small launcher-specific helpers in `Screens/`.
