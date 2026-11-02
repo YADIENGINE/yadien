@@ -46,7 +46,8 @@ ToolCache/           Downloaded tools and libraries (not tracked in git)
 ## CLI
 
 `<engine>.com` is the console program, `<engine>.exe` the windowed program; when typing `<engine>` in a terminal,
-Windows selects `.com` first (D15).
+Windows selects `.com` first (D15). Git Bash and `CreateProcess` select `.exe`, so `<engine>.exe` opens its window only
+without a command; with one it runs `<engine>.com` with the same arguments, standard handles and exit code.
 
 ```
 <engine> [--project ROOT] <engine command> [options]   → <python> -X utf8 <ROOT>/Engine --project <ROOT> <...>

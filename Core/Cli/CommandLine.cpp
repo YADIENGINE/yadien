@@ -248,6 +248,19 @@ int Forward(const ParsedCommandLine& parsed, const LauncherLayout& layout, const
 }
 } // namespace
 
+bool WantsConsoleProgram(const std::vector<std::string>& arguments, std::string_view windowArgument) {
+    return std::ranges::any_of(arguments, [&](const std::string& argument) { return argument != windowArgument; });
+}
+
+ProcessCommand ConsoleProgramCommand(const std::filesystem::path& windowedExecutable,
+                                     const std::vector<std::string>& arguments) {
+    ProcessCommand command;
+    command.executable = windowedExecutable;
+    command.executable.replace_extension(".com");
+    command.arguments = arguments;
+    return command;
+}
+
 ParsedCommandLine ParseCommandLine(const std::vector<std::string>& arguments) {
     ParsedCommandLine parsed;
     size_t index = 0;

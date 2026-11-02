@@ -1,9 +1,11 @@
 #pragma once
 
+#include "Platform/Process.h"
 #include "Settings/LauncherLayout.h"
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // `<engine>.com` (design D6): `<engine> launcher <job>` runs the launcher's own jobs; every other argument list goes
@@ -21,6 +23,15 @@ struct ParsedCommandLine {
 // The project a command in `start` means: the first folder from `start` upwards that holds a Project.json, or an
 // Engine/ with a manifest (a folder about to run the engine's `new`).
 [[nodiscard]] std::optional<std::filesystem::path> FindProjectRoot(const std::filesystem::path& start);
+
+// Git Bash and CreateProcess reach `<engine>.exe` for a bare `<engine>`, where a terminal reaches `<engine>.com`. So
+// the windowed program opens only without a command: any argument except its own `windowArgument` means the console
+// twin.
+[[nodiscard]] bool WantsConsoleProgram(const std::vector<std::string>& arguments, std::string_view windowArgument);
+
+// The same arguments for the console twin beside `windowedExecutable`.
+[[nodiscard]] ProcessCommand ConsoleProgramCommand(const std::filesystem::path& windowedExecutable,
+                                                   const std::vector<std::string>& arguments);
 
 // Runs a whole command line; output goes to stdout / stderr.
 [[nodiscard]] int RunCommandLine(const std::vector<std::string>& arguments, const LauncherLayout& layout,

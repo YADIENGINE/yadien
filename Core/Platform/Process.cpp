@@ -222,6 +222,29 @@ ProcessResult RunAttached(const ProcessCommand& command) {
     return result;
 }
 
+ProcessResult RunAttachedFromWindowedProgram(const ProcessCommand& command) {
+    const bool sharesConsole = AttachConsole(ATTACH_PARENT_PROCESS) != 0;
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    startup.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    startup.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    // Without handles from the caller a child that shares the console finds its own; passing null would silence it.
+    if (startup.hStdOutput || startup.hStdError || !sharesConsole) startup.dwFlags = STARTF_USESTDHANDLES;
+
+    ProcessResult result;
+    Started started = Start(command, startup, TRUE, sharesConsole ? 0 : CREATE_NO_WINDOW, true);
+    if (!started.error.empty()) {
+        result.startError = started.error;
+        return result;
+    }
+    SetConsoleCtrlHandler(nullptr, TRUE); // The child answers Ctrl+C; the launcher waits for its exit code
+    WaitForSingleObject(started.process.Get(), INFINITE);
+    SetConsoleCtrlHandler(nullptr, FALSE);
+    result.exitCode = ExitCodeOf(started.process.Get());
+    return result;
+}
+
 ProcessResult RunCaptured(const ProcessCommand& command, const OutputLine& onLine, const std::atomic<bool>* cancel) {
     ProcessResult result;
     SECURITY_ATTRIBUTES inheritable{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};

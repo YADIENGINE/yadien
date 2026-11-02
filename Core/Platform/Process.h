@@ -35,6 +35,10 @@ using OutputLine = std::function<void(const std::string& line)>;
 // directly). Ctrl+C is left to the child; its exit code is returned (Ctrl+C exit → 130).
 [[nodiscard]] ProcessResult RunAttached(const ProcessCommand& command);
 
+// RunAttached for a windowed program, which starts without a console: joins the caller's console if there is one and
+// passes on the standard handles it was given (pipes, files). A console child opens no window of its own.
+[[nodiscard]] ProcessResult RunAttachedFromWindowedProgram(const ProcessCommand& command);
+
 // Captures the output line by line and waits. No console window opens. Setting `cancel` ends the child and every
 // process it started (job object); the result is then `canceled`.
 [[nodiscard]] ProcessResult RunCaptured(const ProcessCommand& command, const OutputLine& onLine,

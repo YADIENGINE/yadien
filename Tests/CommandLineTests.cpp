@@ -21,6 +21,21 @@ TEST_CASE("The project option is the launcher's; everything after it goes to the
     CHECK_FALSE(ParseCommandLine({"build"}).project.has_value());
 }
 
+TEST_CASE("The windowed program opens only without a command", "[cli]") {
+    constexpr std::string_view WindowArgument = "--window-only";
+    CHECK_FALSE(WantsConsoleProgram({}, WindowArgument));
+    CHECK_FALSE(WantsConsoleProgram({"--window-only"}, WindowArgument));
+    CHECK(WantsConsoleProgram({"build"}, WindowArgument));
+    CHECK(WantsConsoleProgram({"--help"}, WindowArgument));
+    CHECK(WantsConsoleProgram({"--window-only", "build"}, WindowArgument));
+}
+
+TEST_CASE("A command goes unchanged to the console program beside the window", "[cli]") {
+    const ProcessCommand command = ConsoleProgramCommand("C:/Tools/engine.exe", {"test", "--label", "^session"});
+    CHECK(command.executable == std::filesystem::path("C:/Tools/engine.com"));
+    CHECK(command.arguments == std::vector<std::string>{"test", "--label", "^session"});
+}
+
 TEST_CASE("The project is found from a subfolder, or a folder about to run new", "[cli]") {
     TempFolder temp;
     WriteFakeProject(temp.Path() / "Game", "Game", {});
