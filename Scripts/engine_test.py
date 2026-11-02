@@ -13,7 +13,8 @@ trial and switch. Nothing outside the folder changes. The steps it checks:
 - "change anyway" moves it and removes its build folder;
 - a project made with engine 0.3.0 passes its trial on the same engine.
 
-These two tags never change, so the expected results do not either. Only the standard library.
+The two versions are commits that were once released; their tags are gone, so the test tags them in a temporary clone.
+Those commits never change, so the expected results do not either. Only the standard library.
 """
 
 import hashlib
@@ -32,6 +33,7 @@ from import_engine import COPY_FILE, engine_copy  # noqa: E402
 PROBE = "LauncherEngineProbe.exe"
 OLD_TAG = "v0.2.0"
 NEW_TAG = "v0.3.0"
+FIXTURES = {OLD_TAG: "ee424a472bf5f4f496e920d18cfd2fa70f778506", NEW_TAG: "b586e019b939401d30eb752122467283d18b8e1d"}
 PROJECT_NAME = "Trial"
 TOOLS = REPOSITORY / "ToolCache"
 API_VARIABLE = "LAUNCHER_ENGINE_API"
@@ -105,10 +107,19 @@ def make_project(root: Path, cached_engine: Path) -> Path:
     return root
 
 
+def fixture_repository(engine: Path, folder: Path) -> Path:
+    """A clone of the engine with the two versions tagged; the engine's own tags are not touched."""
+    subprocess.run(["git", "clone", "--quiet", "--no-checkout", "--shared", str(engine), str(folder)], check=True)
+    for tag, commit in FIXTURES.items():
+        subprocess.run(["git", "-C", str(folder), "tag", "--force", tag, commit], check=True, capture_output=True)
+    return folder
+
+
 def run_engine_test(engine: Path, build: Path) -> int:
     probe_exe = build / PROBE
     with tempfile.TemporaryDirectory(prefix="engine-test-", ignore_cleanup_errors=True) as temporary:
         root = Path(temporary)
+        engine = fixture_repository(engine, root / "Repository")
         feed = write_feed(engine, root / "Feed", [OLD_TAG, NEW_TAG])
         env = {**os.environ, API_VARIABLE: file_uri(feed)}
         data = root / "Data"
