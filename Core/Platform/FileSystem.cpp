@@ -81,6 +81,30 @@ Status CopyTree(const fs::path& source, const fs::path& destination) {
     return Status::Success();
 }
 
+Status CopyTreeExcept(const fs::path& source, const fs::path& destination, const std::vector<fs::path>& skipped) {
+    std::error_code error;
+    if (fs::exists(destination, error)) return Status::Failure(PathToUtf8(destination) + " already exists");
+    fs::create_directories(destination, error);
+    if (error) return Status::Failure(Describe("Cannot copy to", destination, error));
+    fs::recursive_directory_iterator entry(source, error);
+    const fs::recursive_directory_iterator end;
+    while (!error && entry != end) {
+        const fs::path relative = entry->path().lexically_relative(source);
+        if (std::find(skipped.begin(), skipped.end(), relative) != skipped.end()) {
+            entry.disable_recursion_pending();
+        } else if (entry->is_symlink(error)) {
+            fs::copy(entry->path(), destination / relative, fs::copy_options::copy_symlinks, error);
+        } else if (entry->is_directory(error)) {
+            fs::create_directories(destination / relative, error);
+        } else {
+            fs::copy_file(entry->path(), destination / relative, error);
+        }
+        if (!error) entry.increment(error);
+    }
+    if (error) return Status::Failure(Describe("Cannot copy to", destination, error));
+    return Status::Success();
+}
+
 Status RemoveTree(const fs::path& folder) {
     std::error_code error;
     fs::remove_all(folder, error);

@@ -58,6 +58,10 @@ Result<std::filesystem::path> CreateProject(const NewProjectRequest& request, co
                                             const OutputLine& onLine) {
     if (Status usable = CheckNewProjectFolder(request); !usable.Ok())
         return Result<std::filesystem::path>::Failure(usable.Error());
+    if (const auto* copy = std::get_if<AvailableEngine>(&request.engine);
+        copy && !SupportsToolsContract(copy->manifest.toolsContract))
+        return Result<std::filesystem::path>::Failure("Engine " + copy->manifest.version.ToString() +
+                                                      " needs a newer launcher; update the launcher first");
     const std::filesystem::path root = NewProjectFolder(request);
     std::error_code error;
     const bool existed = std::filesystem::exists(root, error);

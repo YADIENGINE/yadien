@@ -1,18 +1,14 @@
 #include "Screens/ScreenLayout.h"
 #include <extras/IconsFontAwesome6.h>
 #include <algorithm>
-#include <cmath>
+#include "Platform/Text.h"
+#include "System/DisplayText.h"
+#include "ToolUi/ToolPixel.h"
 #include "ToolUi/ToolWidgets.h"
 
 namespace {
-constexpr float ActivityRadius = 6.0f;
-constexpr float ActivityThickness = 2.0f;
-constexpr float ActivitySpeed = 4.5f;
-constexpr float ActivityArc = 4.6f;
-constexpr float FullCircle = 6.2831853f;
-constexpr int ActivitySegments = 20;
-constexpr float PathSuffixGap = 4.0f;
 constexpr float MinContentWidth = 1.0f;
+constexpr float FooterGap = 10.0f;
 
 int ResizeInput(ImGuiInputTextCallbackData* data) {
     if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
@@ -48,46 +44,34 @@ void LauncherToneText(const char* text, ToolTone tone) {
     ImGui::PopStyleColor();
 }
 
+void LauncherFieldLabel(const char* text) {
+    ImGui::PushFont(ToolFont(ToolFontRole::Medium), ToolMetrics::CaptionSize);
+    ImGui::TextColored(ToolPalette::Muted, "%s", text);
+    ImGui::PopFont();
+}
+
+std::string LauncherShortPath(const std::filesystem::path& path, float width) {
+    static const std::filesystem::path Home = UserHomeFolder();
+    return ToolClipMiddle(ShortPathText(path, Home).c_str(), width);
+}
+
 void LauncherPathText(const std::filesystem::path& path, float maxWidth) {
-    const auto utf8 = path.u8string();
-    const std::string full(utf8.begin(), utf8.end());
-    std::string display = full;
     ImGui::PushFont(ToolFont(ToolFontRole::Technical), ToolMetrics::CaptionSize);
     const float available = ImGui::GetContentRegionAvail().x;
     const float width =
         std::max(MinContentWidth * ToolUiScale(), maxWidth > 0 ? std::min(maxWidth, available) : available);
-    if (ImGui::CalcTextSize(display.c_str()).x > width) {
-        const float suffixWidth = ImGui::CalcTextSize("...").x + PathSuffixGap * ToolUiScale();
-        while (!display.empty() && ImGui::CalcTextSize(display.c_str()).x + suffixWidth > width) {
-            auto end = display.size() - 1;
-            while (end > 0 && (static_cast<unsigned char>(display[end]) & 0xc0) == 0x80)
-                --end;
-            display.resize(end);
-        }
-        display += "...";
-    }
+    const std::string display = LauncherShortPath(path, width);
     const ImVec2 start = ImGui::GetCursorScreenPos();
     const float height = ImGui::GetTextLineHeight();
-    const ImVec4 clip{start.x, start.y, start.x + width, start.y + height};
     ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), start,
-                                        ImGui::GetColorU32(ImGuiCol_TextDisabled), display.c_str(), nullptr, 0, &clip);
+                                        ImGui::GetColorU32(ToolPalette::Muted), display.c_str());
     ImGui::Dummy({width, height});
-    ToolTooltip(full.c_str());
+    ToolTooltip(PathToUtf8(path).c_str());
     ImGui::PopFont();
 }
 
 void DrawLauncherActivity(const char* label) {
-    const float radius = ActivityRadius * ToolUiScale();
-    const float height = ImGui::GetTextLineHeight();
-    const ImVec2 start = ImGui::GetCursorScreenPos();
-    const ImVec2 center{start.x + radius, start.y + height * 0.5f};
-    const float angle = static_cast<float>(std::fmod(ImGui::GetTime() * ActivitySpeed, FullCircle));
-    auto* draw = ImGui::GetWindowDrawList();
-    draw->AddCircle(center, radius, ImGui::GetColorU32(ImGuiCol_Border), ActivitySegments,
-                    ActivityThickness * ToolUiScale());
-    draw->PathArcTo(center, radius, angle, angle + ActivityArc, ActivitySegments);
-    draw->PathStroke(ImGui::GetColorU32(ToolToneColor(ToolTone::Accent)), 0, ActivityThickness * ToolUiScale());
-    ImGui::Dummy({radius * 2, height});
+    ToolActivity();
     ImGui::SameLine();
     ImGui::PushTextWrapPos(0);
     ImGui::TextUnformatted(label);
@@ -102,8 +86,13 @@ void DrawLauncherNotes(const std::vector<EngineNote>& notes) {
     for (std::size_t index = 0; index < notes.size(); ++index) {
         const auto& note = notes[index];
         ImGui::PushID(static_cast<int>(index));
-        ImGui::SeparatorText(note.version.ToString().c_str());
-        if (!note.date.empty()) LauncherMutedText(note.date.c_str());
+        ImGui::PushFont(ToolFont(ToolFontRole::Medium), ToolMetrics::BodySize);
+        ImGui::TextUnformatted(note.version.ToString().c_str());
+        ImGui::PopFont();
+        if (!note.date.empty()) {
+            ImGui::SameLine();
+            ImGui::TextColored(ToolPalette::Muted, "%s", note.date.c_str());
+        }
         for (const auto& breaking : note.breaking) {
             ToolStatusBadge(ICON_FA_TRIANGLE_EXCLAMATION " Breaking change", ToolToneColor(ToolTone::Warning));
             ImGui::PushTextWrapPos(0);
@@ -122,4 +111,34 @@ void DrawLauncherNotes(const std::vector<EngineNote>& notes) {
         ImGui::PopTextWrapPos();
         ImGui::PopID();
     }
+}
+
+float LauncherFooterHeight() { return ImGui::GetFrameHeightWithSpacing() + FooterGap * ToolUiScale(); }
+
+int DrawLauncherFooter(std::span<const LauncherFooterButton> buttons, bool afterItem) {
+    const auto& style = ImGui::GetStyle();
+    float width = 0;
+    ImGui::PushFont(ToolFont(ToolFontRole::Medium), ToolMetrics::BodySize);
+    for (const LauncherFooterButton& button : buttons)
+        width += ImGui::CalcTextSize(button.label, nullptr, true).x + style.FramePadding.x * 2 + style.ItemSpacing.x;
+    ImGui::PopFont();
+    width -= style.ItemSpacing.x;
+    const float start = std::max(0.0f, ImGui::GetContentRegionMax().x - width);
+    if (afterItem)
+        ImGui::SameLine(start);
+    else
+        ImGui::SetCursorPosX(start);
+    int pressed = -1;
+    for (std::size_t index = 0; index < buttons.size(); ++index) {
+        const auto& button = buttons[index];
+        if (index > 0) ImGui::SameLine();
+        ImGui::BeginDisabled(!button.enabled);
+        const bool toned = button.tone != ToolTone::Accent;
+        if (toned) ImGui::PushStyleColor(ImGuiCol_Text, ToolToneColor(button.tone));
+        if (ToolButton(button.label, {}, button.primary)) pressed = static_cast<int>(index);
+        if (toned) ImGui::PopStyleColor();
+        ImGui::EndDisabled();
+        if (button.primary && button.enabled) ImGui::SetItemDefaultFocus();
+    }
+    return pressed;
 }

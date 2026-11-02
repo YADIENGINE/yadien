@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <thread>
@@ -49,7 +50,14 @@ int main(int argc, char** argv) {
     TempFolder temp;
     const LauncherLayout empty{temp.Path() / "Engines", temp.Path() / "Tools", temp.Path() / "EmptyData"};
     const LauncherLayout populated{empty.enginesFolder, empty.toolsFolder, temp.Path() / "ProjectData"};
-    WriteFakeEngine(empty.enginesFolder / "Engine0.1", FakeEngine{});
+    WriteFakeEngine(empty.enginesFolder / "Engine0.1.0", FakeEngine{});
+    WriteFakeEngine(empty.enginesFolder / "Engine0.3.0",
+                    FakeEngine{.version = "0.3.0", .history = {"0.3.0", "0.1.0"}, .breakingIn = {"0.3.0"}});
+    // A version that can be downloaded, for the Engines tab and the version list. Nothing here downloads it.
+    temp.Write("OnlineEngines.json", R"([{"tag_name": "v0.2.0", "prerelease": true, "tarball_url": "file:///none",
+        "assets": [{"name": "EngineCopy.json", "browser_download_url": "file:///none"}]}])");
+    const std::string catalog = "file:///" + (temp.Path() / "OnlineEngines.json").generic_string();
+    _putenv_s("LAUNCHER_ENGINE_API", catalog.c_str());
     LauncherSettings settings;
     if (!SaveLauncherSettings(empty.SettingsFile(), settings).Ok()) return 1;
     const auto first = temp.Path() / "Workspace";

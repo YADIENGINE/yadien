@@ -23,12 +23,14 @@ private:
 
     std::filesystem::path _output;
     std::shared_ptr<UpdateSmokeState> _updateState;
+    std::shared_ptr<EngineTrial> _trialScript; // What the populated model's engine trial answers
     mutable LauncherModel _empty;
     mutable LauncherModel _populated;
     mutable LauncherModel _updating;
     std::unique_ptr<CommandActivity> _runningCommand; // Makes the update wait, for its stage
     mutable ToolUiContext _ui;
     std::size_t _stage = 0;
+    bool _trialStarted = false;
     int _frame = 0;
     mutable int _failures = 0;
 };

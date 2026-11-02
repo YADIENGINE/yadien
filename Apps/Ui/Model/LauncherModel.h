@@ -2,6 +2,7 @@
 
 #include "Engines/EngineLibrary.h"
 #include "Jobs/Job.h"
+#include "Projects/EngineTrial.h"
 #include "Projects/EngineUpdate.h"
 #include "Projects/ProjectDetails.h"
 #include "Projects/ProjectRow.h"
@@ -29,8 +30,8 @@ enum class LauncherPanel { None, NewProject, Settings, SystemCheck, EngineUpdate
 // Small confirmations: remove a project from the list, enter developer mode (warning), publish engine changes
 // (commit message).
 enum class Confirmation { None, RemoveProject, DeveloperMode, PublishEngine };
-// Update: newer stable engine; Repair: the same version back over edits; Replace: a stable engine for an
-// unregistered / missing one.
+// Update: another stable version, the newest by default; Repair: the same version back over edits; Replace: a stable
+// engine for an unregistered / missing one.
 enum class EngineChange { Update, Repair, Replace };
 // The dot in the top bar: Checking until the first report; Ready, Warning (works), NotReady (cannot build).
 enum class SystemState { Checking, Ready, Warning, NotReady };
@@ -54,13 +55,17 @@ struct NewProjectForm {
 // One choice of the New project panel's engine list: a stable copy, or "dev (main)" in developer mode.
 struct EngineChoice {
     std::string label;                       // "0.2.0", "dev (main)"
-    const AvailableEngine* stable = nullptr; // Null for the development engine
+    const AvailableEngine* stable = nullptr; // On this computer
+    const OnlineEngine* online = nullptr; // Downloaded when the project is created; both null: the development engine
 };
 
 // Text the confirmation popups edit.
 struct ConfirmationForm {
     std::string commitMessage; // PublishEngine
 };
+
+// Tries an engine on a project; RunEngineTrial with the launcher's tools unless a test scripts it.
+using EngineTrialRunner = std::function<Result<EngineTrial>(const EngineUpdatePlan&, JobContext&)>;
 
 // The launcher window's whole state and every action it offers. Screens read the getters and call the actions;
 // they hold no state of their own beyond ImGui's. Actions are queued and applied by Tick() at the start of the
@@ -70,7 +75,7 @@ class LauncherModel {
 public:
     // `updates`: null when the launcher cannot update itself (a development build). `justUpdated`: says so in a notice.
     explicit LauncherModel(LauncherLayout layout, std::unique_ptr<UpdateBackend> updates = nullptr,
-                           bool justUpdated = false);
+                           bool justUpdated = false, EngineTrialRunner trials = {});
     ~LauncherModel();
 
     // Applies queued actions and collects finished jobs. Called once per frame before drawing.
@@ -126,6 +131,11 @@ public:
     // --- Engines tab ---
     [[nodiscard]] const EngineLibrary& Engines() const { return _engines; }
     [[nodiscard]] int ProjectsUsing(const EngineVersion& version) const;
+    // Reading the list of published versions; why it could not be read (empty otherwise).
+    [[nodiscard]] bool EngineCatalogRunning() const { return _catalogJob != nullptr; }
+    [[nodiscard]] const std::string& EngineCatalogError() const { return _catalogError; }
+    void RetryEngineCatalog();
+    void DownloadEngineVersion(const EngineVersion& version); // Job
     // Developer mode and the newest engine names its repository: "dev (main)" is offered.
     [[nodiscard]] bool DevelopmentEngineAvailable() const;
 
@@ -142,9 +152,25 @@ public:
     [[nodiscard]] EngineChange PendingChange() const { return _change; }
     [[nodiscard]] const ProjectRow* ChangeProject() const;
     [[nodiscard]] bool PlanRunning() const { return _planJob != nullptr; }
+    [[nodiscard]] std::string PlanStep() const; // What the running plan is doing
     [[nodiscard]] const EngineUpdatePlan* Plan() const { return _plan ? &*_plan : nullptr; }
     [[nodiscard]] const std::string& PlanError() const { return _planError; }
-    void ConfirmEngineChange(); // Job: ApplyEngineUpdate
+    // The versions the panel offers (Update and Replace), and the one chosen. Choosing plans again, downloading if
+    // needed.
+    [[nodiscard]] std::vector<EngineVersion> ChangeVersions() const;
+    [[nodiscard]] const EngineVersion& ChangeVersion() const { return _changeVersion; }
+    [[nodiscard]] bool VersionDownloaded(const EngineVersion& version) const {
+        return _engines.Find(version) != nullptr;
+    }
+    void ChooseChangeVersion(const EngineVersion& version);
+    // Update / Replace: job, the project is tried in a temporary copy and moves only if it passes. Repair: moves at
+    // once.
+    void ConfirmEngineChange();
+    // The last trial, shown until the panel closes; why moving the project failed afterwards (close the editor).
+    [[nodiscard]] const std::optional<EngineTrial>& Trial() const { return _trial; }
+    [[nodiscard]] const std::string& SwitchError() const { return _switchError; }
+    [[nodiscard]] std::string TrialReport() const; // For the clipboard
+    void SwitchEngine();                           // Job: ApplyEngineUpdate, whatever the trial said
 
     // --- System check panel ---
     [[nodiscard]] SystemState System() const;
@@ -218,9 +244,14 @@ private:
     void StartJob(std::unique_ptr<BackgroundJob> job, std::string failureTitle, std::function<void()> onSuccess);
     void FinishJobs();
     void ReloadRows();
+    void KeepSelectionVisible();
     void StartDetails();
     void StartProjectScan(const std::filesystem::path& folder);
     void StartSystemCheck();
+    void StartEngineCatalog();
+    void StartPlan(const EngineVersion& version);
+    void StartTrial();
+    void RescanEngines();
     void Save();
     void ShowNotice(NoticeLevel level, std::string title, std::string message);
     [[nodiscard]] const ProjectRow* RowAt(std::size_t row) const;
@@ -250,6 +281,13 @@ private:
     NewProjectForm _newProject;
     EngineChange _change = EngineChange::Update;
     std::filesystem::path _changeRoot;
+    EngineVersion _changeVersion;
+    std::optional<EngineTrial> _trial;
+    std::string _switchError;
+    EngineTrialRunner _trials;
+    bool _catalogRead = false;
+    bool _removeLeftoverTrial = false; // Once, at the first catalog read: a closed launcher can leave a trial folder
+    std::string _catalogError;
     std::optional<EngineUpdatePlan> _plan;
     std::string _planError;
     std::optional<SystemReport> _report;
@@ -268,6 +306,7 @@ private:
     std::unique_ptr<Job<std::vector<ProjectDetails>>> _details;
     std::unique_ptr<Job<SystemReport>> _systemJob;
     std::unique_ptr<Job<EngineUpdatePlan>> _planJob;
+    std::unique_ptr<Job<std::vector<OnlineEngine>>> _catalogJob;
     std::optional<ForegroundJob> _job;
     UpdateController _updates;
 

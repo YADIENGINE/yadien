@@ -9,6 +9,8 @@ add_executable(LauncherCoreTests
     CopyAndUpdateTests.cpp
     CryptoTests.cpp
     DeveloperGitTests.cpp
+    DisplayTextTests.cpp
+    EngineTrialTests.cpp
     EnginesTests.cpp
     JobTests.cpp
     NewProjectTests.cpp
@@ -24,6 +26,11 @@ catch_discover_tests(LauncherCoreTests DISCOVERY_MODE PRE_TEST)
 
 # Opt-in real-renderer inspection, with isolated fixture settings. Never opens the user's launcher data.
 # Not a CTest: it needs a desktop/GPU. See Docs/Development.md.
+# Scripts/engine_test.py; not a CTest: it builds real projects with real engines.
+add_executable(LauncherEngineProbe EXCLUDE_FROM_ALL EngineProbe.cpp)
+target_link_libraries(LauncherEngineProbe PRIVATE LauncherCore)
+engine_warnings(LauncherEngineProbe)
+
 if(TARGET LauncherVelopack)
     # Scripts/update_test.py; not a CTest: it needs an installed package.
     add_executable(LauncherUpdateProbe EXCLUDE_FROM_ALL UpdateProbe.cpp)

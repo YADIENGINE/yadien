@@ -39,18 +39,18 @@ TEST_CASE("A manifest without identity is rejected", "[engines]") {
     CHECK_FALSE(LoadEngineManifest(temp.Path()).Ok());
 }
 
-TEST_CASE("The library lists valid series newest first and reports broken folders", "[engines]") {
+TEST_CASE("The library lists valid versions newest first and reports broken folders", "[engines]") {
     TempFolder temp;
-    WriteFakeEngine(temp.Path() / "Engine0.1", {.version = "0.1.2"});
-    WriteFakeEngine(temp.Path() / "Engine0.2", {.version = "0.2.0"});
-    WriteFakeEngine(temp.Path() / "Engine0.3", {.version = "0.4.0"}); // Folder and version disagree
-    temp.Write("Engine0.5/EngineManifest.json", "{}");
+    WriteFakeEngine(temp.Path() / "Engine0.1.2", {.version = "0.1.2"});
+    WriteFakeEngine(temp.Path() / "Engine0.2.0", {.version = "0.2.0"});
+    WriteFakeEngine(temp.Path() / "Engine0.3.0", {.version = "0.4.0"}); // Folder and version disagree
+    temp.Write("Engine0.5.0/EngineManifest.json", "{}");
     const EngineLibrary library = EngineLibrary::Scan(temp.Path());
     REQUIRE(library.Engines().size() == 2);
     CHECK(library.Newest()->manifest.version == EngineVersion{0, 2, 0});
-    CHECK(library.FindSeries("0.1") != nullptr);
-    CHECK(library.FindSeries("0.3") == nullptr);
+    CHECK(library.Find({0, 1, 2}) != nullptr);
+    CHECK(library.Find({0, 3, 0}) == nullptr);
     CHECK(library.Problems().size() == 2);
-    CHECK(library.UpdateFor({0, 1, 2}) == library.Newest());
-    CHECK(library.UpdateFor({0, 2, 0}) == nullptr);
+    CHECK(library.UpdateFor({0, 1, 2}) == EngineVersion{0, 2, 0});
+    CHECK_FALSE(library.UpdateFor({0, 2, 0}).has_value());
 }

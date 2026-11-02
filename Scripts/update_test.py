@@ -135,7 +135,7 @@ def build_packages(output: Path, build: Path, brand: Path, product: str, executa
     lock = json.loads((REPOSITORY / "Toolchain.lock.json").read_text(encoding="utf-8"))
     stage_dir = output / "Stage"
     releases = output / "Releases"
-    stage(build, stage_dir, executable, REPOSITORY / "Engines", REPOSITORY / "ToolCache", lock)
+    stage(build, stage_dir, executable, build.parent / "Engines", REPOSITORY / "ToolCache", lock)
     shutil.copy2(build / PROBE, stage_dir / PROBE)
     pack_id = product + PACK_ID_SUFFIX
     no_shortcuts = ["--shortcuts", ""]  # The test must not touch the desktop or the Start menu

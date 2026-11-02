@@ -3,7 +3,9 @@
 #include <utility>
 #include "Cli/EngineCommand.h"
 #include "Developer/DeveloperGit.h"
+#include "Engines/EngineCatalog.h"
 #include "Dialogs/FolderDialog.h"
+#include "Platform/FileSystem.h"
 #include "Platform/Process.h"
 #include "Platform/Shell.h"
 #include "Platform/Text.h"
@@ -12,6 +14,7 @@
 #include "Projects/ProjectScan.h"
 #include "Settings/ProjectList.h"
 #include "System/UserPath.h"
+#include "Update/ReleaseSource.h"
 
 namespace {
 constexpr const char* DevelopmentBranch = "main";
@@ -19,9 +22,11 @@ constexpr const char* DevelopmentBranch = "main";
 std::string ProjectName(const ProjectRow& row) { return row.info.name; }
 } // namespace
 
-LauncherModel::LauncherModel(LauncherLayout layout, std::unique_ptr<UpdateBackend> updates, bool justUpdated)
+LauncherModel::LauncherModel(LauncherLayout layout, std::unique_ptr<UpdateBackend> updates, bool justUpdated,
+                             EngineTrialRunner trials)
     : _layout(std::move(layout))
-    , _engines(EngineLibrary::Scan(_layout.enginesFolder))
+    , _engines(EngineLibrary::Scan(_layout.enginesFolder, _layout.EngineCacheFolder()))
+    , _trials(std::move(trials))
     , _updates(std::move(updates), [this] { return _job.has_value() || CommandsRunning(LauncherFolder()); }) {
     std::error_code error;
     const bool firstStart = !std::filesystem::exists(_layout.SettingsFile(), error);
@@ -42,7 +47,11 @@ LauncherModel::LauncherModel(LauncherLayout layout, std::unique_ptr<UpdateBacken
         Save();
         _panel = LauncherPanel::SystemCheck;
     }
-    if (_settings.checkForUpdates) _updates.Check(false);
+    _removeLeftoverTrial = !CommandsRunning(LauncherFolder());
+    if (_settings.checkForUpdates) {
+        _updates.Check(false);
+        StartEngineCatalog();
+    }
     if (justUpdated)
         ShowNotice(NoticeLevel::Info, std::string("Updated to ") + LAUNCHER_VERSION,
                    "Your projects and settings were not changed.");
@@ -68,7 +77,14 @@ void LauncherModel::Tick() {
     if (_visibleFilter != _filter) {
         _visibleFilter = _filter;
         _visible = ::VisibleRows(_rows, _filter, _settings.projectSort);
+        KeepSelectionVisible();
     }
+}
+
+// The details panel always speaks about a project in the list when there is one.
+void LauncherModel::KeepSelectionVisible() {
+    if (_visible.empty()) return;
+    if (!_selected || std::ranges::find(_visible, *_selected) == _visible.end()) _selected = _visible.front();
 }
 
 void LauncherModel::Queue(std::function<void()> action) { _requests.push_back(std::move(action)); }
@@ -76,7 +92,10 @@ void LauncherModel::Queue(std::function<void()> action) { _requests.push_back(st
 // --- Navigation ---
 
 void LauncherModel::SelectTab(LauncherTab tab) {
-    Queue([this, tab] { _tab = tab; });
+    Queue([this, tab] {
+        _tab = tab;
+        if (tab == LauncherTab::Engines) StartEngineCatalog();
+    });
 }
 
 void LauncherModel::OpenPanel(LauncherPanel panel) {
@@ -95,6 +114,8 @@ void LauncherModel::ClosePanel() {
         if (_panel == LauncherPanel::EngineUpdate) {
             _planJob.reset();
             _plan.reset();
+            _trial.reset();
+            _switchError.clear();
         }
         if (_panel == LauncherPanel::Update) _updates.Dismiss();
         _panel = LauncherPanel::None;
@@ -281,20 +302,64 @@ void LauncherModel::ChangeEngine(std::size_t row, EngineChange change) {
     Queue([this, row, change] {
         const ProjectRow* found = RowAt(row);
         if (!found || _job) return;
-        const AvailableEngine* target = change == EngineChange::Update   ? UpdateTarget(*found, _engines)
-                                        : change == EngineChange::Repair ? RepairTarget(*found, _engines)
-                                                                         : ReplaceTarget(*found, _engines);
-        if (!target) return;
+        const std::optional<EngineVersion> target = change == EngineChange::Update   ? UpdateTarget(*found, _engines)
+                                                    : change == EngineChange::Repair ? RepairTarget(*found, _engines)
+                                                                                     : ReplaceTarget(*found, _engines);
+        std::optional<EngineVersion> version = target;
+        if (!version && change == EngineChange::Update) { // Nothing newer: the panel offers the other versions
+            const std::vector<EngineVersion> choices = ChangeChoices(*found, _engines);
+            if (!choices.empty()) version = choices.front();
+        }
+        if (!version) return;
         _change = change;
         _changeRoot = found->entry.root;
-        _plan.reset();
-        _planError.clear();
         _panel = LauncherPanel::EngineUpdate;
-        _planJob = std::make_unique<Job<EngineUpdatePlan>>(
-            "Planning the engine change", 1, [project = found->info, target = *target](JobContext& context) {
-                context.Step("Comparing engine files");
-                return PlanEngineUpdate(project, target);
-            });
+        StartEngineCatalog();
+        StartPlan(*version);
+    });
+}
+
+void LauncherModel::StartPlan(const EngineVersion& version) {
+    const ProjectRow* row = RowFor(_changeRoot);
+    if (!row) return;
+    _planJob.reset();
+    _plan.reset();
+    _planError.clear();
+    _trial.reset();
+    _switchError.clear();
+    _changeVersion = version;
+    std::optional<AvailableEngine> local;
+    if (const AvailableEngine* found = _engines.Find(version)) local = *found;
+    std::optional<OnlineEngine> online;
+    if (const OnlineEngine* found = _engines.FindOnline(version)) online = *found;
+    _planJob = std::make_unique<Job<EngineUpdatePlan>>(
+        "Planning the engine change", 2,
+        [project = row->info, local = std::move(local), online = std::move(online), version,
+         cache = _layout.EngineCacheFolder()](JobContext& context) -> Result<EngineUpdatePlan> {
+            std::optional<AvailableEngine> target = local;
+            if (!target) {
+                if (!online)
+                    return Result<EngineUpdatePlan>::Failure("Engine " + version.ToString() + " is not available");
+                context.Step("Downloading engine " + version.ToString());
+                Result<AvailableEngine> downloaded = DownloadEngine(*online, cache, context.CancelFlag());
+                if (!downloaded.Ok()) return Result<EngineUpdatePlan>::Failure(downloaded.Error());
+                target = std::move(downloaded).Value();
+            }
+            context.Step("Comparing engine files");
+            return PlanEngineUpdate(project, *target);
+        });
+}
+
+std::string LauncherModel::PlanStep() const { return _planJob ? _planJob->StepText() : std::string(); }
+
+std::vector<EngineVersion> LauncherModel::ChangeVersions() const {
+    const ProjectRow* row = RowFor(_changeRoot);
+    return row ? ChangeChoices(*row, _engines) : std::vector<EngineVersion>{};
+}
+
+void LauncherModel::ChooseChangeVersion(const EngineVersion& version) {
+    Queue([this, version] {
+        if (!_job && _panel == LauncherPanel::EngineUpdate && version != _changeVersion) StartPlan(version);
     });
 }
 
@@ -337,9 +402,14 @@ bool LauncherModel::DevelopmentEngineAvailable() const {
 
 std::vector<EngineChoice> LauncherModel::NewProjectEngines() const {
     std::vector<EngineChoice> choices;
-    for (const AvailableEngine& engine : _engines.Engines())
-        choices.push_back({engine.manifest.version.ToString(), &engine});
-    if (DevelopmentEngineAvailable()) choices.push_back({std::string("dev (") + DevelopmentBranch + ")", nullptr});
+    for (const EngineVersion& version : _engines.KnownVersions()) {
+        if (const AvailableEngine* local = _engines.Find(version))
+            choices.push_back({version.ToString(), local, nullptr});
+        else
+            choices.push_back({version.ToString() + " (download)", nullptr, _engines.FindOnline(version)});
+    }
+    if (DevelopmentEngineAvailable())
+        choices.push_back({std::string("dev (") + DevelopmentBranch + ")", nullptr, nullptr});
     return choices;
 }
 
@@ -350,7 +420,7 @@ std::string LauncherModel::NewProjectProblem() const {
     NewProjectRequest request{_newProject.name, Utf8ToPath(_newProject.location), {}};
     if (choice.stable)
         request.engine = *choice.stable;
-    else
+    else if (!choice.online)
         request.engine = DevelopmentEngine{_engines.Newest()->manifest.repository, DevelopmentBranch};
     const Status usable = CheckNewProjectFolder(request);
     return usable.Ok() ? std::string() : usable.Error();
@@ -378,17 +448,28 @@ void LauncherModel::CreateProject() {
         NewProjectRequest request{_newProject.name, Utf8ToPath(_newProject.location), {}};
         if (choice.stable)
             request.engine = *choice.stable;
-        else
+        else if (!choice.online)
             request.engine = DevelopmentEngine{_engines.Newest()->manifest.repository, DevelopmentBranch};
+        std::optional<OnlineEngine> online;
+        if (choice.online) online = *choice.online;
+        const int steps = online ? 2 : 1;
         auto job = std::make_unique<Job<std::filesystem::path>>(
-            "Creating " + _newProject.name, 1,
-            [request, toolchain = *toolchain](JobContext& context) -> Result<std::filesystem::path> {
+            "Creating " + _newProject.name, steps,
+            [request, online = std::move(online), cache = _layout.EngineCacheFolder(),
+             toolchain = *toolchain](JobContext& context) mutable -> Result<std::filesystem::path> {
+                if (online) {
+                    context.Step("Downloading engine " + online->version.ToString());
+                    Result<AvailableEngine> engine = DownloadEngine(*online, cache, context.CancelFlag());
+                    if (!engine.Ok()) return Result<std::filesystem::path>::Failure(engine.Error());
+                    request.engine = std::move(engine).Value();
+                }
                 context.Step("Creating the project");
                 return ::CreateProject(request, LauncherEngineRunner(toolchain, context.CancelFlag()), context.Lines());
             });
         auto* created = job.get();
         StartJob(std::move(job), failure, [this, created] {
             const std::filesystem::path root = created->Outcome()->Value();
+            RescanEngines();
             (void)AddProject(_settings, root);
             Save();
             ReloadRows();
@@ -408,21 +489,128 @@ const ProjectRow* LauncherModel::ChangeProject() const { return RowFor(_changeRo
 void LauncherModel::ConfirmEngineChange() {
     Queue([this] {
         if (_job || !_plan) return;
+        if (_change == EngineChange::Repair) {
+            SwitchEngine();
+            return;
+        }
+        StartTrial();
+    });
+}
+
+void LauncherModel::StartTrial() {
+    const ProjectRow* row = RowFor(_changeRoot);
+    const std::string name = row ? ProjectName(*row) : PathToUtf8(_changeRoot.filename());
+    const std::string version = _plan->target.manifest.version.ToString();
+    const std::string failure = "Could not try engine " + version + " on " + name;
+    EngineTrialRunner run = _trials;
+    if (!run) {
+        const std::optional<Toolchain> toolchain = RequireToolchain(failure);
+        if (!toolchain) return;
+        run = [toolchain = *toolchain, folder = _layout.EngineTrialFolder()](const EngineUpdatePlan& plan,
+                                                                             JobContext& context) {
+            return RunEngineTrial(plan, folder, LauncherEngineRunner(toolchain, context.CancelFlag()), context);
+        };
+    }
+    _trial.reset();
+    _switchError.clear();
+    auto job = std::make_unique<Job<EngineTrial>>(
+        "Trying engine " + version + " on " + name, EngineTrialSteps,
+        [plan = *_plan, run = std::move(run)](JobContext& context) { return run(plan, context); });
+    auto* tried = job.get();
+    StartJob(std::move(job), failure, [this, tried] {
+        _trial = tried->Outcome()->Value();
+        _panel = LauncherPanel::EngineUpdate;
+        if (_trial->verdict == TrialVerdict::Passed) SwitchEngine(); // Queued: this job is still being finished
+    });
+}
+
+void LauncherModel::SwitchEngine() {
+    Queue([this] {
+        if (_job || !_plan) return;
         const ProjectRow* row = RowFor(_changeRoot);
         const std::string name = row ? ProjectName(*row) : PathToUtf8(_changeRoot.filename());
-        auto job =
-            std::make_unique<Job<void>>("Changing the engine of " + name, 1, [plan = *_plan](JobContext& context) {
-                context.Step("Copying engine " + plan.target.manifest.version.ToString());
-                return ApplyEngineUpdate(plan);
+        const std::string version = _plan->target.manifest.version.ToString();
+        _switchError.clear();
+        // A refusal is not a failed job: the panel keeps the trial's result and offers to try again.
+        auto job = std::make_unique<Job<std::string>>(
+            "Changing the engine of " + name, 1, [plan = *_plan, version](JobContext& context) -> Result<std::string> {
+                context.Step("Copying engine " + version);
+                Status applied = ApplyEngineUpdate(plan);
+                return applied.Ok() ? std::string() : applied.Error();
             });
-        StartJob(std::move(job), "Could not change the engine of " + name,
-                 [this, name, version = _plan->target.manifest.version.ToString()] {
-                     _plan.reset();
-                     _panel = LauncherPanel::None;
-                     ReloadRows();
-                     ShowNotice(NoticeLevel::Info, "Engine changed", name + " now uses engine " + version);
-                 });
+        auto* switched = job.get();
+        StartJob(std::move(job), "Could not change the engine of " + name, [this, switched, name, version] {
+            if (!switched->Outcome()->Value().empty()) {
+                _switchError = switched->Outcome()->Value();
+                _panel = LauncherPanel::EngineUpdate;
+                return;
+            }
+            _plan.reset();
+            _trial.reset();
+            _panel = LauncherPanel::None;
+            ReloadRows();
+            ShowNotice(NoticeLevel::Info, "Engine changed",
+                       name + " now uses engine " + version + ". The next build compiles it from scratch.");
+        });
     });
+}
+
+std::string LauncherModel::TrialReport() const {
+    if (!_plan || !_trial) return {};
+    const ProjectRow* row = RowFor(_changeRoot);
+    return EngineTrialReport(*_plan, *_trial, row ? ProjectName(*row) : PathToUtf8(_changeRoot.filename()));
+}
+
+// --- Engine versions ---
+
+void LauncherModel::StartEngineCatalog() {
+    if (_catalogJob || _catalogRead) return;
+    const AvailableEngine* newest = _engines.Newest();
+    std::string url = EngineCatalogSource(newest ? newest->manifest.repository : std::string());
+    if (url.empty()) { // Nothing to ask: a build without an engine or an engine without a GitHub repository
+        _catalogRead = true;
+        return;
+    }
+    const bool prereleases = !newest || IncludesPrereleases(newest->manifest.version);
+    const bool removeTrial = std::exchange(_removeLeftoverTrial, false);
+    _catalogError.clear();
+    _catalogJob = std::make_unique<Job<std::vector<OnlineEngine>>>(
+        "Reading the engine list", 1,
+        [url = std::move(url), prereleases, removeTrial, trial = _layout.EngineTrialFolder(),
+         scratch = _layout.dataFolder / "EngineCatalog"](JobContext& context) {
+            if (removeTrial) (void)RemoveTree(trial);
+            context.Step("Reading the engine list");
+            return FetchEngineCatalog(url, prereleases, scratch, context.CancelFlag());
+        });
+}
+
+void LauncherModel::RetryEngineCatalog() {
+    Queue([this] { StartEngineCatalog(); });
+}
+
+void LauncherModel::DownloadEngineVersion(const EngineVersion& version) {
+    Queue([this, version] {
+        const OnlineEngine* online = _engines.FindOnline(version);
+        if (_job || !online) return;
+        const std::string text = version.ToString();
+        auto job = std::make_unique<Job<void>>(
+            "Downloading engine " + text, 1,
+            [engine = *online, cache = _layout.EngineCacheFolder(), text](JobContext& context) -> Status {
+                context.Step("Downloading and checking engine " + text);
+                Result<AvailableEngine> downloaded = DownloadEngine(engine, cache, context.CancelFlag());
+                return downloaded.Ok() ? Status::Success() : Status::Failure(downloaded.Error());
+            });
+        StartJob(std::move(job), "Could not download engine " + text, [this] {
+            RescanEngines();
+            ReloadRows();
+        });
+    });
+}
+
+void LauncherModel::RescanEngines() {
+    std::vector<OnlineEngine> online = _engines.Online();
+    _engines = EngineLibrary::Scan(_layout.enginesFolder, _layout.EngineCacheFolder());
+    _engines.SetOnline(std::move(online));
 }
 
 // --- System ---
@@ -719,6 +907,20 @@ void LauncherModel::FinishJobs() {
         else
             _planError = _planJob->Error();
         _planJob.reset();
+        if (_engines.Find(_changeVersion) == nullptr) { // Downloaded: the list shows it as on this computer now
+            RescanEngines();
+            ReloadRows();
+        }
+    }
+    if (_catalogJob && _catalogJob->Finished()) {
+        if (_catalogJob->State() == JobState::Succeeded) {
+            _engines.SetOnline(_catalogJob->Outcome()->Value());
+            _catalogRead = true;
+            ReloadRows();
+        } else {
+            _catalogError = _catalogJob->Error();
+        }
+        _catalogJob.reset();
     }
 }
 
@@ -733,6 +935,7 @@ void LauncherModel::ReloadRows() {
     _selected.reset();
     if (selected)
         if (const ProjectRow* row = RowFor(*selected)) _selected = static_cast<std::size_t>(row - _rows.data());
+    KeepSelectionVisible();
     _detailsByRoot.clear();
     StartDetails();
 }

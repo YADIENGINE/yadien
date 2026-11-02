@@ -16,7 +16,7 @@ struct ProjectRow {
     ProjectEntry entry;
     ProjectInfo info;
     bool folderMissing = false;          // The project folder is gone: "Remove missing" removes such rows
-    std::optional<EngineVersion> update; // Copy: the newest newer stable engine in Engines/
+    std::optional<EngineVersion> update; // Copy: the newest newer stable engine known
     bool updateMayBreak = false;         // MayBreak(version, update)
     bool contractSupported = true;       // False: this launcher cannot drive the project's engine (update it)
 
@@ -34,7 +34,7 @@ struct ProjectRow {
 [[nodiscard]] std::vector<std::size_t> VisibleRows(const std::vector<ProjectRow>& rows, std::string_view filter,
                                                    ProjectSort sort);
 
-// Projects whose engine is of the series of `version` (Engines tab: "used by N projects").
+// Projects on exactly this engine version (Engines tab: "used by N projects").
 [[nodiscard]] int ProjectsUsing(const std::vector<ProjectRow>& rows, const EngineVersion& version);
 
 // What the action panel enables for a row (unavailable actions are shown disabled).
@@ -43,14 +43,17 @@ struct ProjectActions {
     bool run = false;           // Same as open
     bool showInFolder = false;  // Folder exists
     bool updateEngine = false;  // Copy with a newer stable engine (confirmation panel)
-    bool repairEngine = false;  // Copy whose series is in Engines/ (same version back; confirmation panel)
-    bool replaceEngine = false; // Unregistered or missing engine, Engines/ not empty (confirmation panel)
+    bool changeEngine = false;  // Copy, and another version to choose from, newer or older (confirmation panel)
+    bool repairEngine = false;  // Copy whose exact version is known (same version back; confirmation panel)
+    bool replaceEngine = false; // Unregistered or missing engine, a version to offer (confirmation panel)
     bool engineGit = false;     // Developer mode and a git-managed engine: Update from remote, Publish changes
     bool remove = true;         // Remove from list (never touches the disk)
 };
 [[nodiscard]] ProjectActions ActionsFor(const ProjectRow& row, const EngineLibrary& engines, LauncherMode mode);
 
-// The stable engine Update / Repair / Replace moves the project to; nullptr when that action is not available.
-[[nodiscard]] const AvailableEngine* UpdateTarget(const ProjectRow& row, const EngineLibrary& engines);
-[[nodiscard]] const AvailableEngine* RepairTarget(const ProjectRow& row, const EngineLibrary& engines);
-[[nodiscard]] const AvailableEngine* ReplaceTarget(const ProjectRow& row, const EngineLibrary& engines);
+// The version Update / Repair / Replace moves the project to; nothing when that action is not available.
+[[nodiscard]] std::optional<EngineVersion> UpdateTarget(const ProjectRow& row, const EngineLibrary& engines);
+[[nodiscard]] std::optional<EngineVersion> RepairTarget(const ProjectRow& row, const EngineLibrary& engines);
+[[nodiscard]] std::optional<EngineVersion> ReplaceTarget(const ProjectRow& row, const EngineLibrary& engines);
+// The versions a project can be moved to by choice, newest first: everything known but its own.
+[[nodiscard]] std::vector<EngineVersion> ChangeChoices(const ProjectRow& row, const EngineLibrary& engines);

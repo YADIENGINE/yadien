@@ -18,8 +18,9 @@ sözleşme engine `Docs/ToolsContract.md` (komutlar, çıkış kodları, manifes
 - Bir oyunun içinde (`<oyun>/Launcher/`) launcher oyunun `Engine/`'ine karşı derlenir, kendi `Engine/` submodule'ü
   başlatılmaz; pointer'ı `python Scripts/dev.py pin-engine` ile çekilir. Sıra: engine → launcher → oyun
   (`Docs/Development.md` → Bir oyunun içinde geliştirmek).
-- `Engines/Engine<ANA.ARA>/` stable kopyalardır: sadece `python Scripts/import_engine.py v<sürüm>` yazar, elle
-  düzenlenmez (`Docs/Engines.md`).
+- Launcher tek stable engine taşır (`LauncherManifest.json` `engine`; `dev.py` tag'inden `build/Engines/`'e alır, repoda
+  yok); diğer sürümleri GitHub'dan indirir ve dosyalarını kayda göre denetler. Proje sürümü değiştirirken önce projenin
+  geçici kopyasında dener (`Docs/Engines.md`).
 
 ## Build ve test
 Build almak kullanıcıya bırakılır (kod bitince kullanıcı derler, uyarı / hata paylaşır).

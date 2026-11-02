@@ -78,7 +78,7 @@ CheckItem CheckMsvc() {
 }
 
 CheckItem CheckEngines(const LauncherLayout& layout) {
-    const EngineLibrary library = EngineLibrary::Scan(layout.enginesFolder);
+    const EngineLibrary library = EngineLibrary::Scan(layout.enginesFolder, layout.EngineCacheFolder());
     CheckItem item{"engines", "Engine versions", CheckStatus::Ok, "", CheckFix::None};
     for (const AvailableEngine& engine : library.Engines())
         item.detail += (item.detail.empty() ? "" : ", ") + engine.manifest.version.ToString();

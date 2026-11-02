@@ -6,24 +6,24 @@
 #include <string>
 #include "Model/LauncherModel.h"
 #include "Screens/ScreenLayout.h"
+#include "ToolUi/ToolPixel.h"
 #include "ToolUi/ToolTheme.h"
 #include "ToolUi/ToolWidgets.h"
 
 namespace {
-constexpr float WindowPadding = ToolMetrics::Space;
 constexpr float PanelPadding = 20.0f;
 constexpr float PanelMargin = 18.0f;
 constexpr float DefaultPanelWidth = 580.0f;
-constexpr float DefaultPanelHeight = 510.0f;
-constexpr float SettingsWidth = 510.0f;
-constexpr float SettingsHeight = 430.0f;
+constexpr float DefaultPanelHeight = 460.0f;
+constexpr float SettingsWidth = 580.0f;
 constexpr float WidePanelWidth = 760.0f;
 constexpr float WidePanelHeight = 580.0f;
 constexpr float SystemPanelWidth = 650.0f;
+constexpr float SystemPanelHeight = 510.0f;
 constexpr float TopBarGap = ToolMetrics::SectionGap;
-constexpr float StatusDotRadius = 3.0f;
+constexpr float WordmarkCell = 2.0f;
+constexpr float NoticeMargin = 8.0f;
 constexpr float NoticePadding = 10.0f;
-constexpr float NoticeAccentWidth = 3.0f;
 constexpr float NoticeMaxHeight = 140.0f;
 constexpr ImGuiWindowFlags PanelWindowFlags =
     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
@@ -33,7 +33,7 @@ constexpr ImGuiWindowFlags FrameWindowFlags = ImGuiWindowFlags_NoDecoration | Im
 const char* PanelTitle(LauncherPanel panel) {
     switch (panel) {
     case LauncherPanel::None        : return "";
-    case LauncherPanel::NewProject  : return "Create project";
+    case LauncherPanel::NewProject  : return "New project";
     case LauncherPanel::Settings    : return "Settings";
     case LauncherPanel::SystemCheck : return "System check";
     case LauncherPanel::EngineUpdate: return "Review engine change";
@@ -79,42 +79,38 @@ std::string UpdateButtonLabel(const LauncherModel& model) {
     return std::string(ICON_FA_CIRCLE_ARROW_UP " Update ") + model.Update()->version;
 }
 
-bool ContinueStatusBar(const char* label) {
-    const float gap = ToolMetrics::SectionGap * ToolUiScale();
-    const auto last = ImGui::GetItemRectMax();
-    const float right = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
-    if (last.x + gap + ImGui::CalcTextSize(label).x > right) return false;
-    const float x = std::floor(last.x + gap * 0.5f);
-    ImGui::GetWindowDrawList()->AddLine({x, ImGui::GetItemRectMin().y}, {x, last.y},
-                                        ImGui::GetColorU32(ToolPalette::Border));
-    ImGui::SameLine(0, gap);
-    return true;
-}
-
 void DrawPanel(LauncherModel& model) {
     const LauncherPanel panel = model.Panel();
     if (panel == LauncherPanel::None) return;
     const float scale = ToolUiScale();
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImVec2 size{DefaultPanelWidth * scale, DefaultPanelHeight * scale};
-    if (panel == LauncherPanel::Settings) size = {SettingsWidth * scale, SettingsHeight * scale};
-    if (panel == LauncherPanel::SystemCheck || panel == LauncherPanel::Update) size.x = SystemPanelWidth * scale;
+    if (panel == LauncherPanel::Settings) size.x = SettingsWidth * scale;
+    if (panel == LauncherPanel::SystemCheck || panel == LauncherPanel::Update)
+        size = {SystemPanelWidth * scale, SystemPanelHeight * scale};
     if (panel == LauncherPanel::Job || panel == LauncherPanel::EngineUpdate)
         size = {WidePanelWidth * scale, WidePanelHeight * scale};
     size.x = std::min(size.x, viewport->WorkSize.x - PanelMargin * scale * 2);
     size.y = std::min(size.y, viewport->WorkSize.y - PanelMargin * scale * 2);
-    ImVec2 position{viewport->WorkPos.x + (viewport->WorkSize.x - size.x) * 0.5f,
-                    viewport->WorkPos.y + (viewport->WorkSize.y - size.y) * 0.5f};
-    if (panel == LauncherPanel::Settings)
-        position = {viewport->WorkPos.x + viewport->WorkSize.x - size.x - PanelMargin * scale,
-                    viewport->WorkPos.y + PanelMargin * scale};
-    ImGui::SetNextWindowPos(position, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(size, ImGuiCond_Always);
+    // Settings is as tall as its rows, up to what fits; the other panels have a fixed frame around their own scrolling.
+    const bool fitsContent = panel == LauncherPanel::Settings;
+    const ImVec2 center{viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
+                        viewport->WorkPos.y + viewport->WorkSize.y * 0.5f};
+    ImGui::SetNextWindowPos(center, ImGuiCond_Always, {0.5f, 0.5f});
+    if (fitsContent)
+        ImGui::SetNextWindowSizeConstraints({size.x, 0}, {size.x, viewport->WorkSize.y - PanelMargin * scale * 2});
+    else
+        ImGui::SetNextWindowSize(size, ImGuiCond_Always);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {PanelPadding * scale, PanelPadding * scale});
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImGui::GetStyleColorVec4(ImGuiCol_PopupBg));
-    if (ImGui::Begin(PanelTitle(panel), nullptr, PanelWindowFlags)) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1);
+    const ImGuiWindowFlags flags =
+        fitsContent ? (PanelWindowFlags & ~ImGuiWindowFlags_NoScrollbar) | ImGuiWindowFlags_AlwaysAutoResize
+                    : PanelWindowFlags;
+    if (ImGui::Begin(PanelTitle(panel), nullptr, flags)) {
+        // Opened with the mouse: no keyboard ring on the first control until the keyboard is used.
+        if (ImGui::IsWindowAppearing()) ImGui::SetNavCursorVisible(false);
         const float closeWidth = ImGui::GetFrameHeight();
-        ImGui::PushFont(ToolFont(ToolFontRole::Heading), ToolMetrics::SectionSize);
+        ImGui::PushFont(ToolFont(ToolFontRole::Heading), ToolMetrics::HeadingSize);
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(PanelTitle(panel));
         ImGui::PopFont();
@@ -137,21 +133,22 @@ void DrawPanel(LauncherModel& model) {
         }
     }
     ImGui::End();
-    ImGui::PopStyleColor();
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
 }
 
 void DrawNoticeCard(const char* id, const char* title, const char* message, ToolTone tone, LauncherModel& model,
                     bool settingsError) {
     const float scale = ToolUiScale();
     ImGui::PushID(id);
+    const float margin = NoticeMargin * scale;
+    ImGui::SetCursorPos({margin, ImGui::GetCursorPosY() + margin});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {NoticePadding * scale, NoticePadding * scale});
-    ImGui::SetNextWindowSizeConstraints({0, 0}, {ImGui::GetContentRegionAvail().x, NoticeMaxHeight * scale});
-    if (ImGui::BeginChild("##notice", {0, 0}, ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY)) {
-        const auto start = ImGui::GetWindowPos();
-        ImGui::GetWindowDrawList()->AddRectFilled(
-            start, {start.x + NoticeAccentWidth * scale, start.y + ImGui::GetWindowHeight()},
-            ImGui::GetColorU32(ToolToneColor(tone)));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ToolMetrics::Gap * scale, ToolMetrics::Space * scale});
+    const float width = ImGui::GetContentRegionAvail().x - margin;
+    ImGui::SetNextWindowSizeConstraints({0, 0}, {width, NoticeMaxHeight * scale});
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ToolPalette::Elevated);
+    if (ImGui::BeginChild("##notice", {width, 0},
+                          ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_AutoResizeY)) {
         const float controlWidth =
             settingsError ? ImGui::CalcTextSize("Start with defaults").x + ImGui::GetStyle().FramePadding.x * 2
                           : ImGui::GetFrameHeight();
@@ -173,8 +170,41 @@ void DrawNoticeCard(const char* id, const char* title, const char* message, Tool
         }
     }
     ImGui::EndChild();
-    ImGui::PopStyleVar();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
     ImGui::PopID();
+}
+
+// Text and a state mark that opens the System check; only the mark when `compact`.
+void DrawSystemState(LauncherModel& model, bool compact) {
+    const float scale = ToolUiScale();
+    const auto system = model.System();
+    const bool working = model.CurrentJob() != nullptr;
+    const char* label = working ? "Working" : SystemLabel(system);
+    const float gap = ToolMetrics::Gap * scale;
+    const float mark = ToolPixelCell(11.0f);
+    const float frame = ImGui::GetFrameHeight();
+    const float width = compact ? frame : mark + gap + ImGui::CalcTextSize(label).x + gap;
+    const auto start = ImGui::GetCursorScreenPos();
+    if (ImGui::InvisibleButton("##system-check", {width, frame})) model.OpenPanel(LauncherPanel::SystemCheck);
+    const bool hovered = ImGui::IsItemHovered();
+    const auto end = ImGui::GetItemRectMax();
+    ToolTooltip(compact ? label : "Check build tools and installed engines");
+    auto* draw = ImGui::GetWindowDrawList();
+    if (hovered)
+        draw->AddRectFilled(start, end, ImGui::GetColorU32(ToolPalette::Elevated), ToolMetrics::Radius * scale);
+    const float textHeight = ImGui::GetTextLineHeight();
+    const float textY = start.y + (frame - textHeight) * 0.5f;
+    ImGui::SetCursorScreenPos({start.x + (compact ? (frame - mark) * 0.5f : gap * 0.5f), textY});
+    if (working || system == SystemState::Checking)
+        ToolActivity();
+    else
+        ToolStateCell(ToolToneColor(SystemTone(system)));
+    if (!compact)
+        draw->AddText({start.x + gap * 0.5f + mark + gap * 0.5f, textY},
+                      ImGui::GetColorU32(hovered ? ToolPalette::Text : ToolPalette::Secondary), label);
+    ImGui::SetCursorScreenPos(start);
+    ImGui::Dummy({width, frame});
 }
 } // namespace
 
@@ -182,23 +212,24 @@ void DrawLauncher(LauncherModel& model) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {WindowPadding * ToolUiScale(), WindowPadding * ToolUiScale()});
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                        {ToolMetrics::Space * ToolUiScale(), ToolMetrics::Space * ToolUiScale()});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {0, 0});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0, 0});
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ToolPalette::Window);
     if (ImGui::Begin("##launcher", nullptr, FrameWindowFlags)) {
         const bool covered = model.Panel() != LauncherPanel::None || model.Pending() != Confirmation::None;
         ImGui::BeginDisabled(covered);
         DrawTopBar(model);
         DrawNotice(model);
-        const float statusHeight = (ToolMetrics::CaptionSize + ToolMetrics::Space * 2) * ToolUiScale() + 2;
-        if (ImGui::BeginChild("##tab", {0, -statusHeight - ImGui::GetStyle().ItemSpacing.y})) {
+        ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0);
+        if (ImGui::BeginChild("##tab", {0, 0})) {
             if (model.Tab() == LauncherTab::Projects)
                 DrawProjectsTab(model);
             else
                 DrawEnginesTab(model);
         }
         ImGui::EndChild();
-        DrawStatusBar(model);
+        ImGui::PopStyleVar();
         ImGui::EndDisabled();
         if (model.Panel() != LauncherPanel::None)
             ImGui::GetWindowDrawList()->AddRectFilled(
@@ -207,37 +238,42 @@ void DrawLauncher(LauncherModel& model) {
                 ImGui::GetColorU32(ImGuiCol_ModalWindowDimBg));
     }
     ImGui::End();
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(3);
     DrawPanel(model);
     DrawConfirmation(model);
 }
 
 void DrawTopBar(LauncherModel& model) {
     const float scale = ToolUiScale();
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ToolMetrics::Space * scale, ToolMetrics::Space * scale});
     if (BeginToolPanel("##application-header", {0, 0}, ToolSurface::Header, ImGuiChildFlags_AutoResizeY, 0,
                        ToolMetrics::Gap)) {
-        ImGui::PushFont(ToolFont(ToolFontRole::Heading), ToolMetrics::IdentitySize);
-        ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(LauncherModel::ProductName());
-        ImGui::PopFont();
+        const float frame = ImGui::GetFrameHeight();
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ToolMetrics::Space * scale);
+        ToolPixelText(LauncherModel::ProductName(), WordmarkCell, ToolPalette::Accent, frame);
         ContinueToolToolbar("Projects", true);
         if (ToolSegment("Projects", model.Tab() == LauncherTab::Projects)) model.SelectTab(LauncherTab::Projects);
         ContinueToolToolbar("Engines");
         if (ToolSegment("Engines", model.Tab() == LauncherTab::Engines)) model.SelectTab(LauncherTab::Engines);
         ImGui::PushFont(ToolFont(ToolFontRole::Medium), ToolMetrics::BodySize);
-        const std::string status = std::string("    ") + SystemLabel(model.System());
-        const char* settings = ICON_FA_GEAR " Settings";
+        const auto& style = ImGui::GetStyle();
+        const float spacing = style.ItemSpacing.x;
+        const bool developer = model.Mode() == LauncherMode::Developer;
+        const char* developerLabel = ICON_FA_CODE " Developer";
         const bool updateOffered = model.UpdateOffered();
         const std::string updateLabel = updateOffered ? UpdateButtonLabel(model) : std::string();
-        const float spacing = ImGui::GetStyle().ItemSpacing.x;
-        float rightWidth = ImGui::CalcTextSize(status.c_str()).x + ImGui::CalcTextSize(settings).x +
-                           ImGui::GetStyle().FramePadding.x * 4 + spacing;
+        const char* stateLabel = model.CurrentJob() ? "Working" : SystemLabel(model.System());
+        const float gap = ToolMetrics::Gap * scale;
+        float rightWidth = ToolPixelCell(11.0f) + gap + ImGui::CalcTextSize(stateLabel).x + gap + spacing + frame;
         if (updateOffered)
-            rightWidth += ImGui::CalcTextSize(updateLabel.c_str()).x + ImGui::GetStyle().FramePadding.x * 2 + spacing;
-        const float rightEdge = ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x;
+            rightWidth += ImGui::CalcTextSize(updateLabel.c_str()).x + style.FramePadding.x * 2 + spacing;
+        if (developer) rightWidth += ImGui::CalcTextSize(developerLabel).x + spacing * 3;
+        const float rightEdge = ImGui::GetWindowWidth() - style.WindowPadding.x;
         const bool compact =
             ImGui::GetWindowPos().x + rightEdge - rightWidth < ImGui::GetItemRectMax().x + TopBarGap * scale;
-        if (compact) rightWidth = ImGui::GetFrameHeight() * (updateOffered ? 3 : 2) + spacing * (updateOffered ? 2 : 1);
+        if (compact) rightWidth = frame * (updateOffered ? 3 : 2) + spacing * (updateOffered ? 2 : 1);
         const float rightStart = rightEdge - rightWidth;
         if (ImGui::GetWindowPos().x + rightStart >= ImGui::GetItemRectMax().x + TopBarGap * scale)
             ImGui::SameLine(std::floor(rightStart));
@@ -245,34 +281,36 @@ void DrawTopBar(LauncherModel& model) {
             ContinueToolToolbar(rightWidth, true);
         if (updateOffered) {
             const std::string updateId = updateLabel + "###launcher-update";
-            ImGui::PushStyleColor(ImGuiCol_Text,
-                                  compact ? ToolPalette::Accent : ImGui::GetStyleColorVec4(ImGuiCol_Text));
+            ImGui::PushStyleColor(ImGuiCol_Text, ToolPalette::Accent);
+            ImGui::PushStyleColor(ImGuiCol_Button, {0, 0, 0, 0});
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ToolPalette::Elevated);
             const bool updatePressed =
                 compact ? ToolIconButton("launcher-update", ICON_FA_CIRCLE_ARROW_UP, updateLabel.c_str())
-                        : ToolButton(updateId.c_str(), {}, true);
-            ImGui::PopStyleColor();
+                        : ToolButton(updateId.c_str());
+            ImGui::PopStyleColor(3);
             if (updatePressed) model.OpenUpdatePanel();
             ImGui::SameLine();
         }
-        ImGui::PushStyleColor(ImGuiCol_Text, ToolPalette::Secondary);
-        const bool checkPressed =
-            compact ? ToolIconButton("system-check", "", SystemLabel(model.System())) : ToolButton(status.c_str());
-        if (checkPressed) model.OpenPanel(LauncherPanel::SystemCheck);
-        const ImVec2 start = ImGui::GetItemRectMin();
-        const float dotX =
-            compact ? ImGui::GetItemRectSize().x * 0.5f : ImGui::GetStyle().FramePadding.x + StatusDotRadius * scale;
-        ImGui::GetWindowDrawList()->AddCircleFilled(
-            {start.x + dotX, std::floor(start.y + ImGui::GetFrameHeight() * 0.5f)}, StatusDotRadius * scale,
-            ImGui::GetColorU32(ToolToneColor(SystemTone(model.System()))));
-        if (!compact) ToolTooltip("Check build tools and installed engines");
-        ImGui::SameLine();
-        const bool settingsPressed =
-            compact ? ToolIconButton("settings", ICON_FA_GEAR, "Settings") : ToolButton(settings);
-        if (settingsPressed) model.OpenPanel(LauncherPanel::Settings);
-        ImGui::PopStyleColor();
+        if (developer && !compact) {
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextColored(ToolToneColor(ToolTone::Accent), "%s", developerLabel);
+            ImGui::SameLine(0, spacing * 3);
+        }
         ImGui::PopFont();
+        DrawSystemState(model, compact);
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, ToolPalette::Secondary);
+        const bool settingsPressed = ToolIconButton("settings", ICON_FA_GEAR, "Settings");
+        ImGui::PopStyleColor();
+        if (settingsPressed) model.OpenPanel(LauncherPanel::Settings);
+        const auto windowStart = ImGui::GetWindowPos();
+        const float lineY = windowStart.y + ImGui::GetWindowHeight() - 1;
+        ImGui::GetWindowDrawList()->AddRectFilled({windowStart.x, lineY},
+                                                  {windowStart.x + ImGui::GetWindowWidth(), lineY + 1},
+                                                  ImGui::GetColorU32(ToolPalette::Separator));
     }
     EndToolPanel();
+    ImGui::PopStyleVar(2);
 }
 
 void DrawNotice(LauncherModel& model) {
@@ -285,32 +323,4 @@ void DrawNotice(LauncherModel& model) {
     if (!model.SettingsError().empty())
         DrawNoticeCard("settings-error", "Could not read settings", model.SettingsError().c_str(), ToolTone::Error,
                        model, true);
-}
-
-void DrawStatusBar(LauncherModel& model) {
-    const float scale = ToolUiScale();
-    const float height = (ToolMetrics::CaptionSize + ToolMetrics::Space * 2) * scale + 2;
-    ImGui::PushStyleColor(ImGuiCol_ChildBg, ToolSurfaceColor(ToolSurface::Status));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {ToolMetrics::Padding * scale, ToolMetrics::Space * scale});
-    if (ImGui::BeginChild("##status-bar", {0, height}, ImGuiChildFlags_Borders | ImGuiChildFlags_AlwaysUseWindowPadding,
-                          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
-        ImGui::PushFont(ToolFont(ToolFontRole::Ui), ToolMetrics::CaptionSize);
-        ImGui::TextDisabled("Launcher %s", LauncherModel::LauncherVersion());
-        const std::string count = std::to_string(model.Rows().size()) + " projects";
-        if (ContinueStatusBar(count.c_str())) ImGui::TextDisabled("%s", count.c_str());
-        const char* status = model.CurrentJob() ? "Working" : SystemLabel(model.System());
-        if (ContinueStatusBar(status)) ImGui::TextColored(ToolToneColor(SystemTone(model.System())), "%s", status);
-        if (model.Mode() == LauncherMode::Developer) {
-            if (ContinueStatusBar(ICON_FA_CODE " Developer mode"))
-                ImGui::TextColored(ToolToneColor(ToolTone::Accent), ICON_FA_CODE " Developer mode");
-        }
-        if (model.DetailsRunning()) {
-            const char* checking = "Checking project details";
-            if (ContinueStatusBar(checking)) ImGui::TextDisabled("%s", checking);
-        }
-        ImGui::PopFont();
-    }
-    ImGui::EndChild();
-    ImGui::PopStyleVar();
-    ImGui::PopStyleColor();
 }

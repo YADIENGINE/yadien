@@ -3,32 +3,55 @@
 #include "Engines/EngineCopyRecord.h"
 #include "Engines/EngineManifest.h"
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
-// A stable engine the launcher carries: Engines/Engine<MAJOR.MINOR>/.
+// A stable engine on this computer: Engine<version>/ in the launcher's Engines/ or in its download cache.
 struct AvailableEngine {
     std::filesystem::path folder;
     EngineManifest manifest;
     EngineCopyRecord record;
 };
 
-// The launcher's Engines/ folder. Folders without a valid manifest and copy record are listed in `Problems`
-// (a broken install), not offered.
+// A version published online (Engines/EngineCatalog.h).
+struct OnlineEngine {
+    EngineVersion version;
+    std::string tag;        // "v0.2.0"
+    std::string recordUrl;  // The release's EngineCopy.json
+    std::string archiveUrl; // The tag's source archive
+};
+
+// "Engine0.2.0".
+[[nodiscard]] std::string EngineFolderName(const EngineVersion& version);
+
+// The engines the launcher can give a project: the one it ships (works offline), the ones it downloaded and, once the
+// catalog has been read, the ones it can download. Folders without a valid manifest and copy record are listed in
+// `Problems` (a broken install), not offered.
 class EngineLibrary {
 public:
-    [[nodiscard]] static EngineLibrary Scan(const std::filesystem::path& enginesFolder);
+    // `cacheFolder` may be empty or not exist yet. A version in both is the bundled one.
+    [[nodiscard]] static EngineLibrary Scan(const std::filesystem::path& bundledFolder,
+                                            const std::filesystem::path& cacheFolder = {});
 
-    // Newest version first.
+    // On this computer, newest version first.
     [[nodiscard]] const std::vector<AvailableEngine>& Engines() const { return _engines; }
     [[nodiscard]] const std::vector<std::string>& Problems() const { return _problems; }
     [[nodiscard]] const AvailableEngine* Newest() const { return _engines.empty() ? nullptr : &_engines.front(); }
-    // The folder of a series ("0.2"), or nullptr.
-    [[nodiscard]] const AvailableEngine* FindSeries(const std::string& series) const;
-    // The newest engine strictly newer than `version` (the update a copy project is offered), or nullptr.
-    [[nodiscard]] const AvailableEngine* UpdateFor(const EngineVersion& version) const;
+    [[nodiscard]] const AvailableEngine* Find(const EngineVersion& version) const;
+
+    // The catalog's answer; versions already on this computer are dropped from it.
+    void SetOnline(std::vector<OnlineEngine> online);
+    [[nodiscard]] const std::vector<OnlineEngine>& Online() const { return _online; }
+    [[nodiscard]] const OnlineEngine* FindOnline(const EngineVersion& version) const;
+
+    // Every version a project can be given, newest first.
+    [[nodiscard]] std::vector<EngineVersion> KnownVersions() const;
+    // The newest known version strictly newer than `version` (the update a copy project is offered).
+    [[nodiscard]] std::optional<EngineVersion> UpdateFor(const EngineVersion& version) const;
 
 private:
     std::vector<AvailableEngine> _engines;
+    std::vector<OnlineEngine> _online;
     std::vector<std::string> _problems;
 };

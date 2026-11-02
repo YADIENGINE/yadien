@@ -4,7 +4,7 @@ Steps: stage the files the launcher ships, write their license notices, run Velo
 
     build/Package/Stage/       what gets installed into current/:
         <engine>.exe, <engine>.com, the Velopack DLL
-        Engines/               the stable engine copies (Engines/ of this repository)
+        Engines/               the stable engine copy it ships (<build>/Engines/, dev.py imports it from its tag)
         Tools/                 ToolCache's tools without the lock's "exclude" entries, + Toolchain.json
         ThirdPartyNotices.txt  Part 1: the engine (its own license + the components games get), Part 2: the launcher
                                and its tools (Packaging/Notices.json)
@@ -132,7 +132,7 @@ def pack(stage_dir: Path, releases: Path, brand: Path, product: str, executable:
 
 
 def package(engine: Path, build: Path, brand: Path, output: Path, cache: Path = REPOSITORY / "ToolCache",
-            engines: Path = REPOSITORY / "Engines", runner=subprocess.run, notes: Path | None = None,
+            engines: Path | None = None, runner=subprocess.run, notes: Path | None = None,
             overwrite: bool = False) -> Path:
     """Stages a Release build and packs it; returns the setup executable."""
     from ThirdParty.notices import check_components, compose_notices, engine_notice, load_components
@@ -147,7 +147,7 @@ def package(engine: Path, build: Path, brand: Path, output: Path, cache: Path = 
         raise PackageFailed("engine notices are out of date:\n  " + "\n  ".join(errors))
 
     stage_dir = output / "Stage"
-    stage(build, stage_dir, executable, engines, cache, lock)
+    stage(build, stage_dir, executable, engines or build.parent / "Engines", cache, lock)
     notices = json.loads(NOTICES_FILE.read_text(encoding="utf-8"))
     launcher_part = launcher_notices(notices, lock, {"repo": REPOSITORY, "engine": engine, "tools": cache})
     engine_text = engine_notice(manifest.name, manifest.version, (engine / "LICENSE").read_text(encoding="utf-8"))

@@ -7,10 +7,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from Scripts.release import (LAUNCHER_MANIFEST, REPOSITORY, EnginesChange, ReleaseFailed, carried_at_tag, check_clean,
-                             commit_launcher, commit_project_pointers, engines_change, engines_message, import_engine,
-                             indexed_pointer, make_plan, manifest_problems, new_engine_notes, release_engine,
-                             release_files, release_notes, series_folder, set_pointer)
+from Scripts.import_engine import import_engine
+from Scripts.release import (LAUNCHER_MANIFEST, REPOSITORY, ReleaseFailed, carried_at_tag, check_clean, commit_launcher,
+                             commit_project_pointers, engine_release_body, engine_release_tags, indexed_pointer,
+                             make_plan, manifest_problems, new_engine_notes, release_engine, release_files,
+                             release_notes, set_pointer)
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "Test",
            "GIT_COMMITTER_EMAIL": "t@t"}
@@ -25,8 +26,8 @@ def note(version: str, change: str = "x") -> dict:
     return {"version": version, "date": "2026-01-01", "changes": [change], "breaking": []}
 
 
-def launcher(version: str = "1.1.0", engines: list[str] | None = None) -> dict:
-    return {"version": version, "engines": engines or ["0.3.1"], "notes": [note(version, "launcher change")]}
+def launcher(version: str = "1.1.0", engine: str = "0.3.1") -> dict:
+    return {"version": version, "engine": engine, "notes": [note(version, "launcher change")]}
 
 
 def engine_manifest(*versions: str) -> dict:
@@ -35,18 +36,17 @@ def engine_manifest(*versions: str) -> dict:
 
 
 class RulesTests(unittest.TestCase):
-    def test_the_real_manifest_is_valid_and_matches_engines(self):
+    def test_the_real_manifest_is_valid(self):
         data = json.loads((REPOSITORY / LAUNCHER_MANIFEST).read_text(encoding="utf-8"))
         self.assertEqual(manifest_problems(data), [])
-        self.assertFalse(engines_change(data["engines"], REPOSITORY / "Engines"))
 
     def test_a_version_without_its_note_is_rejected(self):
         data = launcher("1.2.0")
         data["version"] = "1.3.0"
         self.assertTrue(manifest_problems(data))
 
-    def test_two_versions_of_one_series_are_rejected(self):
-        self.assertTrue(manifest_problems(launcher(engines=["0.3.0", "0.3.1"])))
+    def test_the_shipped_engine_must_be_an_exact_version(self):
+        self.assertTrue(manifest_problems(launcher(engine="0.3")))
 
     def test_a_note_needs_a_date_and_changes(self):
         data = launcher()
@@ -84,7 +84,7 @@ class NotesTests(unittest.TestCase):
     def test_notes_hold_launcher_changes_engines_and_breaking_changes(self):
         manifest = engine_manifest("0.3.1", "0.3.0")
         manifest["notes"][0]["breaking"] = [{"change": "Renamed A.", "migrate": "Use B."}]
-        text = release_notes(launcher("0.5.0"), [manifest], ["0.3.0"])
+        text = release_notes(launcher("0.5.0"), manifest, ["0.3.0"])
         self.assertIn("Early preview", text)
         self.assertIn("contains engine 0.3.1", text)
         self.assertIn("- launcher change", text)
@@ -93,7 +93,7 @@ class NotesTests(unittest.TestCase):
         self.assertNotIn("engine change 0.3.0", text)
 
     def test_a_stable_version_has_no_preview_line(self):
-        self.assertNotIn("Early preview", release_notes(launcher("1.0.0"), [engine_manifest("0.3.1")], ["0.3.1"]))
+        self.assertNotIn("Early preview", release_notes(launcher("1.0.0"), engine_manifest("0.3.1"), ["0.3.1"]))
 
 
 class TempFolderTests(unittest.TestCase):
@@ -125,33 +125,6 @@ class TempFolderTests(unittest.TestCase):
         git(folder, "commit", "-m", "first")
         git(folder, "push", "-u", "origin", "main")
         return folder
-
-
-class EnginesFolderTests(TempFolderTests):
-    def engine_copy(self, version: str) -> None:
-        folder = self.root / series_folder(version)
-        folder.mkdir()
-        (folder / "EngineManifest.json").write_text(json.dumps({"version": version}))
-
-    def test_a_new_patch_is_imported_and_an_unlisted_series_dropped(self):
-        self.engine_copy("0.2.0")
-        self.engine_copy("0.3.0")
-        change = engines_change(["0.3.1"], self.root)
-        self.assertEqual(change.imports, ["0.3.1"])
-        self.assertEqual(change.drops, ["Engine0.2"])
-
-    def test_matching_engines_change_nothing(self):
-        self.engine_copy("0.3.1")
-        self.assertFalse(engines_change(["0.3.1"], self.root))
-
-    def test_a_listed_version_older_than_the_copy_stops(self):
-        self.engine_copy("0.3.1")
-        with self.assertRaises(ReleaseFailed):
-            engines_change(["0.3.0"], self.root)
-
-    def test_the_message_names_both_changes(self):
-        self.assertEqual(engines_message(EnginesChange(["0.4.0"], ["Engine0.2"])),
-                         "Import engine 0.4.0; drop Engine0.2")
 
 
 class ReleaseFilesTests(TempFolderTests):
@@ -227,6 +200,14 @@ class GitTests(TempFolderTests):
         (copy / "EngineManifest.json").write_text('{"version": "0.3.2"}\n', newline="\n")
         self.assertEqual(carried_at_tag(repository, "v1.0.0"), ["0.3.1"])
 
+    def test_a_shipped_engine_is_read_from_the_tags_manifest(self):
+        repository = self.repository("launcher")
+        (repository / LAUNCHER_MANIFEST).write_text('{"engine": "0.4.0"}\n', newline="\n")
+        git(repository, "add", "-A")
+        git(repository, "commit", "-m", "manifest")
+        git(repository, "tag", "v1.0.0")
+        self.assertEqual(carried_at_tag(repository, "v1.0.0"), ["0.4.0"])
+
     def test_project_pointers_commit_leaves_other_work_alone(self):
         project = self.repository("project")
         self.repository("child")
@@ -256,29 +237,25 @@ class GitTests(TempFolderTests):
         return git(engine, "rev-parse", "HEAD")
 
     def launcher_repository(self, engine: Path, carried: str) -> Path:
-        """A launcher whose Engines/ holds `carried`, with its Engine pointer at that tag."""
+        """A launcher that ships `carried`, with its Engine pointer at that tag."""
         repository = self.repository("launcher")
         (repository / "Engine").mkdir()  # An uninitialized submodule's empty folder
-        (repository / LAUNCHER_MANIFEST).write_text(json.dumps(launcher("1.0.0", [carried])), newline="\n")
-        import_engine(engine, repository / "Engines", f"v{carried}")
+        (repository / LAUNCHER_MANIFEST).write_text(json.dumps(launcher("1.0.0", carried)), newline="\n")
         git(repository, "add", "-A")
         set_pointer(repository, git(engine, "rev-parse", f"v{carried}^{{commit}}"))
         git(repository, "commit", "-m", "start")
         return repository
 
-    def test_the_launcher_step_imports_drops_and_moves_the_pointer(self):
+    def test_the_launcher_step_commits_the_version_and_moves_the_pointer(self):
         engine = self.repository("engine")
         self.engine_release(engine, "0.3.0")
         repository = self.launcher_repository(engine, "0.3.0")
         new_tag = self.engine_release(engine, "0.4.0")
-        data = launcher("1.1.0", ["0.4.0"])
+        data = launcher("1.1.0", "0.4.0")
         (repository / LAUNCHER_MANIFEST).write_text(json.dumps(data), newline="\n")
-        commit_launcher(engine, repository, repository / "Engines", data)
-        self.assertEqual(git(repository, "log", "-2", "--format=%s").splitlines(),
-                         ["Release launcher 1.1.0", "Import engine 0.4.0; drop Engine0.3"])
+        commit_launcher(engine, repository, data)
+        self.assertEqual(git(repository, "log", "-1", "--format=%s"), "Release launcher 1.1.0")
         self.assertEqual(indexed_pointer(repository), new_tag)
-        self.assertTrue((repository / "Engines" / "Engine0.4").is_dir())
-        self.assertFalse((repository / "Engines" / "Engine0.3").exists())
         self.assertEqual(git(repository, "status", "--porcelain"), "")
 
     def test_the_launcher_step_repeated_changes_nothing(self):
@@ -287,8 +264,20 @@ class GitTests(TempFolderTests):
         repository = self.launcher_repository(engine, "0.3.0")
         head = git(repository, "rev-parse", "HEAD")
         data = json.loads((repository / LAUNCHER_MANIFEST).read_text())
-        commit_launcher(engine, repository, repository / "Engines", data)
+        commit_launcher(engine, repository, data)
         self.assertEqual(git(repository, "rev-parse", "HEAD"), head)
+
+    def test_tags_are_listed_oldest_first_without_other_names(self):
+        engine = self.repository("engine")
+        for version in ("0.10.0", "0.9.0"):
+            self.engine_release(engine, version)
+        git(engine, "tag", "vnext")
+        self.assertEqual(engine_release_tags(engine), ["v0.9.0", "v0.10.0"])
+
+    def test_a_record_release_says_what_changed(self):
+        data = engine_manifest("0.3.0")
+        data["notes"][0]["breaking"] = [{"change": "A renamed.", "migrate": "Use B."}]
+        self.assertEqual(engine_release_body(data), "- Breaking: A renamed. Migrate: Use B.\n- engine change 0.3.0\n")
 
     def test_a_pointer_past_the_carried_engine_stays(self):
         engine = self.repository("engine")
@@ -300,9 +289,9 @@ class GitTests(TempFolderTests):
         git(engine, "push", "origin", "main")
         later = git(engine, "rev-parse", "HEAD")
         set_pointer(repository, later)
-        data = launcher("1.1.0", ["0.3.0"])
+        data = launcher("1.1.0", "0.3.0")
         (repository / LAUNCHER_MANIFEST).write_text(json.dumps(data), newline="\n")
-        commit_launcher(engine, repository, repository / "Engines", data)
+        commit_launcher(engine, repository, data)
         self.assertEqual(indexed_pointer(repository), later)
 
     def test_an_unpushed_pointer_stops(self):
@@ -313,9 +302,9 @@ class GitTests(TempFolderTests):
         git(engine, "add", "-A")
         git(engine, "commit", "-m", "not pushed")
         set_pointer(repository, git(engine, "rev-parse", "HEAD"))
-        data = launcher("1.1.0", ["0.3.0"])
+        data = launcher("1.1.0", "0.3.0")
         with self.assertRaisesRegex(ReleaseFailed, "not pushed"):
-            commit_launcher(engine, repository, repository / "Engines", data)
+            commit_launcher(engine, repository, data)
 
     def test_unchanged_pointers_make_no_commit(self):
         project = self.repository("project")

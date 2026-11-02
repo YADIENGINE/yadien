@@ -3,6 +3,7 @@ add_library(LauncherCore STATIC
     Cli/CommandLine.cpp
     Cli/EngineCommand.cpp
     Developer/DeveloperGit.cpp
+    Engines/EngineCatalog.cpp
     Engines/EngineCopyRecord.cpp
     Engines/EngineLibrary.cpp
     Engines/EngineManifest.cpp
@@ -16,6 +17,7 @@ add_library(LauncherCore STATIC
     Platform/Shell.cpp
     Platform/Text.cpp
     Projects/CopyIntegrity.cpp
+    Projects/EngineTrial.cpp
     Projects/EngineUpdate.cpp
     Projects/NewProject.cpp
     Projects/ProjectDetails.cpp
@@ -28,6 +30,7 @@ add_library(LauncherCore STATIC
     Settings/ProjectList.cpp
     System/AudioTools.cpp
     System/CommandActivity.cpp
+    System/DisplayText.cpp
     System/SystemCheck.cpp
     System/Toolchain.cpp
     System/UserPath.cpp

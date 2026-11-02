@@ -19,6 +19,9 @@
                                                          const std::vector<std::string>& skipFolders = {});
 // Copies a folder tree; the destination must not exist.
 [[nodiscard]] Status CopyTree(const std::filesystem::path& source, const std::filesystem::path& destination);
+// The same without `skipped` (paths relative to `source`, files or folders); links are copied as links.
+[[nodiscard]] Status CopyTreeExcept(const std::filesystem::path& source, const std::filesystem::path& destination,
+                                    const std::vector<std::filesystem::path>& skipped);
 [[nodiscard]] Status RemoveTree(const std::filesystem::path& folder);
 // Moves / renames within a volume (MoveFileEx); fails instead of replacing an existing destination.
 [[nodiscard]] Status MovePath(const std::filesystem::path& from, const std::filesystem::path& to);

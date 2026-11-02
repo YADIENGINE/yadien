@@ -26,11 +26,11 @@ target_link_options(LauncherCli PRIVATE
     "$<$<CONFIG:Debug>:/ILK:$<TARGET_FILE_DIR:LauncherCli>/${LAUNCHER_EXECUTABLE_NAME}-cli.ilk>")
 engine_warnings(LauncherCli)
 
-# A development build reads the repository's engines and tools and keeps its settings in the build tree
+# A development build reads the engine dev.py imported (build/Engines/), the repository's tools and keeps its settings in the build tree
 # (Core/Settings/LauncherLayout.h); an installed launcher has no such file.
 file(GENERATE OUTPUT "$<TARGET_FILE_DIR:LauncherCli>/LauncherLayout.json" CONTENT
 "{
-  \"engines\": \"${PROJECT_SOURCE_DIR}/Engines\",
+  \"engines\": \"${CMAKE_BINARY_DIR}/Engines\",
   \"tools\": \"${PROJECT_SOURCE_DIR}/ToolCache\",
   \"data\": \"$<TARGET_FILE_DIR:LauncherCli>/LauncherData\"
 }

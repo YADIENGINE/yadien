@@ -54,8 +54,8 @@ TEST_CASE("Engine commands run the project's engine with the launcher's Python",
 
 TEST_CASE("launcher version lists every engine the launcher carries", "[cli]") {
     TempFolder temp;
-    WriteFakeEngine(temp.Path() / "Engines/Engine0.1", {.version = "0.1.1"});
-    WriteFakeEngine(temp.Path() / "Engines/Engine0.2", {.version = "0.2.0"});
+    WriteFakeEngine(temp.Path() / "Engines/Engine0.1.1", {.version = "0.1.1"});
+    WriteFakeEngine(temp.Path() / "Engines/Engine0.2.0", {.version = "0.2.0"});
     const LauncherLayout layout{temp.Path() / "Engines", temp.Path() / "Tools", temp.Path()};
     std::ostringstream captured;
     std::streambuf* const original = std::cout.rdbuf(captured.rdbuf());

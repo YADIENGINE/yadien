@@ -6,14 +6,13 @@ class LauncherModel;
 // Each reads the model's getters and calls its actions; none keeps state or does work of its own. Layout, sizes,
 // colors and text are the screens' job; the tool theme and widgets come from the engine (ToolUi/).
 
-// The whole window, every frame: top bar, notice, settings error, the current tab, status bar, then the open panel
-// and the confirmation popup over them.
+// The whole window, every frame: top bar, notice, settings error, the current tab, then the open panel and the
+// confirmation popup over them.
 void DrawLauncher(LauncherModel& model);
 
 // Frame regions (Screens/LauncherFrame.cpp).
-void DrawTopBar(LauncherModel& model);    // Product name, tabs, system state dot, Settings
-void DrawNotice(LauncherModel& model);    // CurrentNotice() + dismiss; SettingsError() + "Start with defaults"
-void DrawStatusBar(LauncherModel& model); // Launcher version, "Developer mode"
+void DrawTopBar(LauncherModel& model); // Product name, tabs, update, developer mode, system state, Settings
+void DrawNotice(LauncherModel& model); // CurrentNotice() + dismiss; SettingsError() + "Start with defaults"
 
 // Tabs.
 void DrawProjectsTab(LauncherModel& model); // Toolbar, list, action panel, empty state

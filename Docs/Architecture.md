@@ -8,12 +8,12 @@ does not hardcode the engine name (the name comes from the engine manifest).
 
 ```
 Engine/              submodule: engine repo, main (active development). The launcher builds against this.
-Engines/             stable engine copies, Engine<MAJOR.MINOR>/ (Scripts/import_engine.py; never edited) — Engines.md
 Core/                LauncherCore: headless core, include root (#include "Projects/NewProject.h")
   Jobs/              BackgroundJob / Job<T>: long task thread, step, output, cancellation (UI reads every frame)
   Platform/          Result/Status, UTF-8 ↔ UTF-16, files (atomic writes, tree copy), processes, BCrypt, known
                      folders, opening in Explorer
-  Engines/           EngineVersion, EngineManifest (notes), EngineCopyRecord, EngineLibrary (Engines/ scan)
+  Engines/           EngineVersion, EngineManifest (notes), EngineCopyRecord, EngineLibrary (shipped + cached + online),
+                     EngineCatalog (GitHub list, checked download) — Engines.md
   Projects/          ProjectInfo (type), ProjectRow / ProjectDetails (list row, actions, slow checks),
                      ProjectLaunch (Open, Run), ProjectScan, CopyIntegrity (read-only), EngineUpdate, NewProject
   Settings/          LauncherLayout, LauncherSettings (Settings.json), ProjectList
@@ -76,7 +76,7 @@ after installing, Velopack runs it to add `current/` to the user's PATH; before 
 data folder. The installer itself:
 [Packaging](Packaging.md).
 
-In development builds, `LauncherLayout.json` beside the executable points to the repo's `Engines/` and `ToolCache/`
+In development builds, `LauncherLayout.json` beside the executable points to the build tree's `Engines/` and the repo's `ToolCache/`
 folders and the `build/<Config>/LauncherData/` data folder; installed launcher settings are untouched.
 
 ## Code rules

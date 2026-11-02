@@ -5,8 +5,7 @@
 #include <string>
 #include <string_view>
 
-// MAJOR.MINOR.PATCH (engine Docs/ToolsContract.md → Manifest). A series is MAJOR.MINOR; Engines/ keeps one folder per
-// series ("Engine0.2") holding its newest patch.
+// MAJOR.MINOR.PATCH (engine Docs/ToolsContract.md → Manifest). A series is MAJOR.MINOR.
 struct EngineVersion {
     int major = 0;
     int minor = 0;

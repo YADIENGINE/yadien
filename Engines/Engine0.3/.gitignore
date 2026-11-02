@@ -1,8 +1,0 @@
-# Standalone engine build (python . test)
-/build/
-__pycache__/
-
-# IDE
-.vs/
-.vscode/
-.idea/

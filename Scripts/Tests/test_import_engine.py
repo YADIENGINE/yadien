@@ -1,4 +1,4 @@
-"""import_engine: a pushed tag becomes Engines/Engine<series>/ with its record; development files stay out."""
+"""import_engine: a pushed tag becomes Engine<version>/ with its record; development files stay out."""
 
 import hashlib
 import json
@@ -56,7 +56,7 @@ class ImportTests(unittest.TestCase):
 
     def test_copy_holds_the_tag_without_development_files(self):
         folder = import_engine(self.engine, self.engines, "v0.2.0")
-        self.assertEqual(folder.name, "Engine0.2")
+        self.assertEqual(folder.name, "Engine0.2.0")
         self.assertTrue((folder / "Core" / "A.h").is_file())
         self.assertFalse((folder / "CLAUDE.md").exists())
         self.assertFalse((folder / "Docs").exists())
@@ -71,13 +71,13 @@ class ImportTests(unittest.TestCase):
         folder = import_engine(self.engine, self.engines, "v0.2.0")
         self.assertEqual((folder / "Core" / "A.h").read_text(), "#pragma once\n")
 
-    def test_a_patch_replaces_its_series_but_never_goes_back(self):
-        import_engine(self.engine, self.engines, "v0.2.0")
+    def test_versions_live_side_by_side_and_a_repeat_changes_nothing(self):
+        first = import_engine(self.engine, self.engines, "v0.2.0")
         self.release("0.2.1")
-        folder = import_engine(self.engine, self.engines, "v0.2.1")
-        self.assertIn("0.2.1", (folder / "EngineManifest.json").read_text())
-        with self.assertRaises(ImportFailed):
-            import_engine(self.engine, self.engines, "v0.2.0")
+        second = import_engine(self.engine, self.engines, "v0.2.1")
+        self.assertEqual(second.name, "Engine0.2.1")
+        self.assertTrue(first.is_dir())
+        self.assertEqual(import_engine(self.engine, self.engines, "v0.2.0"), first)
 
     def test_unpushed_and_mismatched_tags_are_refused(self):
         self.release("0.3.0", push=False)

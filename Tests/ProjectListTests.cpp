@@ -104,8 +104,8 @@ TEST_CASE("Running hands the engine's run command over", "[projects]") {
 
 TEST_CASE("Rows offer updates and actions by engine kind and mode", "[projects]") {
     TempFolder temp;
-    WriteFakeEngine(temp.Path() / "Engines/Engine0.1", {.version = "0.1.1"});
-    WriteFakeEngine(temp.Path() / "Engines/Engine0.2", {.version = "0.2.0"});
+    WriteFakeEngine(temp.Path() / "Engines/Engine0.1.1", {.version = "0.1.1"});
+    WriteFakeEngine(temp.Path() / "Engines/Engine0.2.0", {.version = "0.2.0"});
     const EngineLibrary engines = EngineLibrary::Scan(temp.Path() / "Engines");
     WriteFakeProject(temp.Path() / "Old", "Old", {.version = "0.1.1"});
     WriteFakeProject(temp.Path() / "Current", "Current", {.version = "0.2.0"});
@@ -132,7 +132,7 @@ TEST_CASE("Rows offer updates and actions by engine kind and mode", "[projects]"
     CHECK(unknown.info.kind == EngineKind::Unregistered);
     actions = ActionsFor(unknown, engines, LauncherMode::Developer);
     CHECK(actions.replaceEngine);
-    CHECK(ReplaceTarget(unknown, engines) == engines.Newest());
+    CHECK(ReplaceTarget(unknown, engines) == engines.Newest()->manifest.version);
     CHECK_FALSE(actions.repairEngine);
 
     const ProjectRow gone = InspectProjectRow(Entry(temp.Path() / "Gone"), engines);

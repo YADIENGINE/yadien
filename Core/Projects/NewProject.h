@@ -23,7 +23,8 @@ struct NewProjectRequest {
 [[nodiscard]] std::filesystem::path NewProjectFolder(const NewProjectRequest& request);
 [[nodiscard]] Status CheckNewProjectFolder(const NewProjectRequest& request);
 
-// Copy: copies the engine into <folder>/Engine, then runs the engine's `new --name`. No git (D14).
+// Copy: copies the engine into <folder>/Engine, then runs the engine's `new --name`. No git (D14). An engine this
+// launcher cannot drive is refused.
 // Development: git init + Engine submodule, the engine's `new`, then a first commit.
 // On failure everything the operation created is removed. Returns the project root; the caller adds it to the list.
 [[nodiscard]] Result<std::filesystem::path> CreateProject(const NewProjectRequest& request,

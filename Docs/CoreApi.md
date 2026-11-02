@@ -29,12 +29,12 @@ code counterparts. Architecture: [Architecture](Architecture.md).
 ```cpp
 Result<LauncherLayout> layout = ResolveLauncherLayout(ExecutablePath().parent_path()); // Settings/LauncherLayout.h
 Result<LauncherSettings> settings = LoadLauncherSettings(layout.Value().SettingsFile());
-EngineLibrary engines = EngineLibrary::Scan(layout.Value().enginesFolder);           // Engines/EngineLibrary.h
+EngineLibrary engines = EngineLibrary::Scan(layout.Value().enginesFolder, layout.Value().EngineCacheFolder()); // Engines/EngineLibrary.h
 ```
 
 - `LauncherLayout`: `enginesFolder`, `toolsFolder`, `dataFolder`, `SettingsFile()`. In installed launchers, all are
   beside the executable; in development builds, `LauncherLayout.json` beside the executable (written by CMake) points to
-  the repo's `Engines/`, `ToolCache/`, and a data folder inside the build.
+  the build tree's `Engines/`, the repo's `ToolCache/`, and a data folder inside the build.
 - Invalid `Settings.json` is an error (not silently reset): UI tells the user and offers "Start with defaults".
 - On first launch (D15), System check opens automatically: with no `Settings.json`, `LoadLauncherSettings` returns
   defaults; UI detects this with `std::filesystem::exists(SettingsFile())`.
@@ -135,7 +135,7 @@ if (root.Ok()) { (void)AddProject(settings, root.Value()); SaveLauncherSettings(
 
 - Naming rules belong to the engine (`new --name`, letters/digits/`_`); errors appear in output. Location + name =
   project folder.
-- Engine copy: `Engines/<series>` → `<folder>/Engine`, then engine `new`. Does not touch git (D14).
+- Engine copy: a version on this computer (the model downloads it first if needed) → `<folder>/Engine`, then engine `new`. Does not touch git (D14).
 - Developer ("dev (main)", listed only in developer mode): `git init` + submodule (`repository`, branch) + `new` +
   initial commit "Create <name>".
 - On error, everything created is removed.

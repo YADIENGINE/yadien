@@ -11,7 +11,6 @@
 #include "ToolUi/ToolWidgets.h"
 
 namespace {
-constexpr float FooterGap = 10.0f;
 constexpr float HeroIconGap = 12.0f;
 constexpr float NotesPadding = 12.0f;
 constexpr float NoteGroupGap = 8.0f;
@@ -20,8 +19,6 @@ constexpr float ProgressHeight = 6.0f;
 constexpr float ProgressRounding = 3.0f;
 constexpr float SectionGap = 10.0f;
 constexpr double PercentScale = 100.0;
-
-float FooterHeight() { return ImGui::GetFrameHeightWithSpacing() + FooterGap * ToolUiScale(); }
 
 // The state at the top of the panel: a toned icon, one strong line and one quiet line.
 void DrawHero(const char* icon, ToolTone tone, const std::string& title, const std::string& detail) {
@@ -95,36 +92,13 @@ void DrawProgress(int percent, std::uint64_t totalBytes) {
     LauncherMutedText(text.c_str());
 }
 
-struct FooterButton {
-    const char* label;
-    bool primary = false;
-};
+using FooterButton = LauncherFooterButton;
 
-// Buttons on the right, the main action last and focused; returns the pressed one's index or -1. `afterItem`: another
-// button already stands on the footer's left.
 int DrawFooterButtons(std::span<const FooterButton> buttons, bool afterItem = false) {
-    const auto& style = ImGui::GetStyle();
-    float width = 0;
-    ImGui::PushFont(ToolFont(ToolFontRole::Medium), ToolMetrics::BodySize);
-    for (const FooterButton& button : buttons)
-        width += ImGui::CalcTextSize(button.label).x + style.FramePadding.x * 2 + style.ItemSpacing.x;
-    ImGui::PopFont();
-    width -= style.ItemSpacing.x;
-    const float start = std::max(0.0f, ImGui::GetContentRegionMax().x - width);
-    if (afterItem)
-        ImGui::SameLine(start);
-    else
-        ImGui::SetCursorPosX(start);
-    int pressed = -1;
-    for (std::size_t index = 0; index < buttons.size(); ++index) {
-        if (index > 0) ImGui::SameLine();
-        if (ToolButton(buttons[index].label, {}, buttons[index].primary)) pressed = static_cast<int>(index);
-        if (buttons[index].primary) ImGui::SetItemDefaultFocus();
-    }
-    return pressed;
+    return DrawLauncherFooter(buttons, afterItem);
 }
 
-void BeginBody() { (void)ImGui::BeginChild("##update-body", {0, -FooterHeight()}); }
+void BeginBody() { (void)ImGui::BeginChild("##update-body", {0, -LauncherFooterHeight()}); }
 
 void EndBody() {
     ImGui::EndChild();

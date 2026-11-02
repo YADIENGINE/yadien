@@ -5,6 +5,3 @@
 *.ttf binary
 *.wav binary
 *.ogg binary
-
-# Stable engine copies are byte-for-byte what `git archive` produced; EngineCopy.json hashes those bytes
-/Engines/** -text

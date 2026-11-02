@@ -11,12 +11,13 @@ python Scripts/dev.py test            # build Debug + C++ tests (ctest) + script
 python Scripts/dev.py clean
 python Scripts/dev.py package         # Release build + installer (Packaging.md)
 python Scripts/dev.py release         # publish what the manifests ask for (Packaging.md -> Publish)
+python Scripts/dev.py engine-test     # move real projects between engine versions (Engines.md -> Test it)
 ```
 
 `dev.py` gets the MSVC environment from the engine submodule's helper. Manually, in Developer PowerShell: `cmake
 --preset launcher`, `cmake --build --preset debug`, `ctest --preset debug`.
 
-Development builds use the repo's `Engines/` and `ToolCache/` folders and keep settings in
+Development builds use `build/Engines/` (`dev.py` imports the engine `LauncherManifest.json` ships from its tag) and the repo's `ToolCache/` and keep settings in
 `build/<Config>/LauncherData/` (`LauncherLayout.json`). Try: `build\Debug\<engine>.com launcher system-check`, and
 `...\<engine>.com build` in a project folder.
 
@@ -46,8 +47,8 @@ unittest discover -s Scripts/Tests -t .`.
 
 In the existing build tree, `cmake --build build --config Debug --target LauncherUiSmoke` (in the MSVC environment),
 then `build/Debug/LauncherUiSmoke.exe build/UiReview`. Normal build/test does not run this target; desktop/GPU required.
-A hidden engine window uses production screens, bundled fonts, and the rlImGui renderer; it does not touch user settings
-or projects. It produces PNGs for temporary empty/populated lists, search, inspector, forms, and 75/100/125/150/200%
+A hidden engine window uses production screens, embedded fonts, and the rlImGui renderer; it does not touch user settings
+or projects. It produces PNGs for the first-run screen, temporary populated lists, search, details, forms, and 75/100/125/150/200%
 scales; horizontal overflow and persistent toolbars requiring internal scrolling count as errors. Folder-selection
 validation, automatic discovery, default-folder saving, and the new-project form's use of that folder are checked with
 temporary data. Also inspect images visually.

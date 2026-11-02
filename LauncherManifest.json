@@ -1,7 +1,7 @@
 {
   "version": "0.2.0",
   "repository": "https://github.com/YADIENGINE/yadien",
-  "engines": ["0.3.0"],
+  "engine": "0.3.0",
   "notes": [
     {
       "version": "0.2.0",

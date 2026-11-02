@@ -65,7 +65,7 @@ bool WantsJson(const std::vector<std::string>& arguments) {
 int Version(const LauncherLayout& layout) {
     std::cout << LAUNCHER_PRODUCT_NAME << " launcher " << LAUNCHER_VERSION << "\n";
     // A named library: ranging over a temporary's member would read it after the temporary is gone (C++20).
-    const EngineLibrary library = EngineLibrary::Scan(layout.enginesFolder);
+    const EngineLibrary library = EngineLibrary::Scan(layout.enginesFolder, layout.EngineCacheFolder());
     for (const AvailableEngine& engine : library.Engines())
         std::cout << "  engine " << engine.manifest.version.ToString() << " (" << engine.record.tag << ")\n";
     for (const std::string& problem : library.Problems())

@@ -13,9 +13,9 @@ bool Contains(const std::vector<std::string>& list, const std::string& item) {
 }
 
 AvailableEngine Stable(const std::filesystem::path& engines, const FakeEngine& engine) {
-    WriteFakeEngine(engines / ("Engine" + EngineVersion::Parse(engine.version)->Series()), engine);
+    WriteFakeEngine(engines / ("Engine" + engine.version), engine);
     const EngineLibrary library = EngineLibrary::Scan(engines);
-    return *library.FindSeries(EngineVersion::Parse(engine.version)->Series());
+    return *library.Find(*EngineVersion::Parse(engine.version));
 }
 } // namespace
 
@@ -86,12 +86,8 @@ TEST_CASE("An update lists lost edits and user files, and the notes it brings", 
     CHECK(CheckCopyIntegrity(updated.EngineFolder(), record.Value()).Value().Clean());
 }
 
-TEST_CASE("Updates never go back and never touch git engines", "[projects]") {
+TEST_CASE("Updates never touch git engines", "[projects]") {
     TempFolder temp;
-    WriteFakeProject(temp.Path() / "New", "New", {.version = "0.3.0"});
-    const AvailableEngine older = Stable(temp.Path() / "Engines", {.version = "0.2.0"});
-    CHECK_FALSE(PlanEngineUpdate(InspectProject(temp.Path() / "New"), older).Ok());
-
     WriteFakeProject(temp.Path() / "Git", "Git", {});
     std::filesystem::remove(temp.Path() / "Git/Engine/EngineCopy.json");
     temp.Write("Git/Engine/.git", "gitdir: x\n");

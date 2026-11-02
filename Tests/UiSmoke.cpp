@@ -32,6 +32,9 @@ enum class SmokeView {
     Inspector,
     Search,
     NoResults,
+    EngineChange,
+    EngineTrialFailed,
+    EngineTrialNotTested,
     UpdateUpToDate,
     UpdateAvailable,
     UpdateButton,
@@ -64,6 +67,11 @@ constexpr std::array Stages{
     SmokeStage{"empty-200", SmokeView::Empty, 900, 560, 200},
     SmokeStage{"empty-200-list", SmokeView::Scrolled, 900, 560, 200},
     SmokeStage{"empty-75", SmokeView::Empty, 900, 560, 75},
+    SmokeStage{"engine-change", SmokeView::EngineChange},
+    SmokeStage{"engine-change-narrow-150", SmokeView::EngineChange, 900, 560, 150},
+    SmokeStage{"engine-trial-failed", SmokeView::EngineTrialFailed},
+    SmokeStage{"engine-trial-failed-narrow-150", SmokeView::EngineTrialFailed, 900, 560, 150},
+    SmokeStage{"engine-trial-not-tested", SmokeView::EngineTrialNotTested},
     // One update walked through its states, in this order.
     SmokeStage{"update-up-to-date", SmokeView::UpdateUpToDate},
     SmokeStage{"update-available", SmokeView::UpdateAvailable},
@@ -92,6 +100,26 @@ GameSettings SmokeSettings() {
 
 bool Populated(SmokeView view) { return view >= SmokeView::List; }
 bool Updating(SmokeView view) { return view >= SmokeView::UpdateUpToDate; }
+bool ChangingEngine(SmokeView view) {
+    return view >= SmokeView::EngineChange && view <= SmokeView::EngineTrialNotTested;
+}
+bool TryingEngine(SmokeView view) {
+    return view == SmokeView::EngineTrialFailed || view == SmokeView::EngineTrialNotTested;
+}
+
+EngineTrial ScriptedTrial(SmokeView view) {
+    if (view == SmokeView::EngineTrialNotTested)
+        return {TrialVerdict::NotTested,
+                "Game build",
+                {"error: cmake was not found"},
+                "Game build stopped with exit code 2"};
+    return {TrialVerdict::Failed,
+            "Editor build",
+            {"ninja: error: unknown target 'MyGameEditorWorker'",
+             "Editor/Scenes/FirstScene.cpp(12): error C2065: 'EditorPreview': undeclared identifier, and a much longer "
+             "line so that wrapping inside the panel can be judged at the narrow window and the large scale"},
+            ""};
+}
 
 constexpr int SmokeDownloadPercent = 42;
 constexpr std::uint64_t SmokeDownloadBytes = 9045317;
@@ -138,7 +166,10 @@ UiSmoke::UiSmoke(LauncherLayout empty, LauncherLayout populated, LauncherLayout 
     , _output(std::move(output))
     , _updateState(std::make_shared<UpdateSmokeState>())
     , _empty(std::move(empty))
-    , _populated(std::move(populated))
+    , _trialScript(std::make_shared<EngineTrial>())
+    , _populated(
+          std::move(populated), nullptr, false,
+          [script = _trialScript](const EngineUpdatePlan&, JobContext&) -> Result<EngineTrial> { return *script; })
     , _updating(std::move(updating), std::make_unique<SmokeUpdates>(_updateState))
     , _ui(ToolUiOptions{.keyboardNavigation = true}) {}
 
@@ -178,6 +209,7 @@ void UiSmoke::Update(float realSeconds) {
     if (_frame == FramesPerStage) {
         ++_stage;
         _frame = 0;
+        _trialStarted = false;
     }
     if (_stage == Stages.size()) {
         RequestQuit();
@@ -196,8 +228,20 @@ void UiSmoke::Update(float realSeconds) {
         if (stage.view >= SmokeView::Inspector) model.Select(0);
         if (stage.view == SmokeView::Search) model.Filter() = "Workspace";
         if (stage.view == SmokeView::NoResults) model.Filter() = "no-project-has-this-name";
+        if (ChangingEngine(stage.view)) {
+            *_trialScript = ScriptedTrial(stage.view);
+            model.ChangeEngine(0, EngineChange::Update);
+        }
     }
     model.Tick();
+    if (ChangingEngine(stage.view)) { // Waits for its jobs: the panel is what the snapshot is for
+        if (TryingEngine(stage.view) && !_trialStarted && model.Plan()) {
+            model.ConfirmEngineChange();
+            _trialStarted = true;
+        }
+        const bool waiting = model.PlanRunning() || model.CurrentJob() || (TryingEngine(stage.view) && !model.Trial());
+        if (waiting && _frame > 0) return;
+    }
     ++_frame;
 }
 

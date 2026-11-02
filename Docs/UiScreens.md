@@ -20,12 +20,11 @@ Apps/Ui/
 
 | Function | File | Region |
 | --- | --- | --- |
-| `DrawLauncher` | `LauncherFrame.cpp` | Whole window: top bar, notice, tab, status bar; then panel and confirmation popup |
-| `DrawTopBar` | `LauncherFrame.cpp` | Name, tabs (Projects / Engines), launcher update button when one is offered, system status dot, Settings |
+| `DrawLauncher` | `LauncherFrame.cpp` | Whole window: top bar, notice, tab; then panel and confirmation popup |
+| `DrawTopBar` | `LauncherFrame.cpp` | Pixel product name, tabs (Projects / Engines), launcher update when one is offered, "Developer", system / job state (opens System check), Settings |
 | `DrawNotice` | `LauncherFrame.cpp` | `CurrentNotice()`; `SettingsError()` + "Start with defaults" |
-| `DrawStatusBar` | `LauncherFrame.cpp` | Launcher version, project count, application / job state, "Developer mode" |
-| `DrawProjectsTab` | `ProjectsTab.cpp` | Persistent toolbar (Create, Import, Projects Folder, filter, sort), bounded list, project inspector |
-| `DrawEnginesTab` | `EnginesTab.cpp` | Stable versions, notes (breaking changes highlighted), project usage count; "dev (main)" in developer mode |
+| `DrawProjectsTab` | `ProjectsTab.cpp` | No projects: first-run screen (New project, Add existing, build tools and engine state, projects folder). Otherwise toolbar (filter, sort, Add existing, New project), list with tiles, details of the selected project (the model always keeps a visible row selected) |
+| `DrawEnginesTab` | `EnginesTab.cpp` | Stable versions on this computer and online (Download), notes (breaking changes highlighted), project usage count; "dev (main)" in developer mode |
 | `DrawNewProjectPanel` | `NewProjectPanel.cpp` | Name, location (Browse), engine selection, live validation, Create |
 | `DrawSettingsPanel` | `SettingsPanel.cpp` | PATH, open install folder, developer mode, and licenses |
 | `DrawSystemCheckPanel` | `SystemCheckPanel.cpp` | Items (status, details), MSVC installation, recheck |

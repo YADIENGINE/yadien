@@ -1,6 +1,7 @@
 #include "Screens/LauncherScreens.h"
 #include <extras/IconsFontAwesome6.h>
 #include <imgui.h>
+#include <array>
 #include "Model/LauncherModel.h"
 #include "Screens/ScreenLayout.h"
 #include "ToolUi/ToolTheme.h"
@@ -40,7 +41,6 @@ void DrawSystemCheckPanel(LauncherModel& model) {
             LauncherToneText("Ready with warnings", ToolTone::Warning);
         else if (model.System() == SystemState::NotReady)
             LauncherToneText("Setup needs attention before projects can build.", ToolTone::Error);
-        LauncherMutedText("Tool versions and installation status on this computer.");
         if (const auto& report = model.Report()) {
             for (const auto& item : report->items) {
                 ImGui::PushID(item.id.c_str());
@@ -66,9 +66,9 @@ void DrawSystemCheckPanel(LauncherModel& model) {
     }
     ImGui::EndChild();
     ImGui::Separator();
-    if (ToolButton("Back")) model.ClosePanel();
-    ContinueToolToolbar(ICON_FA_ARROWS_ROTATE " Check again", true);
-    ImGui::BeginDisabled(checking);
-    if (ToolButton(ICON_FA_ARROWS_ROTATE " Check again", {}, true)) model.RunSystemCheck();
-    ImGui::EndDisabled();
+    const std::array buttons{LauncherFooterButton{"Back"},
+                             LauncherFooterButton{ICON_FA_ARROWS_ROTATE " Check again", true, !checking}};
+    const int pressed = DrawLauncherFooter(buttons);
+    if (pressed == 0) model.ClosePanel();
+    if (pressed == 1) model.RunSystemCheck();
 }

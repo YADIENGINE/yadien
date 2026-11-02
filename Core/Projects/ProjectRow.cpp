@@ -28,9 +28,9 @@ ProjectRow InspectProjectRow(const ProjectEntry& entry, const EngineLibrary& eng
     if (row.info.manifest) {
         row.contractSupported = SupportsToolsContract(row.info.manifest->toolsContract);
         if (row.info.kind == EngineKind::Copy) {
-            if (const AvailableEngine* update = engines.UpdateFor(row.info.manifest->version)) {
-                row.update = update->manifest.version;
-                row.updateMayBreak = MayBreak(row.info.manifest->version, update->manifest.version);
+            if (const std::optional<EngineVersion> update = engines.UpdateFor(row.info.manifest->version)) {
+                row.update = update;
+                row.updateMayBreak = MayBreak(row.info.manifest->version, *update);
             }
         }
     }
@@ -70,25 +70,34 @@ std::vector<std::size_t> VisibleRows(const std::vector<ProjectRow>& rows, std::s
 }
 
 int ProjectsUsing(const std::vector<ProjectRow>& rows, const EngineVersion& version) {
-    return static_cast<int>(std::ranges::count_if(rows, [&](const ProjectRow& row) {
-        return row.info.manifest && row.info.manifest->version.SameSeries(version);
-    }));
+    return static_cast<int>(std::ranges::count_if(
+        rows, [&](const ProjectRow& row) { return row.info.manifest && row.info.manifest->version == version; }));
 }
 
-const AvailableEngine* UpdateTarget(const ProjectRow& row, const EngineLibrary& engines) {
-    if (row.folderMissing || row.info.kind != EngineKind::Copy || !row.info.manifest) return nullptr;
+std::optional<EngineVersion> UpdateTarget(const ProjectRow& row, const EngineLibrary& engines) {
+    if (row.folderMissing || row.info.kind != EngineKind::Copy || !row.info.manifest) return std::nullopt;
     return engines.UpdateFor(row.info.manifest->version);
 }
 
-const AvailableEngine* RepairTarget(const ProjectRow& row, const EngineLibrary& engines) {
-    if (row.folderMissing || row.info.kind != EngineKind::Copy || !row.info.manifest) return nullptr;
-    return engines.FindSeries(row.info.manifest->version.Series());
+std::optional<EngineVersion> RepairTarget(const ProjectRow& row, const EngineLibrary& engines) {
+    if (row.folderMissing || row.info.kind != EngineKind::Copy || !row.info.manifest) return std::nullopt;
+    const EngineVersion version = row.info.manifest->version;
+    if (engines.Find(version) == nullptr && engines.FindOnline(version) == nullptr) return std::nullopt;
+    return version;
 }
 
-const AvailableEngine* ReplaceTarget(const ProjectRow& row, const EngineLibrary& engines) {
-    if (row.folderMissing) return nullptr;
-    if (row.info.kind != EngineKind::Unregistered && row.info.kind != EngineKind::Missing) return nullptr;
-    return engines.Newest();
+std::optional<EngineVersion> ReplaceTarget(const ProjectRow& row, const EngineLibrary& engines) {
+    if (row.folderMissing) return std::nullopt;
+    if (row.info.kind != EngineKind::Unregistered && row.info.kind != EngineKind::Missing) return std::nullopt;
+    const std::vector<EngineVersion> known = engines.KnownVersions();
+    if (known.empty()) return std::nullopt;
+    return known.front();
+}
+
+std::vector<EngineVersion> ChangeChoices(const ProjectRow& row, const EngineLibrary& engines) {
+    std::vector<EngineVersion> choices = engines.KnownVersions();
+    if (row.info.kind == EngineKind::Copy && row.info.manifest) std::erase(choices, row.info.manifest->version);
+    return choices;
 }
 
 ProjectActions ActionsFor(const ProjectRow& row, const EngineLibrary& engines, LauncherMode mode) {
@@ -97,9 +106,11 @@ ProjectActions ActionsFor(const ProjectRow& row, const EngineLibrary& engines, L
     actions.open = usable;
     actions.run = usable;
     actions.showInFolder = !row.folderMissing;
-    actions.updateEngine = UpdateTarget(row, engines) != nullptr;
-    actions.repairEngine = RepairTarget(row, engines) != nullptr;
-    actions.replaceEngine = ReplaceTarget(row, engines) != nullptr;
+    actions.updateEngine = UpdateTarget(row, engines).has_value();
+    actions.changeEngine =
+        !row.folderMissing && row.info.kind == EngineKind::Copy && !ChangeChoices(row, engines).empty();
+    actions.repairEngine = RepairTarget(row, engines).has_value();
+    actions.replaceEngine = ReplaceTarget(row, engines).has_value();
     actions.engineGit = mode == LauncherMode::Developer && !row.folderMissing && row.info.kind == EngineKind::Git;
     return actions;
 }

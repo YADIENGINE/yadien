@@ -18,7 +18,7 @@ python Scripts/dev.py package
 It builds the launcher in Release, then `Scripts/package.py`:
 
 1. **Stages** `build/Package/Stage/` (installed as `current/`): `<engine>.exe`, `<engine>.com`, the Velopack DLL,
-   `Engines/`, and `Tools/` from `ToolCache/` without the lock's `exclude` entries (CMake's HTML docs, man pages,
+   `Engines/` (the one engine it ships, `build/Engines/`), and `Tools/` from `ToolCache/` without the lock's `exclude` entries (CMake's HTML docs, man pages,
    `cmake-gui.exe`, `cpack.exe`; license files stay).
 2. **Writes `ThirdPartyNotices.txt`**: part 1 is the engine (its own license and the components every engine
    program contains, from the engine's `ThirdParty/Notices.json`), part 2 the launcher and its tools
@@ -75,7 +75,7 @@ Edit the manifests, then run one command:
 
 ```powershell
 # EngineManifest.json:   version + notes (rules: engine Docs/ToolsContract.md -> Manifest)
-# LauncherManifest.json: version + notes + engines
+# LauncherManifest.json: version + notes + engine
 python Scripts/dev.py release --dry-run   # the plan and every check; changes nothing
 python Scripts/dev.py release
 ```
@@ -84,23 +84,24 @@ python Scripts/dev.py release
 {
   "version": "0.3.0",
   "repository": "https://github.com/owner/repo",
-  "engines": ["0.4.0", "0.3.1"],
+  "engine": "0.4.0",
   "notes": [ { "version": "0.3.0", "date": "2026-11-02", "changes": ["..."] } ]
 }
 ```
 
-`engines` lists the exact engine versions the installer carries, one per series: a listed version is imported, a series
-that is not listed is removed. `Scripts/Tests/test_release.py` checks that it matches `Engines/`.
+`engine` is the exact version the installer ships, so a first project works offline. Every other version is downloaded
+when a project asks for it ([Engines](Engines.md#where-a-version-comes-from)).
 
 The manifests are the desired state. An engine version without a pushed tag and a launcher version without a published
 GitHub release get released; the rest is left alone. If a run stops, fix the cause and run the same command again.
 
 1. **Checks.** Manifest rules, branch `main`, not behind origin, tools (`gh`, `vpk` at the locked version, `ToolCache/`).
    Changes outside the manifests stop the run, as do unpushed engine commits: a release never commits someone else's work.
-2. **Engine.** Its tests (`python . test` in the checkout), commit the manifest, push, annotated tag, push the tag.
-3. **Launcher.** Import or remove engines, move the Engine pointer up to the newest carried engine when it is behind
+2. **Engine.** Its tests (`python . test` in the checkout), commit the manifest, push, annotated tag, push the tag, and a
+   GitHub release holding the record of its files; tags without one get theirs too.
+3. **Launcher.** Move the Engine pointer up to the shipped engine when it is behind
    (a pointer past that tag stays; `dev.py pin-engine` moves it further), commit locally.
-4. **Installer.** Tests, the update test (above) and `dev.py package` in `build/ReleaseBuild/`, against a worktree of the pinned engine commit in
+4. **Installer.** Tests, the update test (above), the [engine test](Engines.md#test-it) and `dev.py package` in `build/ReleaseBuild/`, against a worktree of the pinned engine commit in
    `build/ReleaseEngine/`, so the shared engine checkout and the development build tree do not matter. If the previous
    release's full package is gone from `build/Package/Releases/`, `vpk download github` brings it back for the delta.
 5. **Your try.** The script prints the installer's path and asks before publishing (see Try it). Answering no keeps
@@ -113,7 +114,7 @@ GitHub release get released; the rest is left alone. If a run stops, fix the cau
 An engine-only release stops after step 2 and goes on to step 7.
 
 **Release notes** are generated into `build/Package/ReleaseNotes.md`: a preview line for 0.x, the launcher's newest note,
-the engines it carries, and the engine notes since the previous launcher release (breaking changes first). The same file
+the engine it ships, and the engine notes since the previous launcher release (breaking changes first). The same file
 goes to `vpk pack --releaseNotes` and to the GitHub release, so the notes also travel in the package and in
 `releases.win.json`, where in-app update notes read them.
 

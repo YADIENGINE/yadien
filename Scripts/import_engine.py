@@ -1,14 +1,15 @@
-"""Copies a stable engine release into Engines/Engine<MAJOR.MINOR>/ (Docs/Engines.md).
+"""Copies a stable engine release into a folder of engine copies, Engine<version>/ (Docs/Engines.md).
 
 Usage, from the launcher repository:
-    python Scripts/import_engine.py v0.2.0
+    python Scripts/import_engine.py v0.2.0 [--engines FOLDER]
 
 The copy is taken from the tag with `git archive` in the engine checkout (Scripts/engine_location.py), so it is exactly the tagged content:
 `.git`, uncommitted changes and the engine's `export-ignore` files (its development files) never enter it. The tag
 must be pushed to the engine's origin, so every copy is traceable. `EngineCopy.json` is written beside the copy:
-source tag and commit, and a SHA-256 for every file; the launcher checks projects' copies against it.
+source tag and commit, and a SHA-256 for every file; the launcher checks downloads and projects' copies against it.
 
-A series folder holds the newest patch of that series: importing v0.2.3 replaces Engine0.2 (from v0.2.1).
+The launcher ships one such copy (dev.py puts it in <build>/Engines/); the others it downloads from the tag and the
+same record, which `dev.py release` publishes.
 """
 
 import argparse
@@ -29,7 +30,6 @@ MANIFEST_FILE = "EngineManifest.json"
 COPY_FILE = "EngineCopy.json"
 COPY_FORMAT = 1
 FOLDER_PREFIX = "Engine"
-KEEP_SERIES = 3  # More series than this in Engines/ is reported; removing one is a deliberate commit
 
 
 class ImportFailed(Exception):
@@ -136,36 +136,29 @@ def write_copy(engines: Path, folder_name: str, files: dict[str, bytes], record:
     return destination
 
 
-def import_engine(engine: Path, engines: Path, tag: str, require_pushed: bool = True) -> Path:
+def engine_copy(engine: Path, tag: str, require_pushed: bool = True) -> tuple[dict[str, bytes], dict, dict]:
+    """The tag's files, its manifest and the record that describes them."""
     if not tag.startswith("v") or parse_version(tag[1:]) is None:
         raise ImportFailed(f"'{tag}' is not a release tag (v<MAJOR.MINOR.PATCH>)")
     commit = tag_commit(engine, tag)
     if require_pushed:
         check_pushed(engine, tag, commit)
     files = archive_files(engine, tag)
-    manifest = read_manifest(files, tag)
-    major, minor, _ = parse_version(manifest["version"])
-    folder_name = f"{FOLDER_PREFIX}{major}.{minor}"
-    current = installed_version(engines / folder_name)
-    if current is not None and current >= parse_version(manifest["version"]):
-        raise ImportFailed(f"{folder_name} already holds {'.'.join(map(str, current))}; a series folder only moves "
-                           "to a newer patch")
+    return files, read_manifest(files, tag), copy_record(tag, commit, files)
+
+
+def import_engine(engine: Path, engines: Path, tag: str, require_pushed: bool = True) -> Path:
+    files, manifest, record = engine_copy(engine, tag, require_pushed)
     engines.mkdir(parents=True, exist_ok=True)
-    return write_copy(engines, folder_name, files, copy_record(tag, commit, files))
-
-
-def series_folders(engines: Path) -> list[Path]:
-    """Imported series, oldest first (by version: Engine0.10 is newer than Engine0.9)."""
-    folders = [path for path in engines.glob(f"{FOLDER_PREFIX}*") if (path / COPY_FILE).is_file()]
-    return sorted(folders, key=lambda path: installed_version(path) or (0, 0, 0))
+    return write_copy(engines, f"{FOLDER_PREFIX}{manifest['version']}", files, record)
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Copy a stable engine tag into Engines/")
+    parser = argparse.ArgumentParser(description="Copy a stable engine tag into a folder of engine copies")
     parser.add_argument("tag", help="release tag, e.g. v0.2.0")
     parser.add_argument("--engine", type=Path, default=default_engine(),
                         help="engine repository (default: the Engine/ submodule, or the enclosing project's Engine/)")
-    parser.add_argument("--engines", type=Path, default=REPOSITORY / "Engines", help="destination folder")
+    parser.add_argument("--engines", type=Path, default=REPOSITORY / "build" / "Engines", help="destination folder")
     args = parser.parse_args(argv)
     try:
         destination = import_engine(args.engine, args.engines, args.tag)
@@ -175,10 +168,6 @@ def main(argv: list[str]) -> int:
     record = json.loads((destination / COPY_FILE).read_text(encoding="utf-8"))
     print(f"Imported {args.tag} ({record['source']['commit'][:10]}) into {destination} "
           f"({len(record['files'])} files)")
-    series = series_folders(args.engines)
-    if len(series) > KEEP_SERIES:
-        print(f"Engines/ holds {len(series)} series; the launcher ships {KEEP_SERIES} at most. Remove the oldest "
-              "in its own commit: " + ", ".join(path.name for path in series[:-KEEP_SERIES]))
     return 0
 
 

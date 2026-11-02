@@ -18,7 +18,7 @@ EngineRunner FakeNew(bool succeed, std::vector<std::string>& calls) {
 }
 
 AvailableEngine Stable(const std::filesystem::path& engines) {
-    WriteFakeEngine(engines / "Engine0.2", {.version = "0.2.0"});
+    WriteFakeEngine(engines / "Engine0.2.0", {.version = "0.2.0"});
     return *EngineLibrary::Scan(engines).Newest();
 }
 } // namespace

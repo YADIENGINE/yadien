@@ -2,6 +2,7 @@
 #include <extras/IconsFontAwesome6.h>
 #include <imgui.h>
 #include <algorithm>
+#include <array>
 #include "Model/LauncherModel.h"
 #include "Screens/ScreenLayout.h"
 #include "ToolUi/ToolTheme.h"
@@ -13,7 +14,6 @@ constexpr float PopupWidth = 450.0f;
 constexpr float PopupHeight = 300.0f;
 constexpr float PopupMargin = 20.0f;
 constexpr float PopupPadding = 18.0f;
-constexpr float FooterGap = 10.0f;
 constexpr ImGuiWindowFlags PopupWindowFlags =
     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
 
@@ -51,22 +51,22 @@ void DrawConfirmation(LauncherModel& model) {
                               std::min(PopupHeight * scale, viewport->WorkSize.y - PopupMargin * scale * 2)},
                              ImGuiCond_Always);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {PopupPadding * scale, PopupPadding * scale});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1);
     if (ImGui::BeginPopupModal(PopupId, nullptr, PopupWindowFlags)) {
         if (pending == Confirmation::None) {
             ImGui::CloseCurrentPopup();
             ImGui::EndPopup();
-            ImGui::PopStyleVar();
+            ImGui::PopStyleVar(2);
             return;
         }
         const bool focusInput = ImGui::IsWindowAppearing();
-        ImGui::PushFont(ToolFont(ToolFontRole::Heading), ToolMetrics::SectionSize);
+        ImGui::PushFont(ToolFont(ToolFontRole::Heading), ToolMetrics::HeadingSize);
         ImGui::TextUnformatted(ConfirmationTitle(pending));
         ImGui::PopFont();
         ImGui::Separator();
         bool submitted = false;
         auto& input = model.ConfirmationInput();
-        const float footerHeight = ImGui::GetFrameHeightWithSpacing() + FooterGap * scale;
-        if (ImGui::BeginChild("##confirmation-body", {0, -footerHeight})) {
+        if (ImGui::BeginChild("##confirmation-body", {0, -LauncherFooterHeight()})) {
             if (pending == Confirmation::RemoveProject || pending == Confirmation::PublishEngine) {
                 if (const auto* project = model.PendingProject()) {
                     ImGui::PushTextWrapPos(0);
@@ -100,20 +100,18 @@ void DrawConfirmation(LauncherModel& model) {
         ImGui::EndChild();
         const bool canConfirm = pending != Confirmation::PublishEngine || !input.commitMessage.empty();
         ImGui::Separator();
-        const bool canceled = ToolButton("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape);
+        const bool removing = pending == Confirmation::RemoveProject;
+        const std::array buttons{LauncherFooterButton{"Cancel"},
+                                 LauncherFooterButton{ConfirmLabel(pending), !removing, canConfirm,
+                                                      removing ? ToolTone::Error : ToolTone::Accent}};
+        const int pressed = DrawLauncherFooter(buttons);
+        const bool canceled = pressed == 0 || ImGui::IsKeyPressed(ImGuiKey_Escape);
         if (canceled) {
             model.CancelConfirmation();
             ImGui::CloseCurrentPopup();
         }
-        ContinueToolToolbar(ConfirmLabel(pending), true);
-        ImGui::BeginDisabled(!canConfirm);
-        if (pending == Confirmation::RemoveProject)
-            ImGui::PushStyleColor(ImGuiCol_Text, ToolToneColor(ToolTone::Error));
-        const bool confirmed = ToolButton(ConfirmLabel(pending), {}, pending != Confirmation::RemoveProject);
-        if (pending == Confirmation::RemoveProject) ImGui::PopStyleColor();
-        ImGui::EndDisabled();
-        if (!canceled && canConfirm && (confirmed || submitted)) model.Confirm();
+        if (!canceled && canConfirm && (pressed == 1 || submitted)) model.Confirm();
         ImGui::EndPopup();
     }
-    ImGui::PopStyleVar();
+    ImGui::PopStyleVar(2);
 }
