@@ -8,7 +8,7 @@ set(LAUNCHER_BRAND_DIR "${CMAKE_BINARY_DIR}/Brand")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/Scripts/brand.py")
 execute_process(
     COMMAND "${Python3_EXECUTABLE}" -B "${PROJECT_SOURCE_DIR}/Scripts/brand.py" "${LAUNCHER_BRAND_DIR}"
-            --name "${LAUNCHER_PRODUCT_NAME}"
+            --name "${LAUNCHER_PRODUCT_NAME}" --version "${LAUNCHER_VERSION}"
     RESULT_VARIABLE brandResult)
 if(NOT brandResult EQUAL 0)
     message(FATAL_ERROR "Scripts/brand.py failed (${brandResult})")

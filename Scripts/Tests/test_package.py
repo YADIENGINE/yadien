@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from Scripts.package import (NOTICES_FILE, VELOPACK_DLL, PackageFailed, excluded, launcher_notices,
-                             launcher_version, pack, setup_name, stage)
+                             launcher_publisher, launcher_version, pack, setup_name, stage)
 
 LOCK = {"format": 1,
         "tools": {"tool": {"version": "2.0", "executable": "bin/tool.exe", "exclude": ["doc/html", "bin/gui.exe"]}},
@@ -99,10 +99,18 @@ class PackageTests(unittest.TestCase):
         command = calls[0]
         self.assertEqual(command[command.index("--packVersion") + 1], "1.2.3")
         self.assertEqual(command[command.index("--mainExe") + 1], "myengine.exe")
+        self.assertEqual(command[command.index("--packAuthors") + 1], launcher_publisher())
         self.assertEqual(Path(command[command.index("--icon") + 1]).name, "Icon.ico")
         self.assertEqual(Path(command[command.index("--splashImage") + 1]).name, "Splash.png")
         self.assertNotIn("--releaseNotes", command)
         self.assertNotIn("--yes", command)
+
+    def test_publisher_is_the_repository_owner(self):
+        manifest = self.write("Manifest.json", json.dumps({"repository": "https://github.com/MyOrg/mytool/"}))
+        self.assertEqual(launcher_publisher(manifest), "MyOrg")
+        no_owner = self.write("NoOwner.json", json.dumps({"repository": "https://mytool"}))
+        with self.assertRaises(PackageFailed):
+            launcher_publisher(no_owner)
 
     def test_pack_hands_release_notes_to_vpk(self):
         calls = []

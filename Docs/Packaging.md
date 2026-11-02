@@ -31,14 +31,16 @@ Packing the same version again (a test build) makes vpk ask whether to overwrite
 `build/Package/Releases/`; answer `y`, or pass `dev.py package --yes`. A real release always raises the version, so the
 question guards published versions. `--notes <file>` puts Markdown release notes in the package (see Publish).
 
-The version is `version` in `LauncherManifest.json` (CMake reads it into `LAUNCHER_VERSION`); the Velopack id and title
-are the product name from the engine manifest. A release that ships a new engine, launcher change or tool upgrade raises
+The version is `version` in `LauncherManifest.json` (CMake reads it into `LAUNCHER_VERSION`); the publisher is the owner
+of `repository` there; the Velopack id and title are the product name from the engine manifest. A release that ships a new engine, launcher change or tool upgrade raises
 the launcher's version (D15).
 
 **Icon and splash** are drawn from code (engine D1) by `Scripts/brand.py` when the build is configured: the product
-name's first letter in a 5x7 arcade pixel font on a dark tile (icon, 16-256 px, also the window and taskbar icon via the
-`GLFW_ICON` resource), and the whole name on the splash; colours are the tool UI's. Nothing generated is committed; a
-renamed product gets new images on the next configure.
+name's first letter in the tool UI's 5x7 pixel font on an amber plate, in the primary button's colours (icon, 16-256 px,
+also the window and taskbar icon via the `GLFW_ICON` resource). The splash repeats the launcher's first-run screen: dark
+ground, a faint giant letter on the right, the name, tagline and version on the left. Everything is flat and on whole
+pixels (engine D23). Nothing generated is committed; a renamed product or a new version gets new images on the next
+configure.
 
 When a license text changes (a tool or library upgrade), update `Packaging/Notices.json` or `Packaging/Licenses/` in
 the same commit. Velopack's and Ninja's archives have no license file; their texts are in `Packaging/Licenses/`.

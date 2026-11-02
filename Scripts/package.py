@@ -12,8 +12,9 @@ Steps: stage the files the launcher ships, write their license notices, run Velo
 
 The installer's icon and splash are the build's (build/Brand/, drawn by Scripts/brand.py at configure time).
 
-The package's version is the launcher's (LauncherManifest.json); the Velopack id and title are the
-product name from the engine manifest. Signing is not set up yet (design D19): vpk pack is where it would go.
+The package's version is the launcher's (LauncherManifest.json) and its author the owner of the launcher's repository
+there; the Velopack id and title are the product name from the engine manifest. Signing is not set up yet (design D19):
+vpk pack is where it would go.
 Only the standard library; the engine's notice helpers come from the engine checkout dev.py puts on sys.path.
 """
 
@@ -44,6 +45,18 @@ def launcher_version(manifest: Path = REPOSITORY / LAUNCHER_MANIFEST) -> str:
         return json.loads(manifest.read_text(encoding="utf-8"))["version"]
     except (OSError, ValueError, KeyError) as error:
         raise PackageFailed(f"{manifest}: no version ({error})") from error
+
+
+def launcher_publisher(manifest: Path = REPOSITORY / LAUNCHER_MANIFEST) -> str:
+    """The owner of the launcher's repository: the package's author."""
+    try:
+        repository = json.loads(manifest.read_text(encoding="utf-8"))["repository"]
+    except (OSError, ValueError, KeyError) as error:
+        raise PackageFailed(f"{manifest}: no repository ({error})") from error
+    parts = repository.rstrip("/").split("/")
+    if len(parts) < 2 or not parts[-2] or parts[-2].endswith(":"):
+        raise PackageFailed(f"{manifest}: repository {repository} has no owner")
+    return parts[-2]
 
 
 def excluded(relative: Path, patterns: list[str]) -> bool:
@@ -117,9 +130,9 @@ def pack(stage_dir: Path, releases: Path, brand: Path, product: str, executable:
         raise PackageFailed("vpk not found; install it: dotnet tool install -g vpk (Docs/Packaging.md)")
     releases.mkdir(parents=True, exist_ok=True)
     command = [vpk, *(["--yes"] if overwrite else []), "pack", "--packId", product, "--packVersion", version,
-               "--packTitle", product, "--packAuthors", product, "--packDir", str(stage_dir), "--mainExe",
-               f"{executable}.exe", "--outputDir", str(releases), "--icon", str(brand / "Icon.ico"), "--splashImage",
-               str(brand / "Splash.png"), "--splashProgressColor", SPLASH_PROGRESS]
+               "--packTitle", product, "--packAuthors", launcher_publisher(), "--packDir", str(stage_dir),
+               "--mainExe", f"{executable}.exe", "--outputDir", str(releases), "--icon", str(brand / "Icon.ico"),
+               "--splashImage", str(brand / "Splash.png"), "--splashProgressColor", SPLASH_PROGRESS]
     if notes is not None:
         command += ["--releaseNotes", str(notes)]
     command += extra or []
