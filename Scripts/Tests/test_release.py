@@ -1,5 +1,7 @@
 """release: the manifests decide what is released; engine step and project pointers against local git repositories."""
 
+import contextlib
+import io
 import json
 import os
 import subprocess
@@ -10,7 +12,8 @@ from pathlib import Path
 from Scripts.import_engine import import_engine
 from Scripts.release import (LAUNCHER_MANIFEST, REPOSITORY, ReleaseFailed, carried_at_tag, check_clean, commit_launcher,
                              commit_project_pointers, engine_release_body, engine_release_tags, make_plan,
-                             manifest_problems, new_engine_notes, release_engine, release_files, release_notes)
+                             manifest_problems, new_engine_notes, prepare_worktree, release_engine, release_files,
+                             release_notes, remove_release_trees)
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "Test",
            "GIT_COMMITTER_EMAIL": "t@t"}
@@ -280,6 +283,49 @@ class GitTests(TempFolderTests):
         head = git(project, "rev-parse", "HEAD")
         commit_project_pointers(project, {"EngineManifest.json": "1.0.0"})
         self.assertEqual(git(project, "rev-parse", "HEAD"), head)
+
+
+class ReleaseTreesTests(TempFolderTests):
+    def published_trees(self, engine: Path) -> Path:
+        """A launcher folder holding what a finished release leaves under build/."""
+        repository = self.root / "launcher"
+        package = repository / "build" / "Package"
+        for folder in (repository / "build" / "ReleaseBuild", package / "Stage", package / "Releases"):
+            folder.mkdir(parents=True)
+        (package / "Releases" / "MyEngine-1.0.0-full.nupkg").write_text("package")
+        (package / "Release.json").write_text("{}")
+        prepare_worktree(engine, repository / "build" / "ReleaseEngine", git(engine, "rev-parse", "HEAD"))
+        return repository
+
+    def test_a_published_release_removes_its_trees_and_keeps_its_packages(self):
+        engine = self.repository("engine")
+        repository = self.published_trees(engine)
+        remove_release_trees(repository, engine)
+        build = repository / "build"
+        self.assertEqual(sorted(path.name for path in build.iterdir()), ["Package"])
+        self.assertEqual(sorted(path.name for path in (build / "Package").iterdir()), ["Release.json", "Releases"])
+        self.assertTrue((build / "Package" / "Releases" / "MyEngine-1.0.0-full.nupkg").is_file())
+        self.assertNotIn("ReleaseEngine", git(engine, "worktree", "list"))
+
+    def test_the_next_release_recreates_the_worktree(self):
+        engine = self.repository("engine")
+        repository = self.published_trees(engine)
+        remove_release_trees(repository, engine)
+        worktree = repository / "build" / "ReleaseEngine"
+        prepare_worktree(engine, worktree, git(engine, "rev-parse", "HEAD"))
+        self.assertEqual(git(worktree, "rev-parse", "HEAD"), git(engine, "rev-parse", "HEAD"))
+
+    def test_nothing_to_remove_is_not_an_error(self):
+        engine = self.repository("engine")
+        remove_release_trees(self.root / "empty", engine)
+
+    def test_a_failed_removal_only_warns(self):
+        engine = self.repository("engine")
+        repository = self.published_trees(engine)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            remove_release_trees(repository, self.root / "not-a-repository")
+        self.assertIn("warning:", output.getvalue())
 
 
 if __name__ == "__main__":

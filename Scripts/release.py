@@ -38,6 +38,7 @@ BRANCH = "main"
 ENGINES_FOLDER = "Engines"
 RELEASE_ENGINE = "ReleaseEngine"  # build/<this>/: worktree of the engine commit the release is built against
 RELEASE_BUILD = "ReleaseBuild"  # build/<this>/: its own build tree, so development builds keep theirs
+STAGE_FOLDER = "Stage"  # build/Package/<this>/: what the package step installs into current/
 STAMP_FILE = "Release.json"  # build/Package/<this>: what the installer in Releases/ was built from
 NOTES_FILE = "ReleaseNotes.md"  # build/Package/<this>: the notes of the package and of the GitHub release
 PREVIEW_NOTE = "Early preview. For testing. Windows only, unsigned (SmartScreen asks to confirm); 0.x versions may break."
@@ -264,6 +265,21 @@ def prepare_worktree(engine: Path, path: Path, commit: str) -> None:
     git(engine, "worktree", "prune")
     path.parent.mkdir(parents=True, exist_ok=True)
     git(engine, "worktree", "add", "--force", "--detach", str(path), commit)
+
+
+def remove_release_trees(repository: Path, engine: Path) -> None:
+    """After a publish the next release recreates these; build/Package/Releases stays for its delta. The release is
+    already out, so a failure here only warns."""
+    build = repository / "build"
+    worktree = build / RELEASE_ENGINE
+    try:
+        if (worktree / ".git").exists():
+            git(engine, "worktree", "remove", "--force", str(worktree))
+        for folder in (build / RELEASE_BUILD, build / "Package" / STAGE_FOLDER):
+            if folder.exists():
+                shutil.rmtree(folder)
+    except (ReleaseFailed, OSError) as error:
+        print(f"warning: could not remove the release's temporary folders under {build}: {error}", flush=True)
 
 
 def repository_url(repository: Path) -> str:
@@ -522,6 +538,7 @@ def release(engine: Path, repository: Path = REPOSITORY, dry_run: bool = False) 
             print("Not published. The commits stay local; run the same command to continue.")
             return 0
         publish(repository, launcher, product, setup)
+        remove_release_trees(repository, engine)
         pointers[repository.name] = plan.launcher
     project = enclosing_project(repository)
     if project is not None:

@@ -109,6 +109,8 @@ GitHub release get released; the rest is left alone. If a run stops, fix the cau
    the local commits; the next run reuses the installer while the commits and the notes are the same.
 6. **Publish.** Push, annotated tag, then a GitHub release: a draft until every file is up, pre-release for 0.x. It holds
    this version's installer and packages and the update feed (`releases.win.json`, `RELEASES`, `assets.win.json`).
+   Once it is out, `build/ReleaseBuild/`, the `build/ReleaseEngine/` worktree and `build/Package/Stage/` are removed; a
+   failure there only warns. `build/Package/Releases/` stays for the next delta. A run that stops earlier keeps them all.
 7. **Project.** When the launcher is a submodule of a project, the released `Engine` / `Launcher` pointers are committed
    there, and nothing else. They are not pushed: that branch can hold other work.
 
