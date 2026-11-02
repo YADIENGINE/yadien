@@ -1,9 +1,17 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "repository": "https://github.com/YADIENGINE/yadien",
-  "engine": "0.4.0",
+  "engine": "0.5.0",
   "engineRepository": "https://github.com/YADIENGINE/engine",
   "notes": [
+    {
+      "version": "0.4.0",
+      "date": "2026-11-02",
+      "changes": [
+        "New projects open in seconds: the engine comes compiled, downloaded with each engine version",
+        "Carries engine 0.5.0"
+      ]
+    },
     {
       "version": "0.3.0",
       "date": "2026-11-02",
