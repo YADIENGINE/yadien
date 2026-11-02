@@ -7,7 +7,8 @@ The launcher deals with engines in three places (engine `Docs/Design/README.md` 
   users.
 - **The shipped engine:** `LauncherManifest.json` `engine`, one exact version. `dev.py` imports it from its tag into
   `<build>/Engines/Engine<version>/`, and the installer carries that folder, so the first project works offline. It is
-  not in the repository.
+  not in the repository. The installer also carries it compiled, in `EnginePrebuilt/<version>/`: commands for a project
+  on that version get the folder as `ENGINE_PREBUILT`, and the project skips the engine build (engine `Docs/Prebuilt.md`).
 - **Every other version** comes from GitHub on demand and stays in the download cache, `<data folder>/Engines/`, which
   a launcher update keeps.
 

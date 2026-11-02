@@ -67,6 +67,24 @@ TEST_CASE("Engine commands run the project's engine with the launcher's Python",
     CHECK_FALSE(SupportsToolsContract(0));
 }
 
+TEST_CASE("A project on an engine copy finds the compiled engine of its version", "[cli]") {
+    TempFolder temp;
+    WriteFakeProject(temp.Path() / "Game", "Game", {.version = "1.2.3"});
+    ProjectInfo project = InspectProject(temp.Path() / "Game");
+    project.kind = EngineKind::Copy;
+    const std::filesystem::path launcher = temp.Path() / "Launcher";
+    CHECK(PrebuiltEngineFolder(launcher, project).empty());
+
+    std::filesystem::create_directories(launcher / "EnginePrebuilt/9.9.9");
+    CHECK(PrebuiltEngineFolder(launcher, project).empty());
+
+    std::filesystem::create_directories(launcher / "EnginePrebuilt/1.2.3");
+    CHECK(PrebuiltEngineFolder(launcher, project) == launcher / "EnginePrebuilt/1.2.3");
+
+    project.kind = EngineKind::Git;
+    CHECK(PrebuiltEngineFolder(launcher, project).empty());
+}
+
 TEST_CASE("launcher version lists every engine the launcher carries", "[cli]") {
     TempFolder temp;
     WriteFakeEngine(temp.Path() / "Engines/Engine0.1.1", {.version = "0.1.1"});

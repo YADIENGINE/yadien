@@ -5,6 +5,7 @@ Steps: stage the files the launcher ships, write their license notices, run Velo
     build/Package/Stage/       what gets installed into current/:
         <engine>.exe, <engine>.com, the Velopack DLL
         Engines/               the stable engine copy it ships (<build>/Engines/, dev.py imports it from its tag)
+        EnginePrebuilt/        that engine compiled, when dev.py could build it (<build>/EnginePrebuilt/)
         Tools/                 ToolCache's tools without the lock's "exclude" entries, + Toolchain.json
         ThirdPartyNotices.txt  Part 1: the engine (its own license + the components games get), Part 2: the launcher
                                and its tools (Packaging/Notices.json)
@@ -30,6 +31,7 @@ from brand import SPLASH_PROGRESS  # noqa: E402
 from engine_location import REPOSITORY  # noqa: E402
 
 LAUNCHER_MANIFEST = "LauncherManifest.json"
+PREBUILT_FOLDER = "EnginePrebuilt"  # Core/Cli/EngineCommand.cpp reads it beside the executable
 NOTICES_FILE = REPOSITORY / "Packaging" / "Notices.json"
 OUTPUT_NOTICES = "ThirdPartyNotices.txt"  # Core/Settings/LauncherLayout.h LicenseNoticesFile
 VELOPACK_DLL = "velopack_libc.dll"  # The name <engine>.exe imports (Apps/Ui/CMakeLists.txt copies it so)
@@ -104,6 +106,8 @@ def stage(build: Path, stage_dir: Path, executable: str, engines: Path, cache: P
             raise PackageFailed(f"{build / name} is missing; build the launcher in Release first")
         shutil.copy2(build / name, stage_dir / name)
     shutil.copytree(engines, stage_dir / "Engines")
+    if (engines.parent / PREBUILT_FOLDER).is_dir():
+        shutil.copytree(engines.parent / PREBUILT_FOLDER, stage_dir / PREBUILT_FOLDER)
     for name, tool in lock["tools"].items():
         if not (cache / name / tool["executable"]).is_file():
             raise PackageFailed(f"{name} is missing in {cache}; run: python Scripts/fetch_toolchain.py")

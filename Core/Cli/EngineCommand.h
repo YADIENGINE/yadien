@@ -18,12 +18,18 @@
 
 // `python -X utf8 <root>/Engine --project <root> <arguments...>` with the toolchain first on PATH and, when the
 // windowed launcher exists beside this executable, ENGINE_LAUNCHER = its path (the editor's "Back to project list";
-// engine Docs/ToolsContract.md). Fails when the project has no usable engine or speaks a contract this launcher does
-// not know (update the launcher).
+// engine Docs/ToolsContract.md), and ENGINE_PREBUILT when this launcher carries the project's engine compiled. Fails
+// when the project has no usable engine or speaks a contract this launcher does not know (update the launcher).
 [[nodiscard]] Result<ProcessCommand> EngineCommand(const Toolchain& toolchain, const ProjectInfo& project,
                                                    const std::vector<std::string>& arguments);
 
 inline constexpr const char* LauncherVariable = "ENGINE_LAUNCHER";
+inline constexpr const char* PrebuiltVariable = "ENGINE_PREBUILT";
+
+// <launcherFolder>/EnginePrebuilt/<version>/ for a project on an engine copy; empty for a checkout or when absent.
+// The engine's tools decide whether it fits the project (engine Docs/Prebuilt.md).
+[[nodiscard]] std::filesystem::path PrebuiltEngineFolder(const std::filesystem::path& launcherFolder,
+                                                         const ProjectInfo& project);
 
 // <engine>.exe beside the running executable (the windowed launcher); empty when it is not there (CLI-only build).
 [[nodiscard]] std::filesystem::path WindowedLauncherExecutable();

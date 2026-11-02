@@ -19,6 +19,13 @@ std::filesystem::path WindowedLauncherExecutable() {
     return std::filesystem::is_regular_file(executable, error) ? executable : std::filesystem::path{};
 }
 
+std::filesystem::path PrebuiltEngineFolder(const std::filesystem::path& launcherFolder, const ProjectInfo& project) {
+    if (project.kind != EngineKind::Copy || !project.manifest) return {};
+    std::filesystem::path folder = launcherFolder / "EnginePrebuilt" / project.manifest->version.ToString();
+    std::error_code error;
+    return std::filesystem::is_directory(folder, error) ? folder : std::filesystem::path{};
+}
+
 Result<ProcessCommand> EngineCommand(const Toolchain& toolchain, const ProjectInfo& project,
                                      const std::vector<std::string>& arguments) {
     if (!project.manifest)
@@ -36,6 +43,9 @@ Result<ProcessCommand> EngineCommand(const Toolchain& toolchain, const ProjectIn
     command.pathPrefix = toolchain.PathFolders();
     if (const std::filesystem::path launcher = WindowedLauncherExecutable(); !launcher.empty())
         command.environment.emplace_back(LauncherVariable, PathToUtf8(launcher));
+    if (const std::filesystem::path prebuilt = PrebuiltEngineFolder(ExecutablePath().parent_path(), project);
+        !prebuilt.empty())
+        command.environment.emplace_back(PrebuiltVariable, PathToUtf8(prebuilt));
     return command;
 }
 

@@ -19,6 +19,7 @@ The installer always goes to build/Package/.
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -71,6 +72,28 @@ def import_shipped_engine(engine: Path, tree: Path) -> None:
         import_engine(engine, engines, f"v{version}")
     except ImportFailed as error:
         print(f"warning: engine {version} is not in {engines}: {error}", file=sys.stderr, flush=True)
+
+
+def build_prebuilt_engine(engine: Path, tree: Path) -> None:
+    """<tree>/EnginePrebuilt/<version>/, compiled from the shipped engine's exact tag: other code would not match the
+    copy users get. Otherwise, or with an engine that has no such command, projects build the engine themselves."""
+    from package import LAUNCHER_MANIFEST, PREBUILT_FOLDER
+
+    version = json.loads((REPOSITORY / LAUNCHER_MANIFEST).read_text(encoding="utf-8"))["engine"]
+    folder = tree / PREBUILT_FOLDER
+    shutil.rmtree(folder, ignore_errors=True)
+
+    def git(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(["git", "-C", str(engine), *args], capture_output=True, text=True)
+
+    tagged = git("rev-parse", f"v{version}^{{commit}}").stdout.strip()
+    if not (engine / "Tools" / "commands" / "prebuilt.py").is_file():
+        print(f"note: engine {version} has no prebuilt command; the installer carries only its sources", flush=True)
+    elif not tagged or git("rev-parse", "HEAD").stdout.strip() != tagged or git("status", "--porcelain").stdout.strip():
+        print(f"warning: {engine} is not exactly v{version}; the installer carries no compiled engine", file=sys.stderr,
+              flush=True)
+    else:
+        run([sys.executable, str(engine), "prebuilt", "--output", str(folder / version)], dict(os.environ))
 
 
 def build(engine: Path, tree: Path, release: bool) -> dict[str, str]:
@@ -139,6 +162,7 @@ def main(argv: list[str]) -> int:
                 from package import PackageFailed, package
 
                 build(engine, tree, release=True)
+                build_prebuilt_engine(engine, tree)
                 try:
                     setup = package(engine, tree / "Release", tree / "Brand", BUILD / "Package", notes=args.notes,
                                     overwrite=args.yes)
