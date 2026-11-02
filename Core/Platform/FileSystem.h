@@ -2,6 +2,7 @@
 
 #include "Platform/Result.h"
 #include <nlohmann/json_fwd.hpp>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -23,5 +24,7 @@
 [[nodiscard]] Status CopyTreeExcept(const std::filesystem::path& source, const std::filesystem::path& destination,
                                     const std::vector<std::filesystem::path>& skipped);
 [[nodiscard]] Status RemoveTree(const std::filesystem::path& folder);
+// The bytes of every regular file under `folder`. Slow on a large tree; run it in a job.
+[[nodiscard]] Result<std::uintmax_t> FolderSize(const std::filesystem::path& folder);
 // Moves / renames within a volume (MoveFileEx); fails instead of replacing an existing destination.
 [[nodiscard]] Status MovePath(const std::filesystem::path& from, const std::filesystem::path& to);

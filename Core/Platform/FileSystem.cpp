@@ -105,6 +105,21 @@ Status CopyTreeExcept(const fs::path& source, const fs::path& destination, const
     return Status::Success();
 }
 
+Result<std::uintmax_t> FolderSize(const fs::path& folder) {
+    std::error_code error;
+    std::uintmax_t total = 0;
+    for (fs::recursive_directory_iterator entry(folder, fs::directory_options::skip_permission_denied, error), end;
+         !error && entry != end; entry.increment(error)) {
+        std::error_code fileError;
+        if (entry->is_regular_file(fileError)) {
+            const auto size = entry->file_size(fileError);
+            if (!fileError) total += size;
+        }
+    }
+    if (error) return Result<std::uintmax_t>::Failure("Cannot read " + PathToUtf8(folder) + ": " + error.message());
+    return total;
+}
+
 Status RemoveTree(const fs::path& folder) {
     std::error_code error;
     fs::remove_all(folder, error);

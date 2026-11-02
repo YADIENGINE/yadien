@@ -15,6 +15,7 @@ constexpr float PanelPadding = 20.0f;
 constexpr float PanelMargin = 18.0f;
 constexpr float DefaultPanelWidth = 580.0f;
 constexpr float DefaultPanelHeight = 460.0f;
+constexpr float NewProjectPanelHeight = 410.0f;
 constexpr float SettingsWidth = 580.0f;
 constexpr float WidePanelWidth = 760.0f;
 constexpr float WidePanelHeight = 580.0f;
@@ -43,14 +44,25 @@ const char* PanelTitle(LauncherPanel panel) {
     return "";
 }
 
-const char* SystemLabel(SystemState state) {
-    switch (state) {
-    case SystemState::Checking: return "Checking";
-    case SystemState::Ready   : return "Ready";
-    case SystemState::Warning : return "Warning";
-    case SystemState::NotReady: return "Not ready";
+// Only what needs reading: a working job, or which tools are the matter. A healthy system is just the green mark, and
+// the first-run screen spells out the tools itself.
+std::string SystemStateText(const LauncherModel& model) {
+    if (model.CurrentJob()) return "Working";
+    const SystemState system = model.System();
+    if (system == SystemState::Checking) return "Checking";
+    const bool firstRun = model.Rows().empty() && model.Tab() == LauncherTab::Projects;
+    if (system == SystemState::Ready || firstRun || !model.Report()) return {};
+    const bool missing = system == SystemState::NotReady;
+    const CheckStatus wanted = missing ? CheckStatus::Missing : CheckStatus::Warning;
+    std::size_t count = 0;
+    std::string first;
+    for (const CheckItem& item : model.Report()->items) {
+        if (item.status != wanted) continue;
+        if (count++ == 0) first = item.title;
     }
-    return "";
+    const std::string text = count == 1 ? first + (missing ? " missing" : " has a warning")
+                                        : std::to_string(count) + (missing ? " tools missing" : " tool warnings");
+    return text + "  " ICON_FA_ANGLE_RIGHT;
 }
 
 ToolTone SystemTone(SystemState state) {
@@ -86,6 +98,7 @@ void DrawPanel(LauncherModel& model) {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImVec2 size{DefaultPanelWidth * scale, DefaultPanelHeight * scale};
     if (panel == LauncherPanel::Settings) size.x = SettingsWidth * scale;
+    if (panel == LauncherPanel::NewProject) size.y = NewProjectPanelHeight * scale;
     if (panel == LauncherPanel::SystemCheck || panel == LauncherPanel::Update)
         size = {SystemPanelWidth * scale, SystemPanelHeight * scale};
     if (panel == LauncherPanel::Job || panel == LauncherPanel::EngineUpdate)
@@ -180,16 +193,16 @@ void DrawSystemState(LauncherModel& model, bool compact) {
     const float scale = ToolUiScale();
     const auto system = model.System();
     const bool working = model.CurrentJob() != nullptr;
-    const char* label = working ? "Working" : SystemLabel(system);
+    const std::string label = SystemStateText(model);
     const float gap = ToolMetrics::Gap * scale;
     const float mark = ToolPixelCell(11.0f);
     const float frame = ImGui::GetFrameHeight();
-    const float width = compact ? frame : mark + gap + ImGui::CalcTextSize(label).x + gap;
+    const float width = compact ? frame : mark + gap + ImGui::CalcTextSize(label.c_str()).x + gap;
     const auto start = ImGui::GetCursorScreenPos();
     if (ImGui::InvisibleButton("##system-check", {width, frame})) model.OpenPanel(LauncherPanel::SystemCheck);
     const bool hovered = ImGui::IsItemHovered();
     const auto end = ImGui::GetItemRectMax();
-    ToolTooltip(compact ? label : "Check build tools and installed engines");
+    ToolTooltip(compact && !label.empty() ? label.c_str() : "Check build tools and installed engines");
     auto* draw = ImGui::GetWindowDrawList();
     if (hovered)
         draw->AddRectFilled(start, end, ImGui::GetColorU32(ToolPalette::Elevated), ToolMetrics::Radius * scale);
@@ -202,7 +215,7 @@ void DrawSystemState(LauncherModel& model, bool compact) {
         ToolStateCell(ToolToneColor(SystemTone(system)));
     if (!compact)
         draw->AddText({start.x + gap * 0.5f + mark + gap * 0.5f, textY},
-                      ImGui::GetColorU32(hovered ? ToolPalette::Text : ToolPalette::Secondary), label);
+                      ImGui::GetColorU32(hovered ? ToolPalette::Text : ToolPalette::Secondary), label.c_str());
     ImGui::SetCursorScreenPos(start);
     ImGui::Dummy({width, frame});
 }
@@ -264,9 +277,10 @@ void DrawTopBar(LauncherModel& model) {
         const char* developerLabel = ICON_FA_CODE " Developer";
         const bool updateOffered = model.UpdateOffered();
         const std::string updateLabel = updateOffered ? UpdateButtonLabel(model) : std::string();
-        const char* stateLabel = model.CurrentJob() ? "Working" : SystemLabel(model.System());
+        const std::string stateLabel = SystemStateText(model);
         const float gap = ToolMetrics::Gap * scale;
-        float rightWidth = ToolPixelCell(11.0f) + gap + ImGui::CalcTextSize(stateLabel).x + gap + spacing + frame;
+        float rightWidth =
+            ToolPixelCell(11.0f) + gap + ImGui::CalcTextSize(stateLabel.c_str()).x + gap + spacing + frame;
         if (updateOffered)
             rightWidth += ImGui::CalcTextSize(updateLabel.c_str()).x + style.FramePadding.x * 2 + spacing;
         if (developer) rightWidth += ImGui::CalcTextSize(developerLabel).x + spacing * 3;

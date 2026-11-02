@@ -24,14 +24,14 @@ Apps/Ui/
 | `DrawTopBar` | `LauncherFrame.cpp` | Pixel product name, tabs (Projects / Engines), launcher update when one is offered, "Developer", system / job state (opens System check), Settings |
 | `DrawNotice` | `LauncherFrame.cpp` | `CurrentNotice()`; `SettingsError()` + "Start with defaults" |
 | `DrawProjectsTab` | `ProjectsTab.cpp` | No projects: first-run screen (New project, Add existing, build tools and engine state, projects folder). Otherwise toolbar (filter, sort, Add existing, New project), list with tiles, details of the selected project (the model always keeps a visible row selected) |
-| `DrawEnginesTab` | `EnginesTab.cpp` | Stable versions on this computer and online (Download), notes (breaking changes highlighted), project usage count; "dev (main)" in developer mode |
-| `DrawNewProjectPanel` | `NewProjectPanel.cpp` | Name, location (Browse), engine selection, live validation, Create |
+| `DrawEnginesTab` | `EnginesTab.cpp` | Same layout as Projects: version list (status, projects using it, size on disk), details of the selected version (Download or Show in folder, facts, notes with breaking changes highlighted, Remove from this computer); "dev (main)" in developer mode |
+| `DrawNewProjectPanel` | `NewProjectPanel.cpp` | Name (Enter creates), location (Browse), engine selection, live validation once a name is typed, Create |
 | `DrawSettingsPanel` | `SettingsPanel.cpp` | PATH, open install folder, developer mode, and licenses |
 | `DrawSystemCheckPanel` | `SystemCheckPanel.cpp` | Items (status, details), MSVC installation, recheck |
 | `DrawEngineUpdatePanel` | `EngineUpdatePanel.cpp` | Update / Repair / Replace confirmation: notes, may break, files to overwrite / delete |
 | `DrawJobPanel` | `JobPanel.cpp` | Foreground job: title, step (n / total), spinner, live output, Cancel; error + output + Back |
 | `DrawUpdatePanel` | `UpdatePanel.cpp` | Launcher update: version, size, notes; Update / Later / Skip, download progress + Cancel / Hide, Restart now, waiting for commands, failure + Try again |
-| `DrawConfirmation` | `Confirmation.cpp` | Remove? / developer mode warning / engine commit message |
+| `DrawConfirmation` | `Confirmation.cpp` | Remove project? / Remove engine? / developer mode warning / engine commit message |
 
 ## Model
 
@@ -43,16 +43,17 @@ text edited directly by screens.
 | --- | --- | --- |
 | General | `ProductName()`, `LauncherVersion()`, `Mode()`, `Tab()`, `Panel()`, `CurrentNotice()`, `SettingsError()`, `System()` | `SelectTab`, `OpenPanel(NewProject / Settings / SystemCheck)`, `ClosePanel`, `DismissNotice`, `StartWithDefaultSettings` |
 | Projects | `Rows()`, `VisibleRows()`, `Selected()`, `ActionsFor(row)`, `DetailsFor(row)`, `DetailsRunning()`, `Filter()`, `Sort()`, `ProjectsFolder()` | `Select`, `SetSort`, `Create`, `Import`, `BrowseProjectsFolder`, `SetProjectsFolder`, `Open`, `Run`, `ShowInFolder`, `AskRemove`, `RemoveMissing`, `ChangeEngine(row, Update / Repair / Replace)`, `UpdateEngineFromRemote`, `AskPublishEngine` |
-| Engines | `Engines()` (`Engines()`: newest first, `Problems()`), `ProjectsUsing(version)`, `DevelopmentEngineAvailable()` | — |
+| Engines | `Engines()` (`Engines()`: newest first, `Problems()`), `ProjectsUsing(version)`, `DevelopmentEngineAvailable()`, `ShownEngine()`, `EngineSize(version)`, `EngineRemovalProblem(version)` | `SelectEngine`, `DownloadEngineVersion`, `ShowEngineFolder`, `AskRemoveEngine` |
 | New project | `NewProject()` (`name`, `location`, `engine`), `NewProjectEngines()`, `NewProjectProblem()`, `NewProjectFolder()` | `BrowseNewProjectLocation`, `CreateProject` |
 | Engine update | `PendingChange()`, `ChangeProject()`, `PlanRunning()`, `Plan()`, `PlanError()` | `ConfirmEngineChange`, `ClosePanel` |
 | System check | `System()`, `Report()`, `SystemCheckRunning()` | `RunSystemCheck`, `InstallMsvc` |
 | Settings | `OnPath()`, `Mode()`, `LicenseNoticesAvailable()`, `AudioTools()`, `AudioPackages()` | `SetOnPath`, `OpenInstallFolder`, `OpenLicenseNotices`, `InstallAudioTools` (job), `RemoveAudioTools`, `AskDeveloperMode`, `LeaveDeveloperMode` |
 | Launcher update | `UpdatesSupported()`, `UpdateState()`, `Update()`, `UpdateNotes()`, `UpdateProgress()`, `UpdateError()`, `UpdateOffered()`, `ChecksForUpdates()` | `SetChecksForUpdates`, `CheckForUpdates`, `OpenUpdatePanel`, `DownloadUpdate`, `CancelUpdateDownload`, `SkipUpdate`, `RestartToUpdate`, `CancelUpdateRestart` |
-| Confirmation | `Pending()`, `PendingProject()`, `ConfirmationInput()` | `Confirm`, `CancelConfirmation` |
+| Confirmation | `Pending()`, `PendingProject()`, `PendingEngine()`, `ConfirmationInput()` | `Confirm`, `CancelConfirmation` |
 | Job | `CurrentJob()` (`Title`, `State`, `StepText`, `StepIndex`, `StepCount`, `Error`), `JobFailureTitle()`, `JobOutput()` | `CancelJob`, `DismissJob` |
 
-- Row metadata comes from `ProjectRow`: version `Version()`, "Update available" `update` (+ `updateMayBreak`), type
+- Row metadata comes from `ProjectRow`: version `Version()`, a quiet arrow for `update` (the details panel offers it, with
+  `updateMayBreak`), the last-opened time, type
   `info.kind` (Git: "managed by git", Unregistered: "unknown source"), `contractSupported == false`: "update the
   launcher", `folderMissing`, `info.problem`; details from `DetailsFor`: "N engine files modified" if `integrity` is not
   clean (+ Repair), `git` (branch, change count, ahead / behind, detached), `error`.
@@ -76,9 +77,14 @@ text edited directly by screens.
   default projects folder, applied to the new-project form's location, and scanned automatically. Existing registered
   projects remain. The button tooltip shows the current path. Progress / cancellation is in the job panel; results
   appear in a notice.
+- Keyboard on Projects, when nothing floats above it: Up / Down move the selection, Enter opens it, Ctrl+F searches,
+  Ctrl+N starts a new project. A control reached with Tab keeps its own Enter. Right-clicking a row selects it and offers
+  Open, Run, Show in folder, Copy path, Remove from list.
+- The top bar's state says only what needs reading: which tool is missing or warning, with an arrow to System check. A
+  healthy system is just the green mark, and the first-run screen spells out the tools itself.
 - The right inspector is 316 logical px; with a visible selection, it shows project information / actions. Without
-  selection, it shows the current projects folder, the same select / scan action, Create / Import shortcuts, and a short
-  discovery explanation; no separate Launcher tab or scale setting. In narrow views, access it from the Project details
+  selection, it shows the current projects folder, the same select / scan action, and a short discovery explanation; the
+  toolbar beside it already has New project and Add existing. No separate Launcher tab or scale setting. In narrow views, access it from the Project details
   dropdown panel. There is no Launcher tab or separate scan row. Missing-project cleanup appears only when missing
   projects exist.
 - The window follows monitor DPI scale; no user-specific UI scale setting is saved. Settings contains only installation

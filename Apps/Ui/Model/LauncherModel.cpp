@@ -68,6 +68,7 @@ void LauncherModel::Tick() {
     for (const std::function<void()>& request : requests)
         request();
     FinishJobs();
+    MeasureEngines();
     _updates.Tick();
     if (_updates.QuitRequested()) _quit = true;
     if (const auto& update = _updates.Update(); update && update->version != _updateNotesVersion) {
@@ -607,6 +608,66 @@ void LauncherModel::DownloadEngineVersion(const EngineVersion& version) {
     });
 }
 
+std::optional<EngineVersion> LauncherModel::ShownEngine() const {
+    const std::vector<EngineVersion> versions = _engines.KnownVersions();
+    if (versions.empty()) return std::nullopt;
+    if (_shownEngine && std::ranges::find(versions, *_shownEngine) != versions.end()) return _shownEngine;
+    return versions.front();
+}
+
+void LauncherModel::SelectEngine(const EngineVersion& version) {
+    Queue([this, version] { _shownEngine = version; });
+}
+
+std::optional<std::uintmax_t> LauncherModel::EngineSize(const EngineVersion& version) const {
+    const auto found = _engineSizes.find(version);
+    if (found == _engineSizes.end()) return std::nullopt;
+    return found->second;
+}
+
+// One engine at a time, and only for the tab that shows them.
+void LauncherModel::MeasureEngines() {
+    if (_engineSizeJob) {
+        if (!_engineSizeJob->Finished()) return;
+        const bool measured = _engineSizeJob->State() == JobState::Succeeded;
+        _engineSizes[_measuringEngine] = measured ? _engineSizeJob->Outcome()->Value() : 0; // 0: reads as unknown
+        _engineSizeJob.reset();
+    }
+    if (_tab != LauncherTab::Engines) return;
+    for (const AvailableEngine& engine : _engines.Engines()) {
+        if (_engineSizes.contains(engine.manifest.version)) continue;
+        _measuringEngine = engine.manifest.version;
+        _engineSizeJob = std::make_unique<Job<std::uintmax_t>>(
+            "Measuring an engine", 1,
+            [folder = engine.folder](JobContext&) -> Result<std::uintmax_t> { return FolderSize(folder); });
+        return;
+    }
+}
+
+std::string LauncherModel::EngineRemovalProblem(const EngineVersion& version) const {
+    const AvailableEngine* engine = _engines.Find(version);
+    if (!engine) return "This version is not on this computer.";
+    if (!engine->downloaded) return "This version comes with the launcher.";
+    if (ProjectsUsing(version) > 0) return "A project uses this version.";
+    return {};
+}
+
+void LauncherModel::AskRemoveEngine(const EngineVersion& version) {
+    Queue([this, version] {
+        if (_job || !EngineRemovalProblem(version).empty()) return;
+        _confirmation = Confirmation::RemoveEngine;
+        _confirmationEngine = version;
+    });
+}
+
+void LauncherModel::ShowEngineFolder(const EngineVersion& version) {
+    Queue([this, version] {
+        if (const AvailableEngine* engine = _engines.Find(version))
+            if (Status opened = OpenFolder(engine->folder); !opened.Ok())
+                ShowNotice(NoticeLevel::Error, "Could not show the folder", opened.Error());
+    });
+}
+
 void LauncherModel::RescanEngines() {
     std::vector<OnlineEngine> online = _engines.Online();
     _engines = EngineLibrary::Scan(_layout.enginesFolder, _layout.EngineCacheFolder());
@@ -757,6 +818,27 @@ void LauncherModel::Confirm() {
             _report.reset();
             StartSystemCheck();
             return;
+        case Confirmation::RemoveEngine: {
+            const EngineVersion version = _confirmationEngine;
+            const AvailableEngine* engine = _engines.Find(version);
+            _confirmation = Confirmation::None;
+            if (_job || !engine || !EngineRemovalProblem(version).empty()) return;
+            const std::string text = version.ToString();
+            auto job = std::make_unique<Job<void>>("Removing engine " + text, 1,
+                                                   [engine = *engine, text](JobContext& context) -> Status {
+                                                       context.Step("Removing engine " + text);
+                                                       return RemoveDownloadedEngine(engine);
+                                                   });
+            StartJob(std::move(job), "Could not remove engine " + text, [this, version] {
+                _panel = LauncherPanel::None;
+                _engineSizes.erase(version);
+                RescanEngines();
+                ReloadRows();
+                _catalogRead = false; // The catalog dropped this version while it was on the computer
+                StartEngineCatalog();
+            });
+            return;
+        }
         case Confirmation::PublishEngine: {
             if (_job || _confirmationForm.commitMessage.empty()) return;
             const ProjectRow* row = RowFor(_confirmationRoot);

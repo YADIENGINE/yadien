@@ -61,10 +61,10 @@ void DrawJobPanel(LauncherModel& model) {
         ImGui::TextDisabled("OUTPUT / %zu lines", output.size());
         ContinueToolToolbar(ICON_FA_COPY " Copy output", true);
         ImGui::BeginDisabled(output.empty());
-        if (ImGui::SmallButton(ICON_FA_COPY " Copy output")) CopyOutput(output);
+        if (ToolButton(ICON_FA_COPY " Copy output")) CopyOutput(output);
         ImGui::EndDisabled();
         ContinueToolToolbar(ICON_FA_ARROW_DOWN " Latest");
-        const bool jumpToEnd = ImGui::SmallButton(ICON_FA_ARROW_DOWN " Latest");
+        const bool jumpToEnd = ToolButton(ICON_FA_ARROW_DOWN " Latest");
         ToolTooltip("Scroll to the latest output and follow new lines");
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                             {OutputPadding * ToolUiScale(), OutputPadding * ToolUiScale()});

@@ -15,6 +15,7 @@
 #include "Update/UpdateController.h"
 #include "Update/UpdateNotes.h"
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <map>
@@ -29,7 +30,7 @@ enum class LauncherTab { Projects, Engines };
 enum class LauncherPanel { None, NewProject, Settings, SystemCheck, EngineUpdate, Job, Update };
 // Small confirmations: remove a project from the list, enter developer mode (warning), publish engine changes
 // (commit message).
-enum class Confirmation { None, RemoveProject, DeveloperMode, PublishEngine };
+enum class Confirmation { None, RemoveProject, DeveloperMode, PublishEngine, RemoveEngine };
 // Update: another stable version, the newest by default; Repair: the same version back over edits; Replace: a stable
 // engine for an unregistered / missing one.
 enum class EngineChange { Update, Repair, Replace };
@@ -136,6 +137,15 @@ public:
     [[nodiscard]] const std::string& EngineCatalogError() const { return _catalogError; }
     void RetryEngineCatalog();
     void DownloadEngineVersion(const EngineVersion& version); // Job
+    // The version the tab's details show: the chosen one while it is still known, else the newest.
+    [[nodiscard]] std::optional<EngineVersion> ShownEngine() const;
+    void SelectEngine(const EngineVersion& version);
+    // Bytes on disk; measured in the background while the tab is open, nullopt until then.
+    [[nodiscard]] std::optional<std::uintmax_t> EngineSize(const EngineVersion& version) const;
+    // Why this version cannot be removed, empty when it can.
+    [[nodiscard]] std::string EngineRemovalProblem(const EngineVersion& version) const;
+    void AskRemoveEngine(const EngineVersion& version); // → Confirmation::RemoveEngine, then a job
+    void ShowEngineFolder(const EngineVersion& version);
     // Developer mode and the newest engine names its repository: "dev (main)" is offered.
     [[nodiscard]] bool DevelopmentEngineAvailable() const;
 
@@ -218,6 +228,7 @@ public:
     // --- Confirmations ---
     [[nodiscard]] Confirmation Pending() const { return _confirmation; }
     [[nodiscard]] const ProjectRow* PendingProject() const;
+    [[nodiscard]] const EngineVersion& PendingEngine() const { return _confirmationEngine; }
     [[nodiscard]] ConfirmationForm& ConfirmationInput() { return _confirmationForm; }
     void Confirm();
     void CancelConfirmation();
@@ -249,6 +260,7 @@ private:
     void StartProjectScan(const std::filesystem::path& folder);
     void StartSystemCheck();
     void StartEngineCatalog();
+    void MeasureEngines();
     void StartPlan(const EngineVersion& version);
     void StartTrial();
     void RescanEngines();
@@ -285,6 +297,10 @@ private:
     std::optional<EngineTrial> _trial;
     std::string _switchError;
     EngineTrialRunner _trials;
+    std::optional<EngineVersion> _shownEngine;
+    std::map<EngineVersion, std::uintmax_t> _engineSizes;
+    EngineVersion _measuringEngine;
+    EngineVersion _confirmationEngine;
     bool _catalogRead = false;
     bool _removeLeftoverTrial = false; // Once, at the first catalog read: a closed launcher can leave a trial folder
     std::string _catalogError;
@@ -307,6 +323,7 @@ private:
     std::unique_ptr<Job<SystemReport>> _systemJob;
     std::unique_ptr<Job<EngineUpdatePlan>> _planJob;
     std::unique_ptr<Job<std::vector<OnlineEngine>>> _catalogJob;
+    std::unique_ptr<Job<std::uintmax_t>> _engineSizeJob;
     std::optional<ForegroundJob> _job;
     UpdateController _updates;
 

@@ -23,6 +23,7 @@ const char* ConfirmationTitle(Confirmation confirmation) {
     case Confirmation::RemoveProject: return "Remove project?";
     case Confirmation::DeveloperMode: return "Enter developer mode?";
     case Confirmation::PublishEngine: return "Publish engine changes";
+    case Confirmation::RemoveEngine : return "Remove engine?";
     }
     return "";
 }
@@ -33,6 +34,7 @@ const char* ConfirmLabel(Confirmation confirmation) {
     case Confirmation::RemoveProject: return "Remove";
     case Confirmation::DeveloperMode: return "Enter developer mode";
     case Confirmation::PublishEngine: return "Publish";
+    case Confirmation::RemoveEngine : return "Remove";
     }
     return "";
 }
@@ -76,7 +78,12 @@ void DrawConfirmation(LauncherModel& model) {
                 }
             }
             switch (pending) {
-            case Confirmation::None: break;
+            case Confirmation::None        : break;
+            case Confirmation::RemoveEngine: {
+                ImGui::Text("Engine %s", model.PendingEngine().ToString().c_str());
+                LauncherMutedText("Delete this downloaded engine from this computer? It can be downloaded again.");
+                break;
+            }
             case Confirmation::RemoveProject:
                 LauncherMutedText("Remove this project from the launcher list? Your project files stay on disk.");
                 break;
@@ -100,7 +107,7 @@ void DrawConfirmation(LauncherModel& model) {
         ImGui::EndChild();
         const bool canConfirm = pending != Confirmation::PublishEngine || !input.commitMessage.empty();
         ImGui::Separator();
-        const bool removing = pending == Confirmation::RemoveProject;
+        const bool removing = pending == Confirmation::RemoveProject || pending == Confirmation::RemoveEngine;
         const std::array buttons{LauncherFooterButton{"Cancel"},
                                  LauncherFooterButton{ConfirmLabel(pending), !removing, canConfirm,
                                                       removing ? ToolTone::Error : ToolTone::Accent}};

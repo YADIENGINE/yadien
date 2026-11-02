@@ -2,8 +2,38 @@
 #include "Engines/EngineLibrary.h"
 #include "Engines/EngineManifest.h"
 #include "Engines/EngineVersion.h"
+#include "Platform/FileSystem.h"
 #include "Support/FakeEngine.h"
 #include "Support/TempFolder.h"
+
+TEST_CASE("A downloaded engine can be removed, the bundled one cannot", "[engines]") {
+    TempFolder temp;
+    WriteFakeEngine(temp.Path() / "Bundled" / "Engine0.1.0", FakeEngine{});
+    WriteFakeEngine(temp.Path() / "Cache" / "Engine0.3.0",
+                    FakeEngine{.version = "0.3.0", .history = {"0.3.0", "0.1.0"}});
+    const EngineLibrary library = EngineLibrary::Scan(temp.Path() / "Bundled", temp.Path() / "Cache");
+    const AvailableEngine* bundled = library.Find({0, 1, 0});
+    const AvailableEngine* downloaded = library.Find({0, 3, 0});
+    REQUIRE(bundled);
+    REQUIRE(downloaded);
+    CHECK_FALSE(bundled->downloaded);
+    CHECK(downloaded->downloaded);
+    CHECK_FALSE(RemoveDownloadedEngine(*bundled).Ok());
+    CHECK(std::filesystem::exists(bundled->folder));
+    CHECK(RemoveDownloadedEngine(*downloaded).Ok());
+    CHECK_FALSE(std::filesystem::exists(downloaded->folder));
+    CHECK_FALSE(EngineLibrary::Scan(temp.Path() / "Bundled", temp.Path() / "Cache").Find({0, 3, 0}));
+}
+
+TEST_CASE("A folder's size adds up the files in its whole tree", "[engines]") {
+    TempFolder temp;
+    temp.Write("Tree/a.txt", "123");
+    temp.Write("Tree/Nested/b.txt", "4567");
+    const Result<std::uintmax_t> size = FolderSize(temp.Path() / "Tree");
+    REQUIRE(size.Ok());
+    CHECK(size.Value() == 7);
+    CHECK_FALSE(FolderSize(temp.Path() / "Missing").Ok());
+}
 
 TEST_CASE("Versions parse as three numbers without leading zeros", "[engines]") {
     REQUIRE(EngineVersion::Parse("0.10.2") == EngineVersion{0, 10, 2});

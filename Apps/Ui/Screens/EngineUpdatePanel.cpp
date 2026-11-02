@@ -14,9 +14,9 @@ std::string VersionLabel(const LauncherModel& model, const EngineVersion& versio
 }
 
 void DrawAffectedFiles(const char* title, const std::vector<std::string>& files) {
+    if (files.empty()) return;
     const std::string label = std::string(title) + " (" + std::to_string(files.size()) + ")";
-    if (ToolSectionHeader(label.c_str(), !files.empty())) {
-        if (files.empty()) LauncherMutedText("None");
+    if (ToolSectionHeader(label.c_str())) {
         ImGui::PushFont(ToolFont(ToolFontRole::Technical), 0);
         ImGui::PushTextWrapPos(0);
         for (const auto& file : files)
@@ -81,6 +81,8 @@ void DrawReview(LauncherModel& model) {
                                   "tests. Your project changes only if they pass.");
             if (!plan->overwritten.empty() || !plan->deleted.empty())
                 LauncherToneText("The following engine file contents will be lost.", ToolTone::Warning);
+            else
+                LauncherMutedText("No changes of yours in the engine files will be lost.");
             DrawAffectedFiles("Overwritten files", plan->overwritten);
             DrawAffectedFiles("Deleted files", plan->deleted);
             if (ToolSectionHeader(plan->wentBack ? "What this version does not have" : "Release notes"))

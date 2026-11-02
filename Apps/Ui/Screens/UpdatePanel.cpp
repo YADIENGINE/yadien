@@ -14,7 +14,6 @@ namespace {
 constexpr float HeroIconGap = 12.0f;
 constexpr float NotesPadding = 12.0f;
 constexpr float NoteGroupGap = 8.0f;
-constexpr float BulletGap = 8.0f;
 constexpr float ProgressHeight = 6.0f;
 constexpr float ProgressRounding = 3.0f;
 constexpr float SectionGap = 10.0f;
@@ -58,11 +57,7 @@ void DrawNotes(const std::vector<UpdateNote>& notes) {
                 ImGui::PopFont();
                 break;
             case UpdateNoteKind::Paragraph: LauncherMutedText(note.text.c_str()); break;
-            case UpdateNoteKind::Item: // BulletText does not wrap
-                ImGui::Bullet();
-                ImGui::SameLine(0, BulletGap * ToolUiScale());
-                ImGui::TextUnformatted(note.text.c_str());
-                break;
+            case UpdateNoteKind::Item     : DrawLauncherBullet(note.text.c_str()); break;
             case UpdateNoteKind::Breaking:
                 ToolStatusBadge(ICON_FA_TRIANGLE_EXCLAMATION " Breaking change", ToolToneColor(ToolTone::Warning));
                 ImGui::TextUnformatted(note.text.c_str());

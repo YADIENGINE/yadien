@@ -1,6 +1,7 @@
 #include "Engines/EngineLibrary.h"
 #include <algorithm>
 #include <utility>
+#include "Platform/FileSystem.h"
 #include "Platform/Text.h"
 
 namespace {
@@ -33,13 +34,22 @@ void ScanFolder(const std::filesystem::path& folder, std::vector<AvailableEngine
 
 std::string EngineFolderName(const EngineVersion& version) { return std::string(FolderPrefix) + version.ToString(); }
 
+Status RemoveDownloadedEngine(const AvailableEngine& engine) {
+    if (!engine.downloaded)
+        return Status::Failure("Engine " + engine.manifest.version.ToString() + " came with the launcher");
+    return RemoveTree(engine.folder);
+}
+
 EngineLibrary EngineLibrary::Scan(const std::filesystem::path& bundledFolder,
                                   const std::filesystem::path& cacheFolder) {
     EngineLibrary library;
     std::error_code error;
     ScanFolder(bundledFolder, library._engines, library._problems);
+    const std::size_t bundled = library._engines.size();
     if (!cacheFolder.empty() && std::filesystem::is_directory(cacheFolder, error))
         ScanFolder(cacheFolder, library._engines, library._problems);
+    for (std::size_t index = bundled; index < library._engines.size(); ++index)
+        library._engines[index].downloaded = true;
     std::ranges::sort(library._engines, [](const AvailableEngine& a, const AvailableEngine& b) {
         return a.manifest.version > b.manifest.version;
     });

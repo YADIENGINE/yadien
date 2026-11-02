@@ -18,11 +18,12 @@ void DrawNewProjectPanel(LauncherModel& model) {
     auto& form = model.NewProject();
     const auto engines = model.NewProjectEngines();
     const std::string problem = model.NewProjectProblem();
+    bool submitted = false;
     if (ImGui::BeginChild("##new-project-form", {0, -LauncherFooterHeight()})) {
         LauncherFieldLabel("NAME");
         ImGui::SetNextItemWidth(-1);
         if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
-        LauncherInputText("##name", form.name);
+        submitted = LauncherInputText("##name", form.name, ImGuiInputTextFlags_EnterReturnsTrue);
         ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
         LauncherFieldLabel("LOCATION");
         const char* browse = ICON_FA_FOLDER_OPEN " Browse";
@@ -51,16 +52,21 @@ void DrawNewProjectPanel(LauncherModel& model) {
         if (form.engine < engines.size() && engines[form.engine].online)
             LauncherMutedText("This version is downloaded when the project is created.");
         ImGui::Dummy({0, ToolMetrics::Gap * ToolUiScale()});
-        // What will exist on disk: the same tile the list will show.
-        ToolPixelTile(form.name.empty() ? "?" : form.name, PreviewTile);
-        ImGui::SameLine();
-        ImGui::BeginGroup();
-        if (problem.empty())
-            LauncherToneText(ICON_FA_CHECK " Ready to create", ToolTone::Success);
-        else
-            LauncherToneText(problem.c_str(), ToolTone::Warning);
-        LauncherPathText(model.NewProjectFolder());
-        ImGui::EndGroup();
+        if (form.name.empty()) {
+            // Nothing is wrong yet: say what the name may hold, not that it is missing.
+            LauncherMutedText("Letters, digits and _. The project gets a folder of this name in the location above.");
+        } else {
+            // What will exist on disk: the same tile the list will show.
+            ToolPixelTile(form.name, PreviewTile);
+            ImGui::SameLine();
+            ImGui::BeginGroup();
+            if (problem.empty())
+                LauncherToneText(ICON_FA_CHECK " Ready to create", ToolTone::Success);
+            else
+                LauncherToneText(problem.c_str(), ToolTone::Warning);
+            LauncherPathText(model.NewProjectFolder());
+            ImGui::EndGroup();
+        }
     }
     ImGui::EndChild();
     ImGui::Separator();
@@ -68,5 +74,5 @@ void DrawNewProjectPanel(LauncherModel& model) {
                              LauncherFooterButton{ICON_FA_PLUS " Create project", true, problem.empty()}};
     const int pressed = DrawLauncherFooter(buttons);
     if (pressed == 0) model.ClosePanel();
-    if (pressed == 1) model.CreateProject();
+    if (pressed == 1 || (submitted && problem.empty())) model.CreateProject();
 }

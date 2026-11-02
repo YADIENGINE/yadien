@@ -20,6 +20,8 @@ void LauncherPathText(const std::filesystem::path& path, float maxWidth = 0);
 // The same text as drawn: shortened for `width` in the current font.
 [[nodiscard]] std::string LauncherShortPath(const std::filesystem::path& path, float width);
 void DrawLauncherActivity(const char* label);
+// A wrapping bullet line of release notes; both notes views use it.
+void DrawLauncherBullet(const char* text);
 void DrawLauncherNotes(const std::vector<EngineNote>& notes);
 
 struct LauncherFooterButton {

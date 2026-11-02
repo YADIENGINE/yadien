@@ -9,6 +9,7 @@
 namespace {
 constexpr float MinContentWidth = 1.0f;
 constexpr float FooterGap = 10.0f;
+constexpr float BulletGap = 12.0f;
 
 int ResizeInput(ImGuiInputTextCallbackData* data) {
     if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
@@ -78,6 +79,14 @@ void DrawLauncherActivity(const char* label) {
     ImGui::PopTextWrapPos();
 }
 
+void DrawLauncherBullet(const char* text) {
+    ImGui::Bullet(); // BulletText does not wrap
+    ImGui::SameLine(0, BulletGap * ToolUiScale());
+    ImGui::PushTextWrapPos(0);
+    ImGui::TextUnformatted(text);
+    ImGui::PopTextWrapPos();
+}
+
 void DrawLauncherNotes(const std::vector<EngineNote>& notes) {
     if (notes.empty()) {
         LauncherMutedText("No release notes provided.");
@@ -86,6 +95,7 @@ void DrawLauncherNotes(const std::vector<EngineNote>& notes) {
     for (std::size_t index = 0; index < notes.size(); ++index) {
         const auto& note = notes[index];
         ImGui::PushID(static_cast<int>(index));
+        if (index > 0) ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
         ImGui::PushFont(ToolFont(ToolFontRole::Medium), ToolMetrics::BodySize);
         ImGui::TextUnformatted(note.version.ToString().c_str());
         ImGui::PopFont();
@@ -105,10 +115,8 @@ void DrawLauncherNotes(const std::vector<EngineNote>& notes) {
                 ImGui::PopTextWrapPos();
             }
         }
-        ImGui::PushTextWrapPos(0);
         for (const auto& change : note.changes)
-            ImGui::BulletText("%s", change.c_str());
-        ImGui::PopTextWrapPos();
+            DrawLauncherBullet(change.c_str());
         ImGui::PopID();
     }
 }

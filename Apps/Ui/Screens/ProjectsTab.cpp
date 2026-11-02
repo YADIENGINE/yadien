@@ -1,6 +1,7 @@
 #include "Screens/LauncherScreens.h"
 #include <extras/IconsFontAwesome6.h>
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <algorithm>
 #include <cfloat>
 #include <chrono>
@@ -51,6 +52,32 @@ std::string LastOpenedText(const ProjectRow& row) {
     return text.empty() ? row.entry.lastOpened : text;
 }
 
+// The tab's keys work only when nothing floats above it.
+bool ProjectKeysActive(const LauncherModel& model) {
+    return model.Panel() == LauncherPanel::None && model.Pending() == Confirmation::None &&
+           !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+}
+
+// Up / Down move the selection, Enter opens it. Owning the arrows keeps ImGui's own keyboard navigation from moving at
+// the same time; a control reached with Tab still takes its Enter.
+void ProjectKeys(LauncherModel& model) {
+    const auto& io = ImGui::GetIO();
+    if (!ProjectKeysActive(model) || io.WantTextInput) return;
+    const ImGuiID owner = ImGui::GetID("##project-keys");
+    ImGui::SetKeyOwner(ImGuiKey_UpArrow, owner);
+    ImGui::SetKeyOwner(ImGuiKey_DownArrow, owner);
+    const auto& visible = model.VisibleRows();
+    if (visible.empty()) return;
+    const auto selected = model.Selected();
+    const auto current = selected ? std::ranges::find(visible, *selected) : visible.end();
+    if (ImGui::IsKeyPressed(ImGuiKey_DownArrow, ImGuiInputFlags_Repeat, owner))
+        model.Select(current == visible.end() || current + 1 == visible.end() ? visible.back() : *(current + 1));
+    if (ImGui::IsKeyPressed(ImGuiKey_UpArrow, ImGuiInputFlags_Repeat, owner))
+        model.Select(current == visible.end() || current == visible.begin() ? visible.front() : *(current - 1));
+    if (!io.NavVisible && selected && ImGui::IsKeyPressed(ImGuiKey_Enter, false) && model.ActionsFor(*selected).open)
+        model.Open(*selected);
+}
+
 void DrawProjectRow(LauncherModel& model, std::size_t index) {
     const auto& row = model.Rows()[index];
     const bool selected = model.Selected() == index;
@@ -64,8 +91,25 @@ void DrawProjectRow(LauncherModel& model, std::size_t index) {
         model.Select(index);
         if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && model.ActionsFor(index).open) model.Open(index);
     }
+    // The arrow keys move the selection (ProjectKeys); keep it in view while they are held.
+    if (selected && !ImGui::IsItemVisible() &&
+        (ImGui::IsKeyDown(ImGuiKey_UpArrow) || ImGui::IsKeyDown(ImGuiKey_DownArrow)))
+        ImGui::SetScrollHereY(0.5f);
     const std::string path = PathToUtf8(row.entry.root);
-    const std::string tooltip = row.info.name + "\n" + path + (row.info.problem.empty() ? "" : "\n" + row.info.problem);
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) model.Select(index);
+    if (ImGui::BeginPopupContextItem("##project-menu")) {
+        const auto actions = model.ActionsFor(index);
+        if (ImGui::MenuItem("Open", "Enter", false, actions.open)) model.Open(index);
+        if (ImGui::MenuItem("Run", nullptr, false, actions.run)) model.Run(index);
+        if (ImGui::MenuItem("Show in folder", nullptr, false, actions.showInFolder)) model.ShowInFolder(index);
+        if (ImGui::MenuItem("Copy path")) ImGui::SetClipboardText(path.c_str());
+        ImGui::Separator();
+        if (ImGui::MenuItem("Remove from list", nullptr, false, actions.remove)) model.AskRemove(index);
+        ImGui::EndPopup();
+    }
+    const std::string update = row.update ? "\nEngine update available: " + row.update->ToString() : std::string();
+    const std::string tooltip =
+        row.info.name + "\n" + path + (row.info.problem.empty() ? "" : "\n" + row.info.problem) + update;
     ToolTooltip(tooltip.c_str());
     auto* draw = ImGui::GetWindowDrawList();
     const float tile = std::round(RowTile * scale);
@@ -89,21 +133,23 @@ void DrawProjectRow(LauncherModel& model, std::size_t index) {
     ImGui::PopFont();
     const bool issue = row.folderMissing || !row.info.problem.empty() || !row.contractSupported;
     const std::string engineVersion = row.Version();
-    const std::string version =
-        (issue ? ICON_FA_TRIANGLE_EXCLAMATION " " : "") + (engineVersion.empty() ? "Unavailable" : engineVersion);
+    // An available update is a quiet arrow here: the details panel offers it, and amber on every row would not say
+    // more.
+    const bool updatable = row.update.has_value() && !issue;
+    const std::string version = (issue       ? ICON_FA_TRIANGLE_EXCLAMATION " "
+                                 : updatable ? ICON_FA_ARROW_UP " "
+                                             : "") +
+                                (engineVersion.empty() ? "Unavailable" : engineVersion);
     const float metaRight = start.x + width - inset;
     const auto versionWidth = ImGui::CalcTextSize(version.c_str()).x;
-    draw->AddText(
-        {metaRight - versionWidth, nameY},
-        ImGui::GetColorU32(issue ? ToolToneColor(ToolTone::Warning) : ImGui::GetStyleColorVec4(ImGuiCol_Text)),
-        version.c_str());
+    draw->AddText({metaRight - versionWidth, nameY},
+                  ImGui::GetColorU32(issue       ? ToolToneColor(ToolTone::Warning)
+                                     : updatable ? ToolPalette::Secondary
+                                                 : ImGui::GetStyleColorVec4(ImGuiCol_Text)),
+                  version.c_str());
     ImGui::PushFont(ToolFont(ToolFontRole::Ui), ToolMetrics::CaptionSize);
-    const std::string state = row.folderMissing ? "Folder missing"
-                              : row.update      ? "Update available"
-                                                : LastOpenedText(row);
-    const auto stateColor = row.folderMissing ? ToolToneColor(ToolTone::Error)
-                            : row.update      ? ToolToneColor(ToolTone::Accent)
-                                              : ToolPalette::Muted;
+    const std::string state = row.folderMissing ? "Folder missing" : LastOpenedText(row);
+    const auto stateColor = row.folderMissing ? ToolToneColor(ToolTone::Error) : ToolPalette::Muted;
     draw->AddText({metaRight - ImGui::CalcTextSize(state.c_str()).x, secondY}, ImGui::GetColorU32(stateColor),
                   state.c_str());
     ImGui::PopFont();
@@ -182,7 +228,12 @@ void DrawDetailFacts(LauncherModel& model, std::size_t index) {
 void DrawProjectActions(LauncherModel& model) {
     const auto selected = model.Selected();
     if (!selected || std::ranges::find(model.VisibleRows(), *selected) == model.VisibleRows().end()) {
-        ToolEmptyState("No matching projects", "Change your search to see other projects.");
+        // The list already says the search found nothing; here, where the projects come from.
+        LauncherFieldLabel("PROJECTS FOLDER");
+        LauncherPathText(model.ProjectsFolder());
+        if (ToolButton(ICON_FA_FOLDER_OPEN " Change")) model.BrowseProjectsFolder();
+        ToolTooltip("Choose the default projects folder and find the projects in it");
+        LauncherMutedText("Projects found in this folder join the list.");
         return;
     }
     const auto index = *selected;
@@ -229,23 +280,20 @@ void DrawProjectActions(LauncherModel& model) {
         LauncherMutedText("Repair restores the stable engine copy.");
     ImGui::Dummy({0, ToolMetrics::Space * scale});
     ImGui::Separator();
-    if (ToolSectionHeader("Repair, replace or remove", false)) {
-        if (ActionButton(ICON_FA_CODE_BRANCH " Change engine version", actions.changeEngine))
-            model.ChangeEngine(index, EngineChange::Update);
-        if (ActionButton(ICON_FA_WRENCH " Repair engine", actions.repairEngine))
-            model.ChangeEngine(index, EngineChange::Repair);
-        if (ActionButton(ICON_FA_ARROWS_ROTATE " Replace engine", actions.replaceEngine))
-            model.ChangeEngine(index, EngineChange::Replace);
-        if (model.Mode() == LauncherMode::Developer) {
-            if (ActionButton(ICON_FA_CLOUD_ARROW_DOWN " Update from remote", actions.engineGit))
-                model.UpdateEngineFromRemote(index);
-            if (ActionButton(ICON_FA_CLOUD_ARROW_UP " Publish changes", actions.engineGit))
-                model.AskPublishEngine(index);
-        }
-        ImGui::PushStyleColor(ImGuiCol_Text, ToolToneColor(ToolTone::Error));
-        if (ActionButton(ICON_FA_XMARK " Remove from list", actions.remove)) model.AskRemove(index);
-        ImGui::PopStyleColor();
+    if (ActionButton(ICON_FA_CODE_BRANCH " Change engine version", actions.changeEngine))
+        model.ChangeEngine(index, EngineChange::Update);
+    if (ActionButton(ICON_FA_WRENCH " Repair engine", actions.repairEngine))
+        model.ChangeEngine(index, EngineChange::Repair);
+    if (ActionButton(ICON_FA_ARROWS_ROTATE " Replace engine", actions.replaceEngine))
+        model.ChangeEngine(index, EngineChange::Replace);
+    if (model.Mode() == LauncherMode::Developer) {
+        if (ActionButton(ICON_FA_CLOUD_ARROW_DOWN " Update from remote", actions.engineGit))
+            model.UpdateEngineFromRemote(index);
+        if (ActionButton(ICON_FA_CLOUD_ARROW_UP " Publish changes", actions.engineGit)) model.AskPublishEngine(index);
     }
+    ImGui::PushStyleColor(ImGuiCol_Text, ToolToneColor(ToolTone::Error));
+    if (ActionButton(ICON_FA_XMARK " Remove from list", actions.remove)) model.AskRemove(index);
+    ImGui::PopStyleColor();
 }
 
 void DrawProjectToolbar(LauncherModel& model) {
@@ -266,9 +314,12 @@ void DrawProjectToolbar(LauncherModel& model) {
         ImGui::SetNextItemWidth(oneRow ? available - tools : -1);
         // A recess reads as one only on a lighter surface; the bar is the darkest.
         ImGui::PushStyleColor(ImGuiCol_FrameBg, ToolPalette::Panel);
+        const bool keys = ProjectKeysActive(model);
+        if (keys && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_F)) ImGui::SetKeyboardFocusHere();
+        if (keys && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_N)) model.Create();
         LauncherInputText("##filter", model.Filter(), 0, ICON_FA_MAGNIFYING_GLASS " Search projects");
         ImGui::PopStyleColor();
-        ToolTooltip("Filter by project name or path");
+        ToolTooltip("Filter by project name or path (Ctrl+F)");
         if (oneRow) ImGui::SameLine();
         ImGui::SetNextItemWidth(sortWidth);
         const char* sortLabel = model.Sort() == ProjectSort::LastOpened ? "Last opened"
@@ -289,11 +340,13 @@ void DrawProjectToolbar(LauncherModel& model) {
         ToolTooltip("Add a project that already exists on this computer");
         ImGui::SameLine();
         if (ToolButton(newLabel)) model.Create();
+        ToolTooltip("Create a new project (Ctrl+N)");
     }
     EndToolPanel();
 }
 
 void DrawProjectList(LauncherModel& model) {
+    ProjectKeys(model);
     const float height = std::max(ListMinHeight * ToolUiScale(), ImGui::GetContentRegionAvail().y);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0, ToolMetrics::Space * ToolUiScale()});
     if (ImGui::BeginChild("##projects-list", {0, height})) {

@@ -2,6 +2,7 @@
 
 #include "Engines/EngineCopyRecord.h"
 #include "Engines/EngineManifest.h"
+#include "Platform/Result.h"
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -12,6 +13,7 @@ struct AvailableEngine {
     std::filesystem::path folder;
     EngineManifest manifest;
     EngineCopyRecord record;
+    bool downloaded = false; // In the download cache, so it can be removed; the bundled one stays
 };
 
 // A version published online (Engines/EngineCatalog.h).
@@ -24,6 +26,9 @@ struct OnlineEngine {
 
 // "Engine0.2.0".
 [[nodiscard]] std::string EngineFolderName(const EngineVersion& version);
+
+// Deletes a downloaded engine from the cache; a project with its own copy keeps working. Refuses the bundled one.
+[[nodiscard]] Status RemoveDownloadedEngine(const AvailableEngine& engine);
 
 // The engines the launcher can give a project: the one it ships (works offline), the ones it downloaded and, once the
 // catalog has been read, the ones it can download. Folders without a valid manifest and copy record are listed in
