@@ -8,12 +8,14 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from Scripts.import_engine import import_engine
 from Scripts.release import (LAUNCHER_MANIFEST, REPOSITORY, ReleaseFailed, carried_at_tag, check_clean, commit_launcher,
                              commit_project_pointers, engine_release_body, engine_release_tags, make_plan,
                              manifest_problems, new_engine_notes, prepare_worktree, release_engine, release_files,
-                             release_notes, remove_release_trees)
+                             release_notes, remove_release_trees, unpackaged_engine_tags)
+from Scripts.release import capture as real_capture
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "Test",
            "GIT_COMMITTER_EMAIL": "t@t"}
@@ -283,6 +285,38 @@ class GitTests(TempFolderTests):
         head = git(project, "rev-parse", "HEAD")
         commit_project_pointers(project, {"EngineManifest.json": "1.0.0"})
         self.assertEqual(git(project, "rev-parse", "HEAD"), head)
+
+
+class EnginePackageTests(TempFolderTests):
+    def tagged_engine(self) -> Path:
+        engine = self.repository("engine")
+        git(engine, "tag", "v0.1.0")
+        command = engine / "Tools" / "commands" / "prebuilt.py"
+        command.parent.mkdir(parents=True)
+        command.write_text("", newline="\n")
+        git(engine, "add", "-A")
+        git(engine, "commit", "-m", "command")
+        for tag in ("v0.2.0", "v0.3.0"):
+            git(engine, "tag", tag)
+        return engine
+
+    def missing(self, engine: Path, assets: dict[str, list[str]]) -> list[str]:
+        def view(command: list[str], cwd: Path) -> str:
+            if command[:3] == ["gh", "release", "view"]:
+                return json.dumps({"assets": [{"name": name} for name in assets[command[3]]]})
+            return real_capture(command, cwd)
+
+        with (patch("Scripts.release.capture", view), patch("Scripts.release.repository_url", lambda _: "url"),
+              patch("Scripts.release.release_state", lambda _, tag: "published" if tag in assets else None)):
+            return unpackaged_engine_tags(engine)
+
+    def test_only_a_published_tag_with_the_command_and_no_package_needs_one(self):
+        engine = self.tagged_engine()
+        self.assertEqual(self.missing(engine, {"v0.1.0": [], "v0.2.0": ["EngineCopy.json"]}), ["v0.2.0"])
+
+    def test_a_release_holding_the_package_needs_none(self):
+        engine = self.tagged_engine()
+        self.assertEqual(self.missing(engine, {"v0.2.0": ["EngineCopy.json", "EnginePrebuilt.zip"]}), [])
 
 
 class ReleaseTreesTests(TempFolderTests):

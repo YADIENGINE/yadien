@@ -31,3 +31,9 @@
 // behind on failure; a version already there is returned as it is.
 [[nodiscard]] Result<AvailableEngine>
 DownloadEngine(const OnlineEngine& engine, const std::filesystem::path& cacheFolder, const std::atomic<bool>* cancel);
+
+// Downloads the version's compiled engine into <prebuiltFolder>/<version>/ (engine Docs/Prebuilt.md) and checks it
+// against the release's digest. Succeeds doing nothing when the release has none or it is already there. A project
+// without one builds the engine from source, so callers treat a failure as a warning.
+[[nodiscard]] Status DownloadPrebuiltEngine(const OnlineEngine& engine, const std::filesystem::path& prebuiltFolder,
+                                            const std::atomic<bool>* cancel);

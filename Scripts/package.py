@@ -5,7 +5,7 @@ Steps: stage the files the launcher ships, write their license notices, run Velo
     build/Package/Stage/       what gets installed into current/:
         <engine>.exe, <engine>.com, the Velopack DLL
         Engines/               the stable engine copy it ships (<build>/Engines/, dev.py imports it from its tag)
-        EnginePrebuilt/        that engine compiled, when dev.py could build it (<build>/EnginePrebuilt/)
+        EnginePrebuilt/        that engine compiled, from its GitHub release (<build>/EnginePrebuilt/, dev.py)
         Tools/                 ToolCache's tools without the lock's "exclude" entries, + Toolchain.json
         ThirdPartyNotices.txt  Part 1: the engine (its own license + the components games get), Part 2: the launcher
                                and its tools (Packaging/Notices.json)
@@ -31,7 +31,8 @@ from brand import SPLASH_PROGRESS  # noqa: E402
 from engine_location import REPOSITORY  # noqa: E402
 
 LAUNCHER_MANIFEST = "LauncherManifest.json"
-PREBUILT_FOLDER = "EnginePrebuilt"  # Core/Cli/EngineCommand.cpp reads it beside the executable
+PREBUILT_FOLDER = "EnginePrebuilt"  # Core/Settings/LauncherLayout.h EnginePrebuiltFolderName
+PREBUILT_ASSET = "EnginePrebuilt.zip"  # An engine release's compiled engine (Core/Engines/EngineCatalog.cpp)
 NOTICES_FILE = REPOSITORY / "Packaging" / "Notices.json"
 OUTPUT_NOTICES = "ThirdPartyNotices.txt"  # Core/Settings/LauncherLayout.h LicenseNoticesFile
 VELOPACK_DLL = "velopack_libc.dll"  # The name <engine>.exe imports (Apps/Ui/CMakeLists.txt copies it so)

@@ -26,10 +26,12 @@
 inline constexpr const char* LauncherVariable = "ENGINE_LAUNCHER";
 inline constexpr const char* PrebuiltVariable = "ENGINE_PREBUILT";
 
-// <launcherFolder>/EnginePrebuilt/<version>/ for a project on an engine copy; empty for a checkout or when absent.
+// <root>/<version>/ of the first root holding it, for a project on an engine copy; empty for a checkout or when absent.
 // The engine's tools decide whether it fits the project (engine Docs/Prebuilt.md).
-[[nodiscard]] std::filesystem::path PrebuiltEngineFolder(const std::filesystem::path& launcherFolder,
+[[nodiscard]] std::filesystem::path PrebuiltEngineFolder(const std::vector<std::filesystem::path>& roots,
                                                          const ProjectInfo& project);
+// The same in the places this launcher keeps them: beside its executable, then its data folder.
+[[nodiscard]] std::filesystem::path PrebuiltEngineFolder(const ProjectInfo& project);
 
 // <engine>.exe beside the running executable (the windowed launcher); empty when it is not there (CLI-only build).
 [[nodiscard]] std::filesystem::path WindowedLauncherExecutable();

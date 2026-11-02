@@ -52,6 +52,15 @@ class PackageTests(unittest.TestCase):
                                    "Engines/Engine0.1/EngineManifest.json", "Tools/tool/bin/tool.exe",
                                    "Tools/tool/doc/Copyright.txt", "Tools/Toolchain.json"})
 
+    def test_stage_ships_the_compiled_engine_when_there_is_one(self):
+        for name in ("Release/myengine.exe", "Release/myengine.com", f"Release/{VELOPACK_DLL}",
+                     "Engines/Engine0.1/EngineManifest.json", "EnginePrebuilt/0.1/Prebuilt.json",
+                     "Cache/tool/bin/tool.exe", "Cache/Toolchain.json"):
+            self.write(name)
+        target = self.root / "Stage"
+        stage(self.root / "Release", target, "myengine", self.root / "Engines", self.root / "Cache", LOCK)
+        self.assertTrue((target / "EnginePrebuilt/0.1/Prebuilt.json").is_file())
+
     def test_a_missing_build_stops_staging(self):
         with self.assertRaises(PackageFailed):
             stage(self.root / "Release", self.root / "Stage", "myengine", self.root / "Engines", self.root, LOCK)

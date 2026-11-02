@@ -3,6 +3,9 @@
 #include "Platform/Result.h"
 #include <filesystem>
 
+// Beside the executable (the engine it ships, Scripts/package.py) and in the data folder (downloaded ones).
+inline constexpr const char* EnginePrebuiltFolderName = "EnginePrebuilt";
+
 // Where the launcher finds its parts. Installed (D15): Engines/ and Tools/ beside the executable; Settings.json beside
 // it too, except in a Velopack install (<root>/current/ + <root>/Update.exe): Velopack replaces current/ on an update
 // and the whole <root> when a newer Setup is run over it, so the data (settings, audio tools) lives in the sibling
@@ -18,6 +21,9 @@ struct LauncherLayout {
     [[nodiscard]] std::filesystem::path SettingsFile() const { return dataFolder / "Settings.json"; }
     // Engines downloaded for projects (Engines/EngineCatalog.h): kept across launcher updates.
     [[nodiscard]] std::filesystem::path EngineCacheFolder() const { return dataFolder / "Engines"; }
+    // Compiled engines downloaded for them, <this>/<version>/ (engine Docs/Prebuilt.md); never inside an engine folder,
+    // which is copied into projects.
+    [[nodiscard]] std::filesystem::path EnginePrebuiltFolder() const { return dataFolder / EnginePrebuiltFolderName; }
     // The temporary copy a project is tried in (Projects/EngineTrial.h).
     [[nodiscard]] std::filesystem::path EngineTrialFolder() const { return dataFolder / "EngineTrial"; }
     // The audio tools (System/AudioTools.h) live beside the settings: kept across launcher updates.

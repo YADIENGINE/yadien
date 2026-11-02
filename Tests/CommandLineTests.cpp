@@ -72,17 +72,20 @@ TEST_CASE("A project on an engine copy finds the compiled engine of its version"
     WriteFakeProject(temp.Path() / "Game", "Game", {.version = "1.2.3"});
     ProjectInfo project = InspectProject(temp.Path() / "Game");
     project.kind = EngineKind::Copy;
-    const std::filesystem::path launcher = temp.Path() / "Launcher";
-    CHECK(PrebuiltEngineFolder(launcher, project).empty());
+    const std::vector<std::filesystem::path> roots{temp.Path() / "Beside", temp.Path() / "Data"};
+    CHECK(PrebuiltEngineFolder(roots, project).empty());
 
-    std::filesystem::create_directories(launcher / "EnginePrebuilt/9.9.9");
-    CHECK(PrebuiltEngineFolder(launcher, project).empty());
+    std::filesystem::create_directories(temp.Path() / "Beside/9.9.9");
+    CHECK(PrebuiltEngineFolder(roots, project).empty());
 
-    std::filesystem::create_directories(launcher / "EnginePrebuilt/1.2.3");
-    CHECK(PrebuiltEngineFolder(launcher, project) == launcher / "EnginePrebuilt/1.2.3");
+    std::filesystem::create_directories(temp.Path() / "Data/1.2.3");
+    CHECK(PrebuiltEngineFolder(roots, project) == temp.Path() / "Data/1.2.3");
+
+    std::filesystem::create_directories(temp.Path() / "Beside/1.2.3");
+    CHECK(PrebuiltEngineFolder(roots, project) == temp.Path() / "Beside/1.2.3");
 
     project.kind = EngineKind::Git;
-    CHECK(PrebuiltEngineFolder(launcher, project).empty());
+    CHECK(PrebuiltEngineFolder(roots, project).empty());
 }
 
 TEST_CASE("launcher version lists every engine the launcher carries", "[cli]") {

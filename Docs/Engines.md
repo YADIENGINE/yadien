@@ -7,8 +7,8 @@ The launcher deals with engines in three places (engine `Docs/Design/README.md` 
   users.
 - **The shipped engine:** `LauncherManifest.json` `engine`, one exact version. `dev.py` imports it from its tag into
   `<build>/Engines/Engine<version>/`, and the installer carries that folder, so the first project works offline. It is
-  not in the repository. The installer also carries it compiled, in `EnginePrebuilt/<version>/`: commands for a project
-  on that version get the folder as `ENGINE_PREBUILT`, and the project skips the engine build (engine `Docs/Prebuilt.md`).
+  not in the repository. The installer also carries it [compiled](#compiled-engines), so the first project opens fast
+  without internet too.
 - **Every other version** comes from GitHub on demand and stays in the download cache, `<data folder>/Engines/`, which
   a launcher update keeps.
 
@@ -43,6 +43,19 @@ opens. Without internet, or within GitHub's limit of 60 anonymous requests per h
 are offered; nothing else stops working.
 
 `LAUNCHER_ENGINE_API` replaces the list's address, for tests.
+
+## Compiled engines
+
+A version's GitHub release also holds `EnginePrebuilt.zip`, the engine compiled from that tag (engine `Docs/Prebuilt.md`),
+so an engine release alone brings the fast start and needs no launcher release. `dev.py release` and `dev.py
+engine-releases` build it for every tag that has the engine's `prebuilt` command and whose release lacks it, on the
+publisher's machine; its MSVC is the oldest one that can link the result.
+
+The launcher downloads it with the engine, and when a project on a listed version opens without one, into
+`<data folder>/EnginePrebuilt/<version>/`, and checks it against the digest GitHub reports for the file. The shipped version's
+is also in `EnginePrebuilt/` beside the executable. Commands for a project on that version get the folder as
+`ENGINE_PREBUILT`; the engine's tools decide whether it fits. A missing package, a failed download or no internet only
+means the project builds the engine from source. Removing a downloaded engine removes its package.
 
 ## Changing a project's version
 

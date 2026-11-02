@@ -18,8 +18,8 @@ python Scripts/dev.py package
 It builds the launcher in Release, then `Scripts/package.py`:
 
 1. **Stages** `build/Package/Stage/` (installed as `current/`): `<engine>.exe`, `<engine>.com`, the Velopack DLL,
-   `Engines/` (the one engine it ships, `build/Engines/`), `EnginePrebuilt/<version>/` (that engine compiled, built only
-   from its exact tag, engine `Docs/Prebuilt.md`), and `Tools/` from `ToolCache/` without the lock's `exclude` entries (CMake's HTML docs, man pages,
+   `Engines/` (the one engine it ships, `build/Engines/`), `EnginePrebuilt/<version>/` (that engine compiled, taken from
+   its GitHub release; [Engines](Engines.md#compiled-engines)), and `Tools/` from `ToolCache/` without the lock's `exclude` entries (CMake's HTML docs, man pages,
    `cmake-gui.exe`, `cpack.exe`; license files stay).
 2. **Writes `ThirdPartyNotices.txt`**: part 1 is the engine (its own license and the components every engine
    program contains, from the engine's `ThirdParty/Notices.json`), part 2 the launcher and its tools

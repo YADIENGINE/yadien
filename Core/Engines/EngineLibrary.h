@@ -19,9 +19,11 @@ struct AvailableEngine {
 // A version published online (Engines/EngineCatalog.h).
 struct OnlineEngine {
     EngineVersion version;
-    std::string tag;        // "v0.2.0"
-    std::string recordUrl;  // The release's EngineCopy.json
-    std::string archiveUrl; // The tag's source archive
+    std::string tag;            // "v0.2.0"
+    std::string recordUrl;      // The release's EngineCopy.json
+    std::string archiveUrl;     // The tag's source archive
+    std::string prebuiltUrl;    // The release's compiled engine; empty when it has none
+    std::string prebuiltSha256; // GitHub's digest of that file, lower-case hex
 };
 
 // "Engine0.2.0".
@@ -49,6 +51,8 @@ public:
     void SetOnline(std::vector<OnlineEngine> online);
     [[nodiscard]] const std::vector<OnlineEngine>& Online() const { return _online; }
     [[nodiscard]] const OnlineEngine* FindOnline(const EngineVersion& version) const;
+    // Every version the list has named, on this computer or not: a local one can still lack its compiled engine.
+    [[nodiscard]] const OnlineEngine* FindPublished(const EngineVersion& version) const;
 
     // Every version a project can be given, newest first.
     [[nodiscard]] std::vector<EngineVersion> KnownVersions() const;
@@ -58,5 +62,6 @@ public:
 private:
     std::vector<AvailableEngine> _engines;
     std::vector<OnlineEngine> _online;
+    std::vector<OnlineEngine> _published;
     std::vector<std::string> _problems;
 };

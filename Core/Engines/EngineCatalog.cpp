@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <utility>
 #include "Engines/EngineCopyRecord.h"
+#include "Platform/Crypto.h"
 #include "Platform/Download.h"
 #include "Platform/FileSystem.h"
 #include "Platform/KnownFolders.h"
@@ -21,6 +22,9 @@ constexpr const char* ArchiveFile = "engine.tar.gz";
 constexpr const char* FilesFolder = "files";
 constexpr std::string_view TagPrefix = "v";
 constexpr const char* DownloadSuffix = ".downloading";
+constexpr const char* PrebuiltAsset = "EnginePrebuilt.zip"; // Scripts/package.py PREBUILT_ASSET
+constexpr const char* PrebuiltDescription = "Prebuilt.json";
+constexpr std::string_view DigestPrefix = "sha256:";
 
 Result<AvailableEngine> Fail(const std::string& message) { return Result<AvailableEngine>::Failure(message); }
 
@@ -82,11 +86,18 @@ Result<std::vector<OnlineEngine>> ParseEngineCatalog(const std::string& json, bo
         if (!tag.starts_with(TagPrefix) || archive.empty()) continue;
         const auto version = EngineVersion::Parse(std::string_view(tag).substr(TagPrefix.size()));
         if (!version) continue;
+        OnlineEngine engine{*version, tag, {}, archive};
         for (const nlohmann::json& asset : item.value("assets", nlohmann::json::array())) {
-            if (!asset.is_object() || asset.value("name", "") != EngineCopyFile) continue;
-            const std::string record = asset.value("browser_download_url", "");
-            if (!record.empty()) engines.push_back({*version, tag, record, archive});
+            if (!asset.is_object()) continue;
+            const std::string name = asset.value("name", "");
+            if (name == EngineCopyFile) engine.recordUrl = asset.value("browser_download_url", "");
+            if (const std::string digest = asset.value("digest", "");
+                name == PrebuiltAsset && digest.starts_with(DigestPrefix)) {
+                engine.prebuiltUrl = asset.value("browser_download_url", "");
+                engine.prebuiltSha256 = digest.substr(DigestPrefix.size());
+            }
         }
+        if (!engine.recordUrl.empty()) engines.push_back(std::move(engine));
     }
     std::ranges::sort(engines, std::greater{}, &OnlineEngine::version);
     return engines;
@@ -142,4 +153,40 @@ Result<AvailableEngine> DownloadEngine(const OnlineEngine& engine, const std::fi
     if (Status moved = MovePath(files, destination); !moved.Ok()) return failed(moved.Error());
     (void)RemoveTree(staging);
     return LoadAvailable(destination);
+}
+
+Status DownloadPrebuiltEngine(const OnlineEngine& engine, const std::filesystem::path& prebuiltFolder,
+                              const std::atomic<bool>* cancel) {
+    if (engine.prebuiltUrl.empty() || engine.prebuiltSha256.empty()) return Status::Success();
+    const std::string name = engine.version.ToString();
+    const std::filesystem::path destination = prebuiltFolder / name;
+    std::error_code error;
+    if (std::filesystem::exists(destination, error)) return Status::Success();
+
+    const std::filesystem::path staging = prebuiltFolder / ("." + name + DownloadSuffix);
+    const std::filesystem::path files = staging / FilesFolder;
+    const std::filesystem::path archive = staging / PrebuiltAsset;
+    const auto failed = [&](const std::string& message) {
+        (void)RemoveTree(staging);
+        return Status::Failure(message);
+    };
+    if (Status removed = RemoveTree(staging); !removed.Ok()) return removed;
+    std::filesystem::create_directories(files, error);
+    if (error) return failed("Cannot create " + PathToUtf8(files) + ": " + error.message());
+
+    if (Status downloaded = DownloadFile(engine.prebuiltUrl, archive, cancel); !downloaded.Ok())
+        return failed(downloaded.Error());
+    Result<std::string> digest = Sha256FileHex(archive);
+    if (!digest.Ok()) return failed(digest.Error());
+    if (digest.Value() != engine.prebuiltSha256)
+        return failed("The compiled engine of " + engine.tag + " does not match its release");
+    const ProcessCommand tar{SystemFolder() / "tar.exe", {"-xf", PathToUtf8(archive), "-C", PathToUtf8(files)}};
+    const ProcessResult extracted = RunCaptured(tar, [](const std::string&) {}, cancel);
+    if (extracted.canceled) return failed("The download was canceled");
+    if (!extracted.Succeeded() || !std::filesystem::is_regular_file(files / PrebuiltDescription, error))
+        return failed("Cannot extract the compiled engine of " + engine.tag);
+
+    if (Status moved = MovePath(files, destination); !moved.Ok()) return failed(moved.Error());
+    (void)RemoveTree(staging);
+    return Status::Success();
 }

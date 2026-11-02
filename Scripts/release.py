@@ -32,12 +32,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from engine_location import MANIFEST_FILE, REPOSITORY  # noqa: E402
 from import_engine import (COPY_FILE, NOTES_FOLDER, ImportFailed, archive_files, engine_copy, parse_version,  # noqa: E402
                            read_manifest)
-from package import LAUNCHER_MANIFEST, PackageFailed, setup_name  # noqa: E402
+from package import LAUNCHER_MANIFEST, PREBUILT_ASSET, PackageFailed, setup_name  # noqa: E402
 
 BRANCH = "main"
 ENGINES_FOLDER = "Engines"
 RELEASE_ENGINE = "ReleaseEngine"  # build/<this>/: worktree of the engine commit the release is built against
 RELEASE_BUILD = "ReleaseBuild"  # build/<this>/: its own build tree, so development builds keep theirs
+RELEASE_PACKAGE = "ReleasePackage"  # build/<this>/: worktree of the tag a compiled engine is made from; removed after
+PREBUILT_COMMAND = "Tools/commands/prebuilt.py"  # An engine tag that can compile itself into a package
 STAGE_FOLDER = "Stage"  # build/Package/<this>/: what the package step installs into current/
 STAMP_FILE = "Release.json"  # build/Package/<this>: what the installer in Releases/ was built from
 NOTES_FILE = "ReleaseNotes.md"  # build/Package/<this>: the notes of the package and of the GitHub release
@@ -443,10 +445,40 @@ def publish_engine_release(engine: Path, tag: str) -> None:
     run(["gh", "release", "edit", tag, "--repo", url, "--draft=false"], engine)
 
 
+def unpackaged_engine_tags(engine: Path) -> list[str]:
+    """Published tags that can compile themselves (they have the engine's prebuilt command) and whose release lacks it."""
+    missing = []
+    for tag in engine_release_tags(engine):
+        if not git_succeeds(engine, "cat-file", "-e", f"{tag}:{PREBUILT_COMMAND}") or release_state(engine, tag) is None:
+            continue
+        listed = capture(["gh", "release", "view", tag, "--repo", repository_url(engine), "--json", "assets"], engine)
+        if PREBUILT_ASSET not in {asset["name"] for asset in json.loads(listed)["assets"]}:
+            missing.append(tag)
+    return missing
+
+
+def publish_engine_package(engine: Path, tag: str) -> None:
+    """Compiles the tag in its own worktree, so the package holds exactly what a project's copy of that tag holds. The
+    launcher downloads it with GitHub's digest (Docs/Engines.md)."""
+    worktree = REPOSITORY / "build" / RELEASE_PACKAGE
+    prepare_worktree(engine, worktree, git(engine, "rev-parse", f"{tag}^{{commit}}"))
+    try:
+        with tempfile.TemporaryDirectory() as folder:
+            package = Path(folder) / "Package"
+            run([sys.executable, str(worktree), "prebuilt", "--output", str(package)], worktree)
+            archive = shutil.make_archive(str(Path(folder) / Path(PREBUILT_ASSET).stem), "zip", package)
+            run(["gh", "release", "upload", tag, archive, "--repo", repository_url(engine)], engine)
+    finally:
+        git(engine, "worktree", "remove", "--force", str(worktree))
+
+
 def publish_engine_releases(engine: Path) -> None:
     for tag in unpublished_engine_tags(engine):
         publish_engine_release(engine, tag)
         print(f"Engine record published: {tag}", flush=True)
+    for tag in unpackaged_engine_tags(engine):
+        publish_engine_package(engine, tag)
+        print(f"Compiled engine published: {tag}", flush=True)
 
 
 def enclosing_project(repository: Path) -> Path | None:
@@ -552,6 +584,7 @@ def run_engine_releases(engine: Path, dry_run: bool) -> int:
     try:
         tags = unpublished_engine_tags(engine)
         print("Engine records to publish: " + (", ".join(tags) or "none"), flush=True)
+        print("Compiled engines to publish: " + (", ".join(unpackaged_engine_tags(engine)) or "none"), flush=True)
         for tag in tags:
             engine_copy(engine, tag)  # Every tag can be read before anything is published
         if not dry_run:

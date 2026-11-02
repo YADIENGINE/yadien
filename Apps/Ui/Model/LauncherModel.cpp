@@ -20,6 +20,12 @@ namespace {
 constexpr const char* DevelopmentBranch = "main";
 
 std::string ProjectName(const ProjectRow& row) { return row.info.name; }
+
+// A faster start, never a requirement: without it the project builds the engine from source.
+void FetchPrebuiltEngine(const OnlineEngine& engine, const std::filesystem::path& folder, JobContext& context) {
+    if (Status fetched = DownloadPrebuiltEngine(engine, folder, context.CancelFlag()); !fetched.Ok())
+        context.Output("warning: " + fetched.Error());
+}
 } // namespace
 
 LauncherModel::LauncherModel(LauncherLayout layout, std::unique_ptr<UpdateBackend> updates, bool justUpdated,
@@ -239,9 +245,16 @@ void LauncherModel::Open(std::size_t row) {
         const std::string failure = "Could not open " + ProjectName(*found);
         const std::optional<Toolchain> toolchain = RequireToolchain(failure);
         if (!toolchain) return;
+        std::optional<OnlineEngine> online;
+        if (found->info.manifest) {
+            if (const OnlineEngine* listed = _engines.FindPublished(found->info.manifest->version)) online = *listed;
+        }
         auto job = std::make_unique<Job<void>>(
             "Opening " + ProjectName(*found), OpenProjectSteps,
-            [project = found->info, toolchain = *toolchain](JobContext& context) {
+            [project = found->info, toolchain = *toolchain, online = std::move(online),
+             prebuilt = _layout.EnginePrebuiltFolder()](JobContext& context) {
+                // An engine downloaded before its release had a compiled copy, or by an older launcher.
+                if (online && PrebuiltEngineFolder(project).empty()) FetchPrebuiltEngine(*online, prebuilt, context);
                 return OpenProject(project, toolchain, LauncherEngineRunner(toolchain, context.CancelFlag()),
                                    StartDetached, context);
             });
@@ -346,7 +359,8 @@ void LauncherModel::StartPlan(const EngineVersion& version) {
     _planJob = std::make_unique<Job<EngineUpdatePlan>>(
         "Planning the engine change", 2,
         [project = row->info, local = std::move(local), online = std::move(online), version,
-         cache = _layout.EngineCacheFolder()](JobContext& context) -> Result<EngineUpdatePlan> {
+         cache = _layout.EngineCacheFolder(),
+         prebuilt = _layout.EnginePrebuiltFolder()](JobContext& context) -> Result<EngineUpdatePlan> {
             std::optional<AvailableEngine> target = local;
             if (!target) {
                 if (!online)
@@ -355,6 +369,7 @@ void LauncherModel::StartPlan(const EngineVersion& version) {
                 Result<AvailableEngine> downloaded = DownloadEngine(*online, cache, context.CancelFlag());
                 if (!downloaded.Ok()) return Result<EngineUpdatePlan>::Failure(downloaded.Error());
                 target = std::move(downloaded).Value();
+                FetchPrebuiltEngine(*online, prebuilt, context);
             }
             context.Step("Comparing engine files");
             return PlanEngineUpdate(project, *target);
@@ -467,12 +482,14 @@ void LauncherModel::CreateProject() {
         auto job = std::make_unique<Job<std::filesystem::path>>(
             "Creating " + _newProject.name, steps,
             [request, online = std::move(online), cache = _layout.EngineCacheFolder(),
+             prebuilt = _layout.EnginePrebuiltFolder(),
              toolchain = *toolchain](JobContext& context) mutable -> Result<std::filesystem::path> {
                 if (online) {
                     context.Step("Downloading engine " + online->version.ToString());
                     Result<AvailableEngine> engine = DownloadEngine(*online, cache, context.CancelFlag());
                     if (!engine.Ok()) return Result<std::filesystem::path>::Failure(engine.Error());
                     request.engine = std::move(engine).Value();
+                    FetchPrebuiltEngine(*online, prebuilt, context);
                 }
                 context.Step("Creating the project");
                 return ::CreateProject(request, LauncherEngineRunner(toolchain, context.CancelFlag()), context.Lines());
@@ -651,10 +668,13 @@ void LauncherModel::DownloadEngineVersion(const EngineVersion& version) {
         const std::string text = version.ToString();
         auto job = std::make_unique<Job<void>>(
             "Downloading engine " + text, 1,
-            [engine = *online, cache = _layout.EngineCacheFolder(), text](JobContext& context) -> Status {
+            [engine = *online, cache = _layout.EngineCacheFolder(), prebuilt = _layout.EnginePrebuiltFolder(),
+             text](JobContext& context) -> Status {
                 context.Step("Downloading and checking engine " + text);
                 Result<AvailableEngine> downloaded = DownloadEngine(engine, cache, context.CancelFlag());
-                return downloaded.Ok() ? Status::Success() : Status::Failure(downloaded.Error());
+                if (!downloaded.Ok()) return Status::Failure(downloaded.Error());
+                FetchPrebuiltEngine(engine, prebuilt, context);
+                return Status::Success();
             });
         StartJob(std::move(job), "Could not download engine " + text, [this] {
             RescanEngines();
@@ -895,11 +915,15 @@ void LauncherModel::Confirm() {
             _confirmation = Confirmation::None;
             if (_job || !engine || !EngineRemovalProblem(version).empty()) return;
             const std::string text = version.ToString();
-            auto job = std::make_unique<Job<void>>("Removing engine " + text, 1,
-                                                   [engine = *engine, text](JobContext& context) -> Status {
-                                                       context.Step("Removing engine " + text);
-                                                       return RemoveDownloadedEngine(engine);
-                                                   });
+            auto job =
+                std::make_unique<Job<void>>("Removing engine " + text, 1,
+                                            [engine = *engine, text, prebuilt = _layout.EnginePrebuiltFolder() / text](
+                                                JobContext& context) -> Status {
+                                                context.Step("Removing engine " + text);
+                                                Status removed = RemoveDownloadedEngine(engine);
+                                                if (removed.Ok()) (void)RemoveTree(prebuilt);
+                                                return removed;
+                                            });
             StartJob(std::move(job), "Could not remove engine " + text, [this, version] {
                 _panel = LauncherPanel::None;
                 _engineSizes.erase(version);

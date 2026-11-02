@@ -4,7 +4,11 @@
 #include "Engines/EngineCatalog.h"
 #include "Engines/EngineLibrary.h"
 #include "Jobs/Job.h"
+#include "Platform/Crypto.h"
 #include "Platform/FileSystem.h"
+#include "Platform/KnownFolders.h"
+#include "Platform/Process.h"
+#include "Platform/Text.h"
 #include "Projects/EngineTrial.h"
 #include "Projects/ProjectRow.h"
 #include "Support/FakeEngine.h"
@@ -190,6 +194,50 @@ TEST_CASE("The catalog lists releases with a record, newest version first", "[en
     CHECK_FALSE(ParseEngineCatalog("{}", true).Ok());
 }
 
+TEST_CASE("A release's compiled engine is listed only with its digest", "[engine-catalog]") {
+    constexpr const char* answer = R"([
+      {"tag_name": "v0.2.0", "tarball_url": "a",
+       "assets": [{"name": "EngineCopy.json", "browser_download_url": "r"},
+                  {"name": "EnginePrebuilt.zip", "browser_download_url": "p", "digest": "sha256:abc"}]},
+      {"tag_name": "v0.1.0", "tarball_url": "a",
+       "assets": [{"name": "EngineCopy.json", "browser_download_url": "r"},
+                  {"name": "EnginePrebuilt.zip", "browser_download_url": "p"}]}
+    ])";
+    Result<std::vector<OnlineEngine>> all = ParseEngineCatalog(answer, true);
+    REQUIRE(all.Ok());
+    REQUIRE(all.Value().size() == 2);
+    CHECK(all.Value()[0].prebuiltUrl == "p");
+    CHECK(all.Value()[0].prebuiltSha256 == "abc");
+    CHECK(all.Value()[1].prebuiltUrl.empty());
+}
+
+TEST_CASE("A compiled engine enters its folder only when its digest matches", "[engine-catalog]") {
+    TempFolder temp;
+    temp.Write("Package/Prebuilt.json", "{}");
+    const std::filesystem::path zip = temp.Path() / "EnginePrebuilt.zip";
+    const ProcessCommand pack{
+        SystemFolder() / "tar.exe",
+        {"-a", "-cf", PathToUtf8(zip), "-C", PathToUtf8(temp.Path() / "Package"), "Prebuilt.json"}};
+    REQUIRE(RunCaptured(pack, [](const std::string&) {}, nullptr).Succeeded());
+    OnlineEngine engine{*EngineVersion::Parse("1.2.3"), "v1.2.3", "r", "a"};
+    const std::filesystem::path folder = temp.Path() / "EnginePrebuilt";
+
+    CHECK(DownloadPrebuiltEngine(engine, folder, nullptr).Ok());
+    CHECK_FALSE(std::filesystem::exists(folder / "1.2.3"));
+
+    engine.prebuiltUrl = "file:///" + zip.generic_string();
+    engine.prebuiltSha256 = "wrong";
+    CHECK_FALSE(DownloadPrebuiltEngine(engine, folder, nullptr).Ok());
+    CHECK_FALSE(std::filesystem::exists(folder / "1.2.3"));
+
+    engine.prebuiltSha256 = Sha256FileHex(zip).Value();
+    REQUIRE(DownloadPrebuiltEngine(engine, folder, nullptr).Ok());
+    CHECK(std::filesystem::is_regular_file(folder / "1.2.3/Prebuilt.json"));
+
+    engine.prebuiltSha256 = "wrong"; // Already there: nothing to download or check
+    CHECK(DownloadPrebuiltEngine(engine, folder, nullptr).Ok());
+}
+
 TEST_CASE("Only a GitHub repository has a catalog", "[engine-catalog]") {
     CHECK(EngineCatalogUrl("https://github.com/owner/engine.git") ==
           "https://api.github.com/repos/owner/engine/releases?per_page=100");
@@ -209,6 +257,8 @@ TEST_CASE("The library joins what is here with what can be downloaded", "[engine
     library.SetOnline(
         {{{0, 4, 0}, "v0.4.0", "r", "a"}, {{0, 3, 0}, "v0.3.0", "r", "a"}, {{0, 1, 0}, "v0.1.0", "r", "a"}});
     REQUIRE(library.Online().size() == 2); // 0.3.0 is here
+    CHECK_FALSE(library.FindOnline({0, 3, 0}));
+    CHECK(library.FindPublished({0, 3, 0})); // But its compiled engine may still have to be downloaded
     CHECK(library.KnownVersions() == std::vector<EngineVersion>{{0, 4, 0}, {0, 3, 0}, {0, 2, 0}, {0, 1, 0}});
     CHECK(library.UpdateFor({0, 3, 0}) == EngineVersion{0, 4, 0});
     CHECK_FALSE(library.UpdateFor({0, 4, 0}).has_value());

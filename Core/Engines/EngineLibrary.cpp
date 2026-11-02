@@ -63,8 +63,20 @@ const AvailableEngine* EngineLibrary::Find(const EngineVersion& version) const {
 }
 
 void EngineLibrary::SetOnline(std::vector<OnlineEngine> online) {
+    for (const OnlineEngine& engine : online) {
+        const auto known = std::ranges::find(_published, engine.version, &OnlineEngine::version);
+        if (known == _published.end())
+            _published.push_back(engine);
+        else
+            *known = engine;
+    }
     std::erase_if(online, [&](const OnlineEngine& engine) { return Find(engine.version) != nullptr; });
     _online = std::move(online);
+}
+
+const OnlineEngine* EngineLibrary::FindPublished(const EngineVersion& version) const {
+    const auto found = std::ranges::find(_published, version, &OnlineEngine::version);
+    return found == _published.end() ? nullptr : &*found;
 }
 
 const OnlineEngine* EngineLibrary::FindOnline(const EngineVersion& version) const {

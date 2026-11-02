@@ -3,6 +3,7 @@
 #include <array>
 #include "Platform/KnownFolders.h"
 #include "Platform/Text.h"
+#include "Settings/LauncherLayout.h"
 
 namespace {
 constexpr std::array SupportedContracts = {1, 2};
@@ -19,11 +20,23 @@ std::filesystem::path WindowedLauncherExecutable() {
     return std::filesystem::is_regular_file(executable, error) ? executable : std::filesystem::path{};
 }
 
-std::filesystem::path PrebuiltEngineFolder(const std::filesystem::path& launcherFolder, const ProjectInfo& project) {
+std::filesystem::path PrebuiltEngineFolder(const std::vector<std::filesystem::path>& roots,
+                                           const ProjectInfo& project) {
     if (project.kind != EngineKind::Copy || !project.manifest) return {};
-    std::filesystem::path folder = launcherFolder / "EnginePrebuilt" / project.manifest->version.ToString();
-    std::error_code error;
-    return std::filesystem::is_directory(folder, error) ? folder : std::filesystem::path{};
+    for (const std::filesystem::path& root : roots) {
+        std::filesystem::path folder = root / project.manifest->version.ToString();
+        std::error_code error;
+        if (std::filesystem::is_directory(folder, error)) return folder;
+    }
+    return {};
+}
+
+std::filesystem::path PrebuiltEngineFolder(const ProjectInfo& project) {
+    const std::filesystem::path launcherFolder = ExecutablePath().parent_path();
+    std::vector<std::filesystem::path> roots{launcherFolder / EnginePrebuiltFolderName};
+    if (Result<LauncherLayout> layout = ResolveLauncherLayout(launcherFolder); layout.Ok())
+        roots.push_back(layout.Value().EnginePrebuiltFolder());
+    return PrebuiltEngineFolder(roots, project);
 }
 
 Result<ProcessCommand> EngineCommand(const Toolchain& toolchain, const ProjectInfo& project,
@@ -43,8 +56,7 @@ Result<ProcessCommand> EngineCommand(const Toolchain& toolchain, const ProjectIn
     command.pathPrefix = toolchain.PathFolders();
     if (const std::filesystem::path launcher = WindowedLauncherExecutable(); !launcher.empty())
         command.environment.emplace_back(LauncherVariable, PathToUtf8(launcher));
-    if (const std::filesystem::path prebuilt = PrebuiltEngineFolder(ExecutablePath().parent_path(), project);
-        !prebuilt.empty())
+    if (const std::filesystem::path prebuilt = PrebuiltEngineFolder(project); !prebuilt.empty())
         command.environment.emplace_back(PrebuiltVariable, PathToUtf8(prebuilt));
     return command;
 }
