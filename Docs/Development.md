@@ -1,57 +1,50 @@
 # Developing the launcher
 
-Requirements: VS 2022 Build Tools (C++ workload), CMake 3.24+, Python 3.10+, git.
+Requirements: Visual Studio 2022 Build Tools with the C++ workload, CMake 3.24+, Python 3.10+, and git.
 
-The launcher's window is drawn with the engine's `ToolUi`, so building it needs an engine checkout. `dev.py` chooses it
-(`Scripts/engine_location.py`): in a plain clone, `ToolCache/Engine`, cloned from `engineRepository` at the tag of the
-version `engine` names in `LauncherManifest.json`. Using a change that is not released yet: `dev.py --engine PATH` with
-your own checkout, or see Developing inside a game.
+The window uses the engine's `ToolUi`, so every build needs an engine checkout. `Scripts/engine_location.py` selects it:
+`--engine PATH` when supplied, the parent project's `Engine/` when developing inside a game, or `ToolCache/Engine` at
+the version in `LauncherManifest.json` for a standalone clone.
 
 ```powershell
-python Scripts/fetch_toolchain.py     # ToolCache/: bundled Python, CMake, Ninja + the Velopack library (once)
-python Scripts/dev.py build           # Debug: build/Debug/<engine>.com + <engine>.exe (window)
+python Scripts/fetch_toolchain.py     # Download pinned tools and libraries once
+python Scripts/dev.py build           # Debug build
 python Scripts/dev.py build --release
-python Scripts/dev.py test            # build Debug + C++ tests (ctest) + script tests
+python Scripts/dev.py test            # Debug build, C++ tests, and script tests
 python Scripts/dev.py clean
-python Scripts/dev.py package         # Release build + installer (Packaging.md)
-python Scripts/dev.py release         # publish what the manifests ask for (Packaging.md -> Publish)
-python Scripts/dev.py engine-test     # move real projects between engine versions (Engines.md -> Test it)
 ```
 
-`dev.py` gets the MSVC environment from the engine checkout's helper. Manually, in Developer PowerShell: `cmake
---preset launcher -DLAUNCHER_ENGINE_DIR=<engine checkout>`, `cmake --build --preset debug`, `ctest --preset debug`.
+`dev.py` obtains the MSVC environment from the selected engine. From Developer PowerShell, the equivalent manual commands
+are `cmake --preset launcher -DLAUNCHER_ENGINE_DIR=<engine>`, `cmake --build --preset debug`, and
+`ctest --preset debug`. Development output and settings locations are in [Architecture](Architecture.md#runtime-layout).
 
-Development builds use `build/Engines/` (`dev.py` imports the engine `LauncherManifest.json` ships from its tag) and the repo's `ToolCache/` and keep settings in
-`build/<Config>/LauncherData/` (`LauncherLayout.json`). Try: `build\Debug\<engine>.com launcher system-check`, and
-`...\<engine>.com build` in a project folder.
+Packaging, update testing, and releases are documented in [Packaging](Packaging.md). Engine catalog and migration
+validation are documented in [Engine versions](Engines.md#validation).
 
 ## Developing inside a game
 
-The launcher repo can also be a `Launcher/` submodule in a game's repo; engine, launcher, and game are developed in one
-place, with the game's `Engine/` as the single engine copy:
+The launcher may be the `Launcher/` submodule of a game repository beside that game's `Engine/` submodule. Scripts use
+the game's engine unless `--engine PATH` overrides it. Changes flow engine → launcher → game, and the game points only to
+pushed engine and launcher commits.
 
+A release always builds against the engine tag selected by `LauncherManifest.json`, not the development checkout. A
+launcher change that needs an unreleased engine change must therefore ship that engine version first.
+
+## Tests and UI snapshots
+
+C++ tests are under `Tests/`; `[git]` tests use temporary local repositories and skip when git is unavailable. Script
+tests can run without a compiler:
+
+```powershell
+python -m unittest discover -s Scripts/Tests -t .
 ```
-MyGame/
-  Engine/      game's engine submodule (single engine copy)
-  Launcher/    this repo
+
+`LauncherUiSmoke` is an optional desktop/GPU target:
+
+```powershell
+cmake --build build --config Debug --target LauncherUiSmoke
+build/Debug/LauncherUiSmoke.exe build/UiReview
 ```
 
-- When `Scripts/` commands detect the launcher inside a project (`Project.json` + `Engine/` in the parent folder), they
-  use that `Engine/` (`Scripts/engine_location.py`); `--engine PATH` always takes precedence. It is passed to CMake as
-  `LAUNCHER_ENGINE_DIR`.
-- A release builds against the tag of the engine `LauncherManifest.json` ships, not this checkout: a launcher that needs
-  an engine change ships an engine version holding it (Packaging.md -> Publish).
-- The order is always engine → launcher → game. The game's repo points only to pushed commits.
-
-Tests: C++ `Tests/` (Catch2; `[git]` tests use local git repositories and skip if git is absent); scripts: `python -m
-unittest discover -s Scripts/Tests -t .`.
-
-## Optional UI screenshots
-
-In the existing build tree, `cmake --build build --config Debug --target LauncherUiSmoke` (in the MSVC environment),
-then `build/Debug/LauncherUiSmoke.exe build/UiReview`. Normal build/test does not run this target; desktop/GPU required.
-A hidden engine window uses production screens, embedded fonts, and the rlImGui renderer; it does not touch user settings
-or projects. It produces PNGs for the first-run screen, temporary populated lists, search, details, forms, and 75/100/125/150/200%
-scales; horizontal overflow and persistent toolbars requiring internal scrolling count as errors. Folder-selection
-validation, automatic discovery, default-folder saving, and the new-project form's use of that folder are checked with
-temporary data. Also inspect images visually.
+It renders production screens at supported scales and checks layout assertions; inspect the generated PNGs as well.
+Normal builds and tests do not run this target.

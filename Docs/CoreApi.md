@@ -1,226 +1,94 @@
 # Core API
 
-All launcher work lives in `LauncherCore` (headless, `Core/`); UI only calls it and implements no business logic. Design
-decisions are in the engine repo's `Docs/Design/README.md` (D4, D6, D8, D14, D15, D16); this document describes their
-code counterparts. Architecture: [Architecture](Architecture.md).
+`LauncherCore` (`Core/`) is the headless logic shared by the UI and CLI. This document describes its public service
+boundaries; repository structure and command forwarding are in [Architecture](Architecture.md).
 
-## Status (2026-10-31)
+## Common contracts
 
-- Core (repo, import, tool lock, CLI, settings, project operations, modes) and UI preparation are complete: background
-  jobs (`Jobs/`), "Open" / "Run" flows, project row model and details, Scan, PATH, Explorer, folder picker, `Apps/Ui`
-  skeleton (window, theme, model, empty screen functions).
-- Only visual work remains: fill `Apps/Ui/Screens/` functions ([UiScreens](UiScreens.md)). Decisions: engine
-  `Docs/Design/README.md` → D15 "UI preparation".
-- The window uses the engine's shared tool UI: `EngineToolUi` (`ToolUi/`, engine `Docs/ToolUi.md`).
+- Public APIs return `Result<T>` or `Status`; exceptions do not cross the API boundary. Error messages are English,
+  single-sentence, and have no trailing period.
+- Text is UTF-8 `std::string`; paths are `std::filesystem::path`. Use `PathToUtf8` and `Utf8ToPath` at boundaries.
+- Long operations accept `OutputLine` and a cancellation flag. Core functions do not create threads.
+- Product, executable, and version text come from `LAUNCHER_PRODUCT_NAME`, `LAUNCHER_EXECUTABLE_NAME`, and
+  `LAUNCHER_VERSION`; never hardcode the product name.
 
-## General rules
+## Startup and settings
 
-- Error channel is `Result<T>` / `Status` (`Platform/Result.h`): `Ok()`, `Value()`, `Error()`. Messages are English, one
-  sentence, no trailing period; UI can show them as-is. Exceptions do not escape public API.
-- Text is UTF-8 `std::string`; paths are `std::filesystem::path` (`PathToUtf8` / `Utf8ToPath`, `Platform/Text.h`).
-- Process output is `OutputLine` (`std::function<void(const std::string&)>`), line by line, UTF-8. The callback runs on
-  the calling thread; jobs supply `JobContext::Lines()`, and lines accumulate in `BackgroundJob`.
-- Long tasks do not run on the UI thread: `Job<T>` (below) starts its own thread; core functions do not start threads.
-- Name: product name `LAUNCHER_PRODUCT_NAME`, executable name `LAUNCHER_EXECUTABLE_NAME`, launcher version
-  `LAUNCHER_VERSION` (CMake definitions; name from engine manifest). Do not hardcode the name in UI text.
+Startup resolves `LauncherLayout`, loads `LauncherSettings`, and scans `EngineLibrary`. Invalid settings are reported
+rather than silently replaced; on first launch the UI uses defaults and opens System check. Runtime locations are
+described in [Architecture](Architecture.md#runtime-layout).
 
-## Startup
-
-```cpp
-Result<LauncherLayout> layout = ResolveLauncherLayout(ExecutablePath().parent_path()); // Settings/LauncherLayout.h
-Result<LauncherSettings> settings = LoadLauncherSettings(layout.Value().SettingsFile());
-EngineLibrary engines = EngineLibrary::Scan(layout.Value().enginesFolder, layout.Value().EngineCacheFolder()); // Engines/EngineLibrary.h
-```
-
-- `LauncherLayout`: `enginesFolder`, `toolsFolder`, `dataFolder`, `SettingsFile()`. In installed launchers, all are
-  beside the executable; in development builds, `LauncherLayout.json` beside the executable (written by CMake) points to
-  the build tree's `Engines/`, the repo's `ToolCache/`, and a data folder inside the build.
-- Invalid `Settings.json` is an error (not silently reset): UI tells the user and offers "Start with defaults".
-- On first launch (D15), System check opens automatically: with no `Settings.json`, `LoadLauncherSettings` returns
-  defaults; UI detects this with `std::filesystem::exists(SettingsFile())`.
-
-## Settings and project list (`Settings/`)
-
-| API | Job |
+| Service | Contract |
 | --- | --- |
-| `LauncherSettings { mode, projects, projectsFolder, projectSort }` | `Settings.json` (`format: 1`) |
-| `SaveLauncherSettings(file, settings)` | atomic write; UI calls after every change |
-| `AddProject(settings, root)` | "Add existing": folder must have `Project.json` and not be listed |
-| `RemoveProject(settings, root)` | "Remove from list": does not touch disk |
-| `MarkProjectOpened(settings, root, CurrentTimeIso())` | on "Open"; adds if not listed |
-| `RecentProjects(settings)` | screen order: most recently opened first, never opened last |
-| `ProjectsFolderOf(settings)` / `DefaultProjectsFolder()` | suggested location for new projects (`Belgeler\<Ad> Projects`) |
+| `LoadLauncherSettings` / `SaveLauncherSettings` | Read `Settings.json`; save atomically after changes |
+| `AddProject` / `RemoveProject` | Change only the project list, never project files |
+| `MarkProjectOpened` | Add the project if needed and update its last-opened time |
+| `RecentProjects` | Most recently opened first; never-opened projects last |
+| `ProjectsFolderOf` | Resolve the configured or default new-project location |
 
-`LauncherMode::User` / `Developer`. Developer mode has no password (engine D19): after a warning confirmation, UI writes
-`settings.mode = LauncherMode::Developer`.
+`LauncherSettings::mode` is `User` or `Developer`. Project types and the authority of each mode are documented in
+[Engine versions](Engines.md#project-types-and-modes).
 
-## Background jobs (`Jobs/`)
+## Background jobs
 
-```cpp
-auto job = std::make_unique<Job<SystemReport>>("System check", 1, [layout, mode](JobContext& context) -> Result<SystemReport> {
-    context.Step("Checking tools");                 // step text + index (from 1)
-    return RunSystemCheck(layout, mode);            // context.Lines(): output, context.CancelFlag(): cancellation
-});
-// UI thread every frame: job->State() (Running / Succeeded / Failed / Canceled), StepText(), StepIndex(),
-// StepCount(), LinesFrom(next) (new lines; last BackgroundJob::MaxLines retained), Error(), Cancel()
-// On completion: *job->Outcome() → Result<T> (Status for Job<void>)
-```
+`Job<T>` runs one operation on its own thread and exposes it through the untyped `BackgroundJob` interface. The UI reads
+state, current step, new output lines, error, and outcome each frame; it may request cancellation at any time. Destroying
+a job cancels it and joins its thread. A canceled operation reports `Canceled`, an uncaught exception reports `Failed`,
+and successful jobs retain their `Result<T>` or `Status` outcome.
 
-- `BackgroundJob` is the untyped base (UI reads only this); `Job<T>` adds the result. Destroying a job cancels it and
-  waits for its thread. If cancellation was requested when the body returns an error, state is `Canceled`; an exception
-  thrown by the body is `Failed`.
-- No percentage: step + "not frozen" indicator + live output (D15).
+Progress is expressed as named steps and live output, not a synthetic percentage.
 
-## Project row (`Projects/ProjectRow.h`, `ProjectDetails.h`)
+## Project services
 
-```cpp
-std::vector<ProjectRow> rows = InspectProjectRows(settings, engines); // fast, reads files only
-std::vector<std::size_t> visible = VisibleRows(rows, filter, settings.projectSort);
-ProjectActions actions = ActionsFor(rows[i], engines, settings.mode);  // right action panel buttons
-std::vector<ProjectDetails> slow = InspectProjectDetails(rows, mode, cancel); // in a background job
-```
+| Area | Main API | Contract |
+| --- | --- | --- |
+| Inspection | `InspectProjectRows`, `InspectProjectDetails` | Fast row data is read synchronously; integrity, git, and build details run in a job |
+| Filtering | `VisibleRows`, `ActionsFor` | Apply search, sort, mode, project type, and engine availability |
+| Discovery | `FindProjects` | Find `Project.json` up to `MaxScanDepth`, skipping projects, hidden folders, and build output |
+| Launch | `OpenProject`, `RunProject` | Invoke the project's engine tools; the launcher contains no build logic |
+| Creation | `CheckNewProjectFolder`, `CreateProject` | Validate the destination, create through engine `new`, and remove partial output on failure |
+| Engine change | `PlanEngineUpdate`, `ApplyEngineUpdate` | Plan losses before confirmation; copy beside the old engine and swap only when ready |
+| Cleanup | `CleanProjectBuild`, `RemoveDownloadedEngine` | Remove only the requested build output or cached engine |
 
-| `ProjectRow` | Meaning |
+Opening an engine-copy project checks its engine files, builds the editor, and starts it detached. Modified files produce
+a warning but do not block opening. Running stays attached until the game exits so cancellation can stop the build or
+game. Both pass `ENGINE_LAUNCHER` for the editor's return-to-launcher action.
+
+Stable projects receive a copied engine and never run git. Developer projects initialize an engine submodule and an
+initial project commit. Engine updates are rejected for git-managed engines; repair means applying the same stable
+version again.
+
+## Developer git operations
+
+`Developer/DeveloperGit` is available only in developer mode for git-managed engines:
+
+| API | Contract |
 | --- | --- |
-| `entry` | `root`, `lastOpened` |
-| `info` | `ProjectInfo`: `name`, `kind` (`Copy` / `Git` / `Unregistered` / `Missing`), `manifest`, `problem` |
-| `Version()` | "0.1.2"; empty without an engine |
-| `folderMissing` | folder deleted ("Remove missing") |
-| `update`, `updateMayBreak` | newer stable version for an engine copy and whether it may break (`MayBreak`) |
-| `contractSupported` | `false`: launcher cannot drive this engine, "update the launcher" |
+| `ReadEngineGitStatus` | Report branch, tracking state, changes, ahead/behind, and pointer changes |
+| `UpdateEngineFromRemote` | Require a clean engine, fast-forward it, and commit the new pointer in the project |
+| `PublishEngineChanges` | Commit, rebase, and push the engine; commit but do not push the project pointer |
 
-- `ProjectActions { open, run, showInFolder, updateEngine, repairEngine, replaceEngine, engineGit, remove }`; target
-  version `UpdateTarget` / `RepairTarget` / `ReplaceTarget`.
-- `ProjectDetails { root, integrity, git, error, lastBuild, buildBytes, lastFrame }`: engine copy read-only check
-  (`CopyIntegrity`: modified / missing / added files), git engine state in developer mode (`EngineGitStatus`) and the
-  build folders: their size and the status files engine `Docs/ToolsContract.md` describes, absent with older engines.
-  `CleanProjectBuild(root)` deletes those folders.
-- `RemoveDownloadedEngine(engine)` (`Engines/EngineLibrary.h`), `FolderSize(folder)` (`Platform/FileSystem.h`).
-- `EngineTrialStepNames(root)`: the steps a trial of this project goes through.
-- `ProjectsUsing(rows, version)`: "N projects use this" in the Engines tab.
-- `Git`: "engine managed by git" note; engine buttons disabled in user mode. `Unregistered`: "unknown source" warning +
-  Replace engine.
+## System services
 
-## Open and Run (`Projects/ProjectLaunch.h`)
+- `RunSystemCheck` verifies the bundled tools, MSVC, available engines, and developer-mode git configuration.
+  `InstallMsvc` uses winget and then reruns the check.
+- `IsOnUserPath`, `AddToUserPath`, and `RemoveFromUserPath` manage the user PATH and broadcast `WM_SETTINGCHANGE`.
+- `OpenFolder` opens Explorer; the UI-owned `PickFolder` provides the Windows folder dialog.
+- `InspectAudioTools`, `InstallAudioTools`, and `RemoveAudioTools` manage optional pinned Python wheels under the data
+  folder. `PythonScriptCommand` runs scripts with bundled Python and those packages on `sys.path`. Package layout and
+  pinning are in [Toolchain](Toolchain.md).
 
-```cpp
-Status OpenProject(info, toolchain, LauncherEngineRunner(toolchain, context.CancelFlag()), StartDetached, context);
-Status RunProject(info, LauncherEngineRunner(toolchain, context.CancelFlag()), context);
-```
+## Launcher updates
 
-- Open, `OpenProjectSteps` (3) steps: "Checking engine files" (read-only check for engine copies; changes produce a
-  `warning:` line and opening continues) → "Building editor" (`editor --build-only`) → "Starting editor" (`editor`
-  starts detached). On success, the caller runs `MarkProjectOpened` + saves, and the launcher closes.
-- Run: engine `run` (builds, opens the game, finishes when the game closes); cancellation stops the build or closes the
-  game.
-- Engine commands get `ENGINE_LAUNCHER` (`WindowedLauncherExecutable()`): the editor's "Back to project list" (engine
-  `Docs/ToolsContract.md` → Environment variables).
+`UpdateController` owns the update state machine: check, download, cancel, restart, dismiss, and per-frame progress. The
+core depends on `UpdateBackend`; only the UI adapter links Velopack, and development builds provide no backend.
 
-The launcher implements no build logic; everything lives in the project's `Engine/Tools` (D7).
+`ReleaseSource` combines GitHub release feeds and downloads packages with cancellation and the system proxy. Automatic
+checks stay silent when offline or rate-limited. `CommandActivity` prevents restart while `.com` or a foreground launcher
+job is using the install folder. Settings may disable automatic checks or hide one skipped version until a newer release
+appears.
 
-## Scan, folders, PATH
+## CLI
 
-| API | Job |
-| --- | --- |
-| `FindProjects(folder, cancel)` (`Projects/ProjectScan.h`) | "Scan": folders with `Project.json`, up to `MaxScanDepth` (4) levels; does not enter projects, hidden folders, or build folders |
-| `OpenFolder(path)` (`Platform/Shell.h`) | "Show in folder", "Open install folder" |
-| `LauncherFolder()`, `IsOnUserPath` / `AddToUserPath` / `RemoveFromUserPath` (`System/UserPath.h`) | Settings → PATH (HKCU, `WM_SETTINGCHANGE`) |
-| `PickFolder(title, initial)` (`Apps/Ui/Dialogs/FolderDialog.h`) | Windows folder picker (UI side) |
-
-## New project (`Projects/NewProject.h`)
-
-```cpp
-NewProjectRequest request{name, location, *engines.FindSeries("0.1")};           // user mode: stable engine copy
-NewProjectRequest dev{name, location, DevelopmentEngine{engines.Newest()->manifest.repository, "main"}}; // developer
-Status usable = CheckNewProjectFolder(request);                 // live validation: valid folder name, empty folder
-Result<std::filesystem::path> root = CreateProject(request, LauncherEngineRunner(toolchain, &cancel), onLine);
-if (root.Ok()) { (void)AddProject(settings, root.Value()); SaveLauncherSettings(...); }
-```
-
-- Naming rules belong to the engine (`new --name`, letters/digits/`_`); errors appear in output. Location + name =
-  project folder.
-- Engine copy: a version on this computer (the model downloads it first if needed) → `<folder>/Engine`, then engine `new`. Does not touch git (D14).
-- Developer ("dev (main)", listed only in developer mode): `git init` + submodule (`repository`, branch) + `new` +
-  initial commit "Create <name>".
-- On error, everything created is removed.
-
-## Engine update (`Projects/EngineUpdate.h`)
-
-```cpp
-Result<EngineUpdatePlan> plan = PlanEngineUpdate(info, *engines.UpdateFor(info.manifest->version)); // worker thread
-// Confirmation screen: plan.notes (all intervening versions, newest first; highlight breaking[i].change / .migrate),
-// plan.mayBreak, plan.overwritten (edits to lose), plan.deleted (user files to delete)
-Status applied = ApplyEngineUpdate(plan.Value());                                                    // after confirmation
-```
-
-- Always confirmed (D15). No downgrades; the same version is "repair". Rejected for `Git` type.
-- Application copies beside the old engine, then swaps folders; on error, the old engine remains in place. Windows
-  cannot move the folder while the project's editor / game is open; the error message explains this.
-
-## Developer project git operations (`Developer/DeveloperGit.h`)
-
-Shown only with `LauncherMode::Developer` and `kind == Git`.
-
-| API | Button |
-| --- | --- |
-| `ReadEngineGitStatus(root)` → `EngineGitStatus { branch, trackedBranch, head, changedFiles, ahead, behind, pointerChanged, Detached() }` | row status (change count, detached warning) |
-| `UpdateEngineFromRemote(root, onLine)` | "Update engine": engine must be clean; resolves detached state, fast-forwards, commits "Update Engine" in the project |
-| `PublishEngineChanges(root, message, onLine)` | "Publish engine changes": commit + pull --rebase + push in engine, pointer commit in project (project is not pushed) |
-
-## System check (`System/SystemCheck.h`)
-
-```cpp
-SystemReport report = RunSystemCheck(layout, settings.mode); // ~1 s, worker thread
-for (const CheckItem& item : report.items) // id, title, status (Ok / Warning / Missing), detail, fix
-if (item.fix == CheckFix::InstallMsvc) InstallMsvc(onLine, &cancel); // winget; long; then RunSystemCheck again
-report.ReadyToBuild()                                                 // true if no Missing
-```
-
-Items: `python`, `cmake`, `ninja` (lock-file version), `msvc` (vswhere), `engines`, and in developer mode `git`
-(installed, `user.name` / `user.email`).
-
-## CLI (`Cli/CommandLine.h`)
-
-`<engine>.com` calls `RunCommandLine`; UI has no role. `<engine> launcher version | system-check | projects [--json]`,
-`audio-tools [status | install | remove]`, `python SCRIPT [ARGS]`; everything else goes unchanged to the project's
-engine (D6). Details: [Architecture](Architecture.md#cli).
-
-## Audio tools (`System/AudioTools.h`)
-
-| API | Job |
-| --- | --- |
-| `Toolchain::audio` | the wheels this launcher offers (`Toolchain.json` `audio`; empty: the feature is hidden) |
-| `InspectAudioTools(folder, packages)` | `NotOffered` / `NotInstalled` / `Outdated` (other versions) / `Installed` |
-| `InstallAudioTools(folder, packages, onLine, cancel)` | download (`Platform/Download.h`), SHA-256, `tar.exe`, then replace `folder` whole; a failure keeps the old one |
-| `RemoveAudioTools(folder)` | deletes the folder |
-| `PythonScriptCommand(toolchain, folder, arguments)` | the bundled Python running SCRIPT with its folder and `folder/site` on `sys.path` |
-
-The folder is `LauncherLayout::AudioToolsFolder()` (`<data>/AudioTools`). Toolchain.md has the file layout.
-
-## Launcher update (`Update/`, `System/CommandActivity.h`)
-
-The launcher updates itself through Velopack (engine `Docs/Design/README.md` → D15 "In-app update"). The core does not
-link Velopack: `Apps/Ui/Update/VelopackUpdates` implements `UpdateBackend`, null in a development build.
-
-| API | Job |
-| --- | --- |
-| `UpdateController(backend, commandsRunning)` | The state machine, with its jobs: `Check(userAsked)`, `Download`, `CancelDownload`, `Restart`, `CancelRestart`, `Dismiss`, `Tick` every frame; `Phase()`, `Update()`, `Progress()`, `Error()`, `QuitRequested()` |
-| `ReleaseSource(apiUrl, includePrereleases, scratch)` | Reads GitHub's release list and every release's feed, downloads the packages through `DownloadFile` (cancelable, system proxy); Velopack verifies their SHA-256 |
-| `ReleasesApiUrl`, `IncludesPrereleases`, `ParseReleases`, `MergeFeeds` | Its pure parts; a 0.x launcher reads pre-releases, from 1.0 only stable releases |
-| `ParseUpdateNotes`, `FormatDownloadSize` | What the panel draws |
-| `CommandActivity(folder)`, `CommandsRunning(folder)` | Marks a running command; an update waits until none is left |
-
-An automatic check says nothing unless it finds an update: being offline or over GitHub's limit (60 requests an hour per
-IP) is not an error. `<engine>.com` and the window's foreground jobs hold a `CommandActivity`, because Velopack closes
-everything running from the install folder without asking. The editor runs from the project's `build/` and survives; a
-Build & Refresh running at that moment fails and can be repeated.
-
-`LauncherSettings::checkForUpdates` turns the startup check off, `skippedUpdate` hides one version until a newer one is
-out; a check the user asks for clears it. The repository comes from `LauncherManifest.json` (`LAUNCHER_REPOSITORY`).
-
-## Deliberately excluded in this session
-
-- Installation, shortcuts, Apps registration, in-place updates: done with Velopack ([Packaging](Packaging.md)).
-- Branch / tag / commit selection in developer projects: outside the plan; "dev (main)" starts from the branch's latest
-  commit.
-- `launcher new` CLI operation (project setup for AI / scripts): a thin layer over `CreateProject` if requested.
+`RunCommandLine` handles launcher commands and forwards everything else unchanged to the selected project's engine. The
+command surface and project-resolution rules are in [Architecture](Architecture.md#cli).

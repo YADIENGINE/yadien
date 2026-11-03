@@ -1,95 +1,74 @@
 # Engine versions
 
-The launcher deals with engines in three places (engine `Docs/Design/README.md` D4, D16):
+The launcher uses engines in three distinct ways:
 
-- **The engine it builds against:** the launcher's window uses the engine's `ToolUi`, compiled into the executable. A
-  developer's checkout ([Development](Development.md)); a release uses the tag of the shipped engine. Not delivered to
-  users.
-- **The shipped engine:** `LauncherManifest.json` `engine`, one exact version. `dev.py` imports it from its tag into
-  `<build>/Engines/Engine<version>/`, and the installer carries that folder, so the first project works offline. It is
-  not in the repository. The installer also carries it [compiled](#compiled-engines), so the first project opens fast
-  without internet too.
-- **Every other version** comes from GitHub on demand and stays in the download cache, `<data folder>/Engines/`, which
-  a launcher update keeps.
+- **Build engine:** the checkout whose `ToolUi` is compiled into the launcher. It is selected only for development and
+  is not shipped as that checkout.
+- **Shipped engine:** the exact `LauncherManifest.json` `engine` version included in the installer so the first project
+  works offline.
+- **Downloaded engines:** all other stable versions, fetched on demand and cached in the persistent data folder.
 
-## New stable version
+## Project types and modes
 
-Raise `version` in `EngineManifest.json` and add `ReleaseNotes/<version>.json` (rules in engine `Docs/ToolsContract.md` →
-Manifest), and
-usually `LauncherManifest.json` (`engine`, a new launcher `version` + note), then run `python Scripts/dev.py release`
-([Packaging](Packaging.md#publish)). It commits, pushes and tags the engine, and publishes the tag's record.
+Files determine project type; launcher mode determines which operations are allowed.
 
-Users of any launcher see the new version as soon as its record is published: an engine release needs no launcher
-release. A launcher that does not know the version's `toolsContract` says it needs updating first.
+| Type | Detection | Integrity check | Engine change |
+| --- | --- | --- | --- |
+| `Copy` | `Engine/EngineCopy.json` | Yes | Any published stable version in both modes |
+| `Git` | `Engine/.git` | No | Git operations in developer mode only |
+| `Unregistered` | Neither marker | Warning only | Replace with a stable version |
+| `Missing` | No usable `Engine/` | — | Replace when `Project.json` exists |
 
-Patch flow: fix an older series on a branch from that tag in the engine repo, tag the new patch; `dev.py
-engine-releases` publishes its record. Versions live side by side, so nothing is replaced.
+Build, run, and editor commands work for every type. User mode never runs git. Developer mode is an unprotected Settings
+toggle with a warning; it adds `dev (main)` projects, engine update/publish actions for git projects, and git checks to
+System check. Repository permissions protect publishing.
 
-## Where a version comes from
+## Published versions
 
-A version is a tag's source archive plus a **GitHub release of that tag holding `EngineCopy.json`**: `{"format": 1,
-"source": {"tag", "commit"}, "files": {"<path>": "sha256:<hex>"}}`, made from `git archive <tag>` (which excludes `.git`,
-uncommitted changes and the engine's `.gitattributes` `export-ignore` files, D14). The launcher lists those releases
-(`Engines/EngineCatalog.h`), downloads the archive, extracts it with Windows' `tar.exe` and requires every file to match
-the record, with nothing missing or extra; only then does the folder enter the cache. GitHub keeps archive *contents*
-stable but not their compressed bytes, which is why files are compared and not the archive.
+A stable version is a tag source archive plus a GitHub release asset named `EngineCopy.json`. The record contains the tag,
+commit, and SHA-256 of every exported file. `EngineCatalog` lists only releases with that record; downloads are extracted
+to a temporary location and accepted only when no file is modified, missing, or extra.
 
-`python Scripts/dev.py engine-releases [--dry-run]` publishes the record of every tag without one, and `dev.py release`
-does the same. A tag without a record is not offered. With **immutable releases** on in the repository's settings, a
-published tag and record cannot be changed, which is what makes the record worth checking against.
+The catalog refreshes in the background when update checks are enabled and when an engine list or change is opened.
+Offline or rate-limited launchers continue to offer local versions. `LAUNCHER_ENGINE_API` overrides the catalog address
+for tests.
 
-The list is read in the background at startup (if the update check is on) and when the Engines tab or an engine change
-opens. Without internet, or within GitHub's limit of 60 anonymous requests per hour, only the versions on this computer
-are offered; nothing else stops working.
+To publish a new stable version, update the engine manifest and release note, then follow
+[Packaging → Publish](Packaging.md#publish). Patch releases from older series may be tagged on their own branch;
+`python Scripts/dev.py engine-releases` publishes records missing from existing tags. Published engine releases should
+be immutable.
 
-`LAUNCHER_ENGINE_API` replaces the list's address, for tests.
+## Prebuilt engines
 
-## Compiled engines
+An engine release may also contain `EnginePrebuilt.zip`, built from the same tag. The launcher verifies the asset digest
+and exposes the extracted folder through `ENGINE_PREBUILT`; engine tools decide whether it is compatible. The shipped
+version's prebuilt package is installed with the launcher, while other versions are cached with their engines.
 
-A version's GitHub release also holds `EnginePrebuilt.zip`, the engine compiled from that tag (engine `Docs/Prebuilt.md`),
-so an engine release alone brings the fast start and needs no launcher release. `dev.py release` and `dev.py
-engine-releases` build it for every tag that has the engine's `prebuilt` command and whose release lacks it, on the
-publisher's machine; its MSVC is the oldest one that can link the result.
-
-The launcher downloads it with the engine, and when a project on a listed version opens without one, into
-`<data folder>/EnginePrebuilt/<version>/`, and checks it against the digest GitHub reports for the file. The shipped version's
-is also in `EnginePrebuilt/` beside the executable. Commands for a project on that version get the folder as
-`ENGINE_PREBUILT`; the engine's tools decide whether it fits. A missing package, a failed download or no internet only
-means the project builds the engine from source. Removing a downloaded engine removes its package.
+A missing or failed prebuilt download is not fatal: the project builds the engine from source. Removing a downloaded
+engine also removes its prebuilt package.
 
 ## Changing a project's version
 
-Project → **Update engine** or **Change engine version** (newer or older). Git-managed engines stay out: they follow
-their branch.
+Stable engine changes use this workflow:
 
-1. **Review:** the chosen version, downloaded if needed; notes and breaking changes, files that would be lost.
-2. **Trial** (`Projects/EngineTrial.h`): a temporary copy of the project, in the data folder, without its `Engine/`, build
-   and release folders, gets the new engine. Its clean game build, editor build and tests run through the engine's own
-   tools. **The project is not touched**, so a crash or a closed window has nothing to undo.
-3. **Passed:** `ApplyEngineUpdate` swaps the engine and removes the project's build folders. The first build afterwards
-   compiles from scratch. If the editor or game is open, the swap fails, the project stays as it was and the panel offers
-   to try again without repeating the trial.
-4. **Failed** (exit code 1): the errors and migration steps are shown; **Copy report** gives them to an AI. The project
-   stays where it was. **Change anyway** moves it to fix it there. Without it a project could never cross a breaking
-   version, since a breaking change is exactly what fails the build. It can go back by choosing the old version again.
-5. **Not tested** (any other exit code, such as a missing compiler): says nothing about the project; try again or change
-   anyway.
+1. **Review:** download the target if needed and show release notes, breaking changes, and files that would be lost.
+2. **Trial:** copy the project into the data folder without its engine or build output, install the target engine, and run
+   clean game, editor, and test builds through that engine's tools.
+3. **Apply:** after a passing trial, atomically replace the real engine and remove stale build output. If files are open,
+   the swap fails without changing the project and can be retried without repeating the trial.
+4. **Failure:** leave the real project untouched and show errors and migration steps. The user may copy the report, retry,
+   or explicitly change anyway to perform required migrations in the real project.
 
-Why it is built this way, each from a real trial between 0.2.0 and 0.3.0:
+Non-build failures such as a missing compiler are reported as “not tested,” not as project incompatibility. Selecting an
+older version additionally warns that newer save data may be incompatible. Repair reapplies the current version without
+a trial. Git-managed engines always follow their branch instead of this workflow.
 
-- A build after swapping the engine under an existing build tree reports success in 0 seconds: the copy's files are older
-  than the objects. So the trial builds clean, and a change removes the build folders.
-- Restoring the old engine under a build tree the new one has touched fails. So the trial leaves the real tree alone.
-- The game build and tests pass while the editor build fails (0.3 renamed the default worker target). So the editor is
-  built too.
+## Validation
 
-Going back warns separately: a game's saves written by the newer engine may not load, which no build can detect.
+```powershell
+python Scripts/dev.py engine-test
+```
 
-Repair (the same version over edited files) has nothing to try and swaps at once.
-
-## Test it
-
-`python Scripts/dev.py engine-test` (`Scripts/engine_test.py`, a few minutes; `dev.py release` runs it): a temporary
-folder plays GitHub with real tags, and `Tests/EngineProbe.cpp` runs the launcher's real code. Downloads are checked and a
-wrong record refused; a 0.2.0 project fails at the editor build on 0.3.0 and stays exactly as it was; changing anyway
-moves it and removes its build folder; a 0.3.0 project passes. It touches nothing outside its folder.
+The test uses temporary catalogs and projects to exercise verified downloads, rejected records, passing and failing
+trials, forced changes, and build-folder cleanup. It touches nothing outside its temporary folder and is also run by the
+release workflow.
