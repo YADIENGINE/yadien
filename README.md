@@ -4,11 +4,11 @@
 
 **A bright, agentic game engine for turning playful ideas into games.**
 
-[![Download for Windows](https://img.shields.io/badge/Download_for_Windows-F4A340?style=for-the-badge&logo=windows11&logoColor=111827)](https://github.com/YADIENGINE/yadien/releases)
+[![Download for Windows](https://img.shields.io/badge/Download_for_Windows-F4A340?style=for-the-badge&logo=windows11&logoColor=111827)](https://github.com/YADIENGINE/yadien/releases/latest/download/YADIEN-Setup.exe)
 [![Beta](https://img.shields.io/badge/Beta-8B5CF6?style=for-the-badge)](https://github.com/YADIENGINE/yadien/releases)
 [![MIT licensed](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
 
-**[Download the latest installer](https://github.com/YADIENGINE/yadien/releases)** · Windows desktop
+**[Download the latest installer](https://github.com/YADIENGINE/yadien/releases/latest/download/YADIEN-Setup.exe)** · Windows desktop
 
 </div>
 
@@ -22,7 +22,7 @@ the result in the live editor, looks at it, and fixes what it sees.
 
 ## 🌱 Make your first project
 
-1. Download and run the latest `Setup.exe` from [Releases](https://github.com/YADIENGINE/yadien/releases).
+1. Download and run [`YADIEN-Setup.exe`](https://github.com/YADIENGINE/yadien/releases/latest/download/YADIEN-Setup.exe).
 2. Istall and start a **New project**.
 3. Connect your agent: add one line to your agent file. For Claude, add in `CLAUDE.md`; for others, add to `AGENTS.md`:
 
