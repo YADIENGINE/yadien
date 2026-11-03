@@ -113,7 +113,7 @@ def release_notes(launcher: dict) -> str:
 
 def release_files(releases: Path, product: str, version: str) -> list[Path]:
     """What a GitHub release holds: this version's installer and packages + the update feed; never older packages."""
-    names = [setup_name(product, version), f"{product}-{version}-full.nupkg", *UPDATE_FILES]
+    names = [setup_name(product), f"{product}-{version}-full.nupkg", *UPDATE_FILES]
     missing = [name for name in names if not (releases / name).is_file()]
     if missing:
         raise ReleaseFailed(f"{releases} is missing {', '.join(missing)}")
@@ -310,8 +310,8 @@ def build_installer(repository: Path, worktree: Path, previous_tag: str | None, 
     """Tests and installer from the committed launcher, the shipped engine and these notes; reused while all stay."""
     package_dir = repository / "build" / "Package"
     releases = package_dir / "Releases"
-    setup = releases / setup_name(product, version)
-    stamp = {"version": version, "launcher": git(repository, "rev-parse", "HEAD"),
+    setup = releases / setup_name(product)
+    stamp ={"version": version, "launcher": git(repository, "rev-parse", "HEAD"),
              "engine": git(worktree, "rev-parse", "HEAD"), "notes": notes}
     stamp_path = package_dir / STAMP_FILE
     if setup.is_file() and stamp_path.is_file() and read_json(stamp_path) == stamp:
@@ -355,8 +355,6 @@ def publish(repository: Path, launcher: dict, product: str, setup: Path) -> None
     notes_file = setup.parents[1] / NOTES_FILE
     command = ["gh", "release", "create", tag, *map(str, release_files(setup.parent, product, version)), "--repo", url,
                "--verify-tag", "--draft", "--title", f"{product} {version}", "--notes-file", str(notes_file)]
-    if parse_version(version)[0] == 0:
-        command.append("--prerelease")
     run(command, repository)  # A draft until every file is up, so nobody downloads half a release
     run(["gh", "release", "edit", tag, "--repo", url, "--draft=false"], repository)
     print(f"Published: {url}/releases/tag/{tag}", flush=True)

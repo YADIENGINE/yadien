@@ -118,19 +118,19 @@ class ReleaseFilesTests(TempFolderTests):
             (self.root / name).write_text("x")
 
     def test_older_packages_stay_out(self):
-        self.write_release("P-Setup-1.1.0.exe", "P-1.1.0-full.nupkg", "P-1.1.0-delta.nupkg", "P-1.0.0-full.nupkg",
+        self.write_release("P-Setup.exe", "P-1.1.0-full.nupkg", "P-1.1.0-delta.nupkg", "P-1.0.0-full.nupkg",
                            "P-win-Portable.zip", "releases.win.json", "RELEASES", "assets.win.json")
         names = {path.name for path in release_files(self.root, "P", "1.1.0")}
-        self.assertEqual(names, {"P-Setup-1.1.0.exe", "P-1.1.0-full.nupkg", "P-1.1.0-delta.nupkg", "releases.win.json",
+        self.assertEqual(names, {"P-Setup.exe", "P-1.1.0-full.nupkg", "P-1.1.0-delta.nupkg", "releases.win.json",
                                  "RELEASES", "assets.win.json"})
 
     def test_a_first_release_has_no_delta(self):
-        self.write_release("P-Setup-1.0.0.exe", "P-1.0.0-full.nupkg", "releases.win.json", "RELEASES",
+        self.write_release("P-Setup.exe", "P-1.0.0-full.nupkg", "releases.win.json", "RELEASES",
                            "assets.win.json")
         self.assertEqual(len(release_files(self.root, "P", "1.0.0")), 5)
 
     def test_a_missing_file_stops(self):
-        self.write_release("P-Setup-1.0.0.exe")
+        self.write_release("P-Setup.exe")
         with self.assertRaises(ReleaseFailed):
             release_files(self.root, "P", "1.0.0")
 

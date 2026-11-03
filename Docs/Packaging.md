@@ -1,6 +1,6 @@
 # Packaging and releases
 
-The launcher ships as one installer, `<Name>-Setup-<version>.exe`, built with [Velopack](https://velopack.io)
+The launcher ships as one installer, `<Name>-Setup.exe`, built with [Velopack](https://velopack.io)
 (engine `Docs/Design/README.md` D15). Releases are made by hand for now; CI/CD and code signing are deferred (D19).
 
 ## Requirements
@@ -108,8 +108,9 @@ GitHub release get released; the rest is left alone. If a run stops, fix the cau
    release's full package is gone from `build/Package/Releases/`, `vpk download github` brings it back for the delta.
 5. **Your try.** The script prints the installer's path and asks before publishing (see Try it). Answering no keeps
    the local commits; the next run reuses the installer while the commits and the notes are the same.
-6. **Publish.** Push, annotated tag, then a GitHub release: a draft until every file is up, pre-release for 0.x. It holds
-   this version's installer and packages and the update feed (`releases.win.json`, `RELEASES`, `assets.win.json`).
+6. **Publish.** Push, annotated tag, then a GitHub release: a draft until every file is up, then the latest release, so the
+   README's `releases/latest/download/<Name>-Setup.exe` link gets the new installer (GitHub's "latest" skips pre-releases).
+   It holds this version's installer and packages and the update feed (`releases.win.json`, `RELEASES`, `assets.win.json`).
    Once it is out, `build/ReleaseBuild/`, the `build/ReleaseEngine/` worktree and `build/Package/Stage/` are removed; a
    failure there only warns. `build/Package/Releases/` stays for the next delta. A run that stops earlier keeps them all.
 7. **Project.** When the launcher is a submodule of a project, the released `Engine` / `Launcher` pointers are committed

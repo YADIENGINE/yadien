@@ -103,7 +103,7 @@ class PackageTests(unittest.TestCase):
         self.write("Brand/Splash.png")
         setup = pack(self.root / "Stage", self.root / "Releases", self.root / "Brand", "MyEngine", "myengine", "1.2.3",
                      runner, vpk="vpk")
-        self.assertEqual(setup.name, setup_name("MyEngine", "1.2.3"))
+        self.assertEqual(setup.name, setup_name("MyEngine"))
         self.assertTrue(setup.is_file())
         command = calls[0]
         self.assertEqual(command[command.index("--packVersion") + 1], "1.2.3")

@@ -9,7 +9,7 @@ Steps: stage the files the launcher ships, write their license notices, run Velo
         Tools/                 ToolCache's tools without the lock's "exclude" entries, + Toolchain.json
         ThirdPartyNotices.txt  Part 1: the engine (its own license + the components games get), Part 2: the launcher
                                and its tools (Packaging/Notices.json)
-    build/Package/Releases/    vpk's output: <Name>-Setup-<version>.exe and the update files (nupkg, releases.win.json)
+    build/Package/Releases/    vpk's output: <Name>-Setup.exe and the update files (nupkg, releases.win.json)
 
 The installer's icon and splash are the build's (build/Brand/, drawn by Scripts/brand.py at configure time).
 
@@ -116,8 +116,9 @@ def stage(build: Path, stage_dir: Path, executable: str, engines: Path, cache: P
     shutil.copy2(cache / "Toolchain.json", stage_dir / "Tools" / "Toolchain.json")
 
 
-def setup_name(product: str, version: str) -> str:
-    return f"{product}-Setup-{version}.exe"
+def setup_name(product: str) -> str:
+    """No version: the README's download link (releases/latest/download/<this>) stays the same for every release."""
+    return f"{product}-Setup.exe"
 
 
 def pack(stage_dir: Path, releases: Path, brand: Path, product: str, executable: str, version: str,
@@ -144,7 +145,7 @@ def pack(stage_dir: Path, releases: Path, brand: Path, product: str, executable:
     print(f"> {subprocess.list2cmdline(command)}", flush=True)
     if runner(command).returncode != 0:
         raise PackageFailed("vpk pack failed")
-    setup = releases / setup_name(product, version)
+    setup = releases / setup_name(product)
     (releases / f"{product}-win-Setup.exe").replace(setup)
     return setup
 

@@ -25,7 +25,7 @@ struct PublishedRelease {
 
 // "https://github.com/owner/repo" → its releases API URL; empty when `repository` is not a github.com repository.
 [[nodiscard]] std::string ReleasesApiUrl(std::string_view repository);
-// Before 1.0 every release is a pre-release (Docs/Packaging.md), so a 0.x launcher reads them; from 1.0 only stable.
+// A 0.x launcher also reads pre-releases (older releases and engine releases are marked so); from 1.0 only stable.
 [[nodiscard]] bool IncludesPrereleases(const EngineVersion& running);
 // The API's answer, newest first, without drafts and (unless asked) pre-releases.
 [[nodiscard]] Result<std::vector<PublishedRelease>> ParseReleases(const std::string& json, bool includePrereleases);

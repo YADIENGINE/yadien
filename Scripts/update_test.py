@@ -140,6 +140,7 @@ def build_packages(output: Path, build: Path, brand: Path, product: str, executa
     pack_id = product + PACK_ID_SUFFIX
     no_shortcuts = ["--shortcuts", ""]  # The test must not touch the desktop or the Start menu
     setup = pack(stage_dir, releases, brand, pack_id, executable, first, runner, extra=no_shortcuts)
+    setup = setup.replace(output / setup.name)  # Every version's installer has the same name; the next would replace it
     (stage_dir / MARKER_FILE).write_text(second, encoding="utf-8")
     notes = output / "Notes.md"
     notes.write_text(SAMPLE_NOTES.format(version=second), encoding="utf-8", newline="\n")
