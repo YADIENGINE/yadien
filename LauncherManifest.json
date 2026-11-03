@@ -1,37 +1,13 @@
 {
-  "version": "0.4.0",
+  "version": "0.6.0",
   "repository": "https://github.com/YADIENGINE/yadien",
-  "engine": "0.5.0",
+  "engine": "0.6.0",
   "engineRepository": "https://github.com/YADIENGINE/engine",
   "notes": [
     {
-      "version": "0.4.0",
-      "date": "2026-11-02",
-      "changes": [
-        "New projects open in seconds: the engine comes compiled, downloaded with each engine version",
-        "Carries engine 0.5.0"
-      ]
-    },
-    {
-      "version": "0.3.0",
-      "date": "2026-11-02",
-      "changes": [
-        "Downloads engines on demand and tests a change in a project copy",
-        "In-app updates",
-        "Reworked Engines tab",
-        "New look",
-        "Carries engine 0.4.0"
-      ]
-    },
-    {
-      "version": "0.2.0",
-      "date": "2026-11-01",
-      "changes": ["Carries engine 0.3.0; engine 0.2 is no longer included"]
-    },
-    {
-      "version": "0.1.0",
-      "date": "2026-11-01",
-      "changes": ["First early preview"]
+      "version": "0.6.0",
+      "date": "2026-11-03",
+      "changes": ["Beta release!"]
     }
   ]
 }
