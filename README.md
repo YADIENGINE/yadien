@@ -18,6 +18,8 @@ the result in the live editor, looks at it, and fixes what it sees.
 > The engine is in early `0.x` preview. Releases are not code-signed yet, so Windows SmartScreen may ask you to choose
 > **More info → Run anyway** during installation.
 
+![YADIEN launcher preview](Docs/Preview.png)
+
 ## 🌱 Make your first project
 
 1. Download and run the latest `Setup.exe` from [Releases](https://github.com/YADIENGINE/yadien/releases).
