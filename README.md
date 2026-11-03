@@ -5,7 +5,7 @@
 **A bright, agentic game engine for turning playful ideas into games.**
 
 [![Download for Windows](https://img.shields.io/badge/Download_for_Windows-F4A340?style=for-the-badge&logo=windows11&logoColor=111827)](https://github.com/YADIENGINE/yadien/releases)
-[![Early preview](https://img.shields.io/badge/Early_Preview-8B5CF6?style=for-the-badge)](https://github.com/YADIENGINE/yadien/releases)
+[![Beta](https://img.shields.io/badge/Beta-8B5CF6?style=for-the-badge)](https://github.com/YADIENGINE/yadien/releases)
 [![MIT licensed](https://img.shields.io/badge/License-MIT-22C55E?style=for-the-badge)](LICENSE)
 
 **[Download the latest installer](https://github.com/YADIENGINE/yadien/releases)** · Windows desktop
@@ -15,7 +15,7 @@
 The engine is built to be driven by your own AI agent. Claude Code, Codex, or any other CLI agent writes the game code, opens
 the result in the live editor, looks at it, and fixes what it sees.
 
-> The engine is in early `0.x` preview. Releases are not code-signed yet, so Windows SmartScreen may ask you to choose
+> The engine is in `0.x` beta. Releases are not code-signed yet, so Windows SmartScreen may ask you to choose
 > **More info → Run anyway** during installation.
 
 ![YADIEN launcher preview](Docs/Preview.png)
