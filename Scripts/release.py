@@ -30,12 +30,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from engine_location import MANIFEST_FILE, REPOSITORY  # noqa: E402
-from import_engine import (COPY_FILE, NOTES_FOLDER, ImportFailed, archive_files, engine_copy, parse_version,  # noqa: E402
-                           read_manifest)
+from import_engine import COPY_FILE, NOTES_FOLDER, ImportFailed, engine_copy, parse_version  # noqa: E402
 from package import LAUNCHER_MANIFEST, PREBUILT_ASSET, PackageFailed, setup_name  # noqa: E402
 
 BRANCH = "main"
-ENGINES_FOLDER = "Engines"
 RELEASE_ENGINE = "ReleaseEngine"  # build/<this>/: worktree of the engine commit the release is built against
 RELEASE_BUILD = "ReleaseBuild"  # build/<this>/: its own build tree, so development builds keep theirs
 RELEASE_PACKAGE = "ReleasePackage"  # build/<this>/: worktree of the tag a compiled engine is made from; removed after
@@ -43,7 +41,6 @@ PREBUILT_COMMAND = "Tools/commands/prebuilt.py"  # An engine tag that can compil
 STAGE_FOLDER = "Stage"  # build/Package/<this>/: what the package step installs into current/
 STAMP_FILE = "Release.json"  # build/Package/<this>: what the installer in Releases/ was built from
 NOTES_FILE = "ReleaseNotes.md"  # build/Package/<this>: the notes of the package and of the GitHub release
-PREVIEW_NOTE = "Early preview. For testing. Windows only, unsigned (SmartScreen asks to confirm); 0.x versions may break."
 UPDATE_FILES = ("releases.win.json", "RELEASES", "assets.win.json")
 
 
@@ -109,47 +106,9 @@ def manifest_problems(data: dict) -> list[str]:
     return problems
 
 
-def carried_at_tag(repository: Path, tag: str) -> list[str]:
-    """The engine versions a published launcher shipped: its manifest's, or, before it had one, its Engines/ folder's."""
-    path = f"{tag}:{LAUNCHER_MANIFEST}"
-    if git_succeeds(repository, "cat-file", "-e", path):
-        data = json.loads(git(repository, "show", path))
-        if "engine" in data:
-            return [data["engine"]]
-        return data.get("engines", [])
-    versions = []
-    for name in git(repository, "ls-tree", "--name-only", f"{tag}:{ENGINES_FOLDER}").splitlines():
-        path = f"{tag}:{ENGINES_FOLDER}/{name}/{MANIFEST_FILE}"
-        if git_succeeds(repository, "cat-file", "-e", path):
-            versions.append(json.loads(git(repository, "show", path))["version"])
-    return versions
-
-
-def new_engine_notes(engine_manifest: dict, previous: list[str]) -> list[dict]:
-    """The notes users of the previous launcher have not seen: newer than the newest engine it carried below this
-    version. Nothing when it carried this version; only the newest note when it carried nothing older."""
-    current = parse_version(engine_manifest["version"])
-    carried = [parse_version(version) for version in previous]
-    if current in carried:
-        return []
-    older = [version for version in carried if version < current]
-    if not older:
-        return engine_manifest["notes"][:1]
-    return [note for note in engine_manifest["notes"] if parse_version(note["version"]) > max(older)]
-
-
-def release_notes(launcher: dict, engine_manifest_data: dict, previous: list[str]) -> str:
-    version = launcher["version"]
-    lines = []
-    if parse_version(version)[0] == 0:
-        lines += [PREVIEW_NOTE, ""]
-    lines += [f"Launcher {version}, contains engine {launcher['engine']}.", ""]
-    lines += [f"- {change}" for change in launcher["notes"][0]["changes"]]
-    for note in new_engine_notes(engine_manifest_data, previous):
-        lines += ["", f"Engine {note['version']}:", ""]
-        lines += [f"- Breaking: {item['change']} Migrate: {item['migrate']}" for item in note.get("breaking", [])]
-        lines += [f"- {change}" for change in note["changes"]]
-    return "\n".join(lines) + "\n"
+def release_notes(launcher: dict) -> str:
+    """Exactly the changes written in the manifest's newest note; nothing is added to them."""
+    return "\n".join(f"- {change}" for change in launcher["notes"][0]["changes"]) + "\n"
 
 
 def release_files(releases: Path, product: str, version: str) -> list[Path]:
@@ -555,17 +514,10 @@ def release(engine: Path, repository: Path = REPOSITORY, dry_run: bool = False) 
     publish_engine_releases(engine)
     if plan.launcher:
         previous_tag = latest_release_tag(repository)
-        previous = carried_at_tag(repository, previous_tag) if previous_tag else []
         commit_launcher(repository, launcher)
         worktree = repository / "build" / RELEASE_ENGINE
         prepare_worktree(engine, worktree, git(engine, "rev-parse", f"v{launcher['engine']}^{{commit}}"))
-        shipped_tag = f"v{launcher['engine']}"
-        try:
-            shipped = read_manifest(archive_files(engine, shipped_tag), shipped_tag)
-        except ImportFailed as error:
-            raise ReleaseFailed(str(error)) from error
-        notes = release_notes(launcher, shipped, previous)
-        setup = build_installer(repository, worktree, previous_tag, product, plan.launcher, notes)
+        setup = build_installer(repository, worktree, previous_tag, product, plan.launcher, release_notes(launcher))
         if not confirmed(setup):
             print("Not published. The commits stay local; run the same command to continue.")
             return 0

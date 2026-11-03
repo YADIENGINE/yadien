@@ -11,10 +11,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from Scripts.import_engine import import_engine
-from Scripts.release import (LAUNCHER_MANIFEST, REPOSITORY, ReleaseFailed, carried_at_tag, check_clean, commit_launcher,
+from Scripts.release import (LAUNCHER_MANIFEST, REPOSITORY, ReleaseFailed, check_clean, commit_launcher,
                              commit_project_pointers, engine_release_body, engine_release_tags, make_plan,
-                             manifest_problems, new_engine_notes, prepare_worktree, release_engine, release_files,
-                             release_notes, remove_release_trees, unpackaged_engine_tags)
+                             manifest_problems, prepare_worktree, release_engine, release_files, release_notes,
+                             remove_release_trees, unpackaged_engine_tags)
 from Scripts.release import capture as real_capture
 
 GIT_ENV = {"GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "Test",
@@ -74,30 +74,11 @@ class RulesTests(unittest.TestCase):
 
 
 class NotesTests(unittest.TestCase):
-    def test_a_new_patch_lists_only_notes_after_what_was_carried(self):
-        notes = new_engine_notes(engine_manifest("0.4.0", "0.3.1", "0.3.0"), ["0.3.0"])
-        self.assertEqual([item["version"] for item in notes], ["0.4.0", "0.3.1"])
-
-    def test_an_engine_carried_before_adds_no_notes(self):
-        self.assertEqual(new_engine_notes(engine_manifest("0.3.0"), ["0.3.0"]), [])
-
-    def test_a_first_release_lists_only_the_newest_note(self):
-        notes = new_engine_notes(engine_manifest("0.3.0", "0.2.0"), [])
-        self.assertEqual([item["version"] for item in notes], ["0.3.0"])
-
-    def test_notes_hold_launcher_changes_engines_and_breaking_changes(self):
-        manifest = engine_manifest("0.3.1", "0.3.0")
-        manifest["notes"][0]["breaking"] = [{"change": "Renamed A.", "migrate": "Use B."}]
-        text = release_notes(launcher("0.5.0"), manifest, ["0.3.0"])
-        self.assertIn("Early preview", text)
-        self.assertIn("contains engine 0.3.1", text)
-        self.assertIn("- launcher change", text)
-        self.assertIn("- engine change 0.3.1", text)
-        self.assertIn("- Breaking: Renamed A. Migrate: Use B.", text)
-        self.assertNotIn("engine change 0.3.0", text)
-
-    def test_a_stable_version_has_no_preview_line(self):
-        self.assertNotIn("Early preview", release_notes(launcher("1.0.0"), engine_manifest("0.3.1"), ["0.3.1"]))
+    def test_notes_are_only_the_changes_of_the_newest_note(self):
+        data = launcher("1.1.0")
+        data["notes"][0]["changes"] = ["First", "Second"]
+        data["notes"].append(note("1.0.0", "older change"))
+        self.assertEqual(release_notes(data), "- First\n- Second\n")
 
 
 class TempFolderTests(unittest.TestCase):
@@ -197,25 +178,6 @@ class GitTests(TempFolderTests):
         with self.assertRaisesRegex(ReleaseFailed, "Other.txt"):
             check_clean(engine, "The engine", ("EngineManifest.json",))
         check_clean(engine, "The engine", ("EngineManifest.json", "Other.txt"))
-
-    def test_carried_engines_are_read_from_the_tag(self):
-        repository = self.repository("launcher")
-        copy = repository / "Engines" / "Engine0.3"
-        copy.mkdir(parents=True)
-        (copy / "EngineManifest.json").write_text('{"version": "0.3.1"}\n', newline="\n")
-        git(repository, "add", "-A")
-        git(repository, "commit", "-m", "copy")
-        git(repository, "tag", "v1.0.0")
-        (copy / "EngineManifest.json").write_text('{"version": "0.3.2"}\n', newline="\n")
-        self.assertEqual(carried_at_tag(repository, "v1.0.0"), ["0.3.1"])
-
-    def test_a_shipped_engine_is_read_from_the_tags_manifest(self):
-        repository = self.repository("launcher")
-        (repository / LAUNCHER_MANIFEST).write_text('{"engine": "0.4.0"}\n', newline="\n")
-        git(repository, "add", "-A")
-        git(repository, "commit", "-m", "manifest")
-        git(repository, "tag", "v1.0.0")
-        self.assertEqual(carried_at_tag(repository, "v1.0.0"), ["0.4.0"])
 
     def test_project_pointers_commit_leaves_other_work_alone(self):
         project = self.repository("project")

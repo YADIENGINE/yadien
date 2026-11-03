@@ -117,9 +117,10 @@ GitHub release get released; the rest is left alone. If a run stops, fix the cau
 
 An engine-only release stops after step 2 and goes on to step 7.
 
-**Release notes** are generated into `build/Package/ReleaseNotes.md`: a preview line for 0.x, the launcher's newest note,
-the engine it ships, and the engine notes since the previous launcher release (breaking changes first). The same file
-goes to `vpk pack --releaseNotes` and to the GitHub release, so the notes also travel in the package and in
+**Release notes** are written by hand: the `changes` of the newest note in `LauncherManifest.json`, one `- ` item each in
+`build/Package/ReleaseNotes.md`, with nothing added. An engine change that launcher users should read goes there too; the
+engine's own notes stay in its `ReleaseNotes/` and reach users through the Engines tab and the engine change panel. The
+same file goes to `vpk pack --releaseNotes` and to the GitHub release, so the notes also travel in the package and in
 `releases.win.json`, where in-app update notes read them.
 
 Releases are unsigned until signing is set up (D19), so Windows SmartScreen asks users to confirm.
