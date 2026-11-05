@@ -1,9 +1,18 @@
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "repository": "https://github.com/YADIENGINE/yadien",
-  "engine": "0.7.0",
+  "engine": "0.8.0",
   "engineRepository": "https://github.com/YADIENGINE/engine",
+  "toolsContracts": [1, 2],
   "notes": [
+    {
+      "version": "0.8.0",
+      "date": "2026-11-05",
+      "changes": [
+        "Ships engine 0.8.0.",
+        "New engine versions no longer need a launcher update: the New Project list offers the newest one online."
+      ]
+    },
     {
       "version": "0.7.0",
       "date": "2026-11-05",
