@@ -1,10 +1,19 @@
 {
-  "version": "0.8.0",
+  "version": "0.8.1",
   "repository": "https://github.com/YADIENGINE/yadien",
   "engine": "0.8.0",
   "engineRepository": "https://github.com/YADIENGINE/engine",
   "toolsContracts": [1, 2],
   "notes": [
+    {
+      "version": "0.8.1",
+      "date": "2026-11-05",
+      "changes": [
+        "Update checks no longer fail on shared networks: the launcher reads its updates from release downloads instead of the rate-limited GitHub API.",
+        "A failed check shows what went wrong.",
+        "A new version opens the update panel once at startup."
+      ]
+    },
     {
       "version": "0.8.0",
       "date": "2026-11-05",
