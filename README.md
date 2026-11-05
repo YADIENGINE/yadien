@@ -23,7 +23,7 @@ the result in the live editor, looks at it, and fixes what it sees.
 ## 🌱 Make your first project
 
 1. Download and run [`YADIEN-Setup.exe`](https://github.com/YADIENGINE/yadien/releases/latest/download/YADIEN-Setup.exe).
-2. Istall and start a **New project**.
+2. Install and start a **New project**.
 3. Connect your agent: add one line to your agent file. For Claude, add in `CLAUDE.md`; for others, add to `AGENTS.md`:
 
    ```text
@@ -43,9 +43,10 @@ for a change; the agent does the rest!
 | 👀 **Agents see the result** | Agents can see the editor screen when they need to. |
 | 📍 **You point, it reads** | Mark a region in the editor and agent can check it. No more "look at this!" explanations. |
 | 🔊 **Agents analyse sounds** | Agents can analyse sounds using engine. |
-| 🔊 **Agents can generate sounds** | Agents can generate sound effects using engine. |
+| 🎵 **Agents can generate sounds** | Agents can generate sound effects using engine. |
 | 📝 **Everything can be text** | Graphics can be drawn in code, sounds can be generated with Python, and tuning lives in JSON, so an agent can author content without external tools or ready-made assets. |
 | 📟 **Feedback is machine-readable** | Failed builds list `file:line` errors, tests write `results.json`, and `ctl` answers in JSON with fixed exit codes. |
+| 🔁 **Agents replay and test** | Gameplay can run in fixed steps without a window, so an agent can replay a run, check it by hash, and test scenarios. |
 | 🎛️ **You stay in control** | Several Console sessions with live agent state, progress notes, and an Agent control switch that makes the editor read-only to agents. |
 
 You are the brain, agents are the muscles!
@@ -54,25 +55,29 @@ You are the brain, agents are the muscles!
 
 | | |
 | --- | --- |
-| 🤖 **Agentic** | You design the game, YADIEN gives your agents power to make it easily. |
-| 🔓 **Open Source** | YADIEN is open sourced, the license is MIT, its completely free. |
-| 🚀 **Lightweight** | YADIEN is around 30 MB, all the tools combined is around 150. |
-| **Premade Modules** | YADIEN comes with premade modules that you agents can use to develop games more easily. And we are still adding new modules! |
+| 🤖 **Agentic** | You design the game, and your agents build it. |
+| 🔓 **Open Source** | MIT licensed and completely free. |
+| 📦 **Premade Modules** | Saves, localization, scoreboards, and more, with new modules on the way. |
+| 🎨 **No art needed to start** | Draw graphics in code and generate sounds with Python. |
+| 🛡️ **Safe upgrades** | Try a new engine version on a copy of your project before you commit to it. |
+| 🚢 **Ready to ship** | Package a Windows build of your game, and only the sounds it uses go in. |
+| 💻 **Plain C++** | Your game is ordinary C++ code, so your tools and your agents already know it. |
 
 
 ## 🧩 What comes in the box
 
 **In the engine:**
 
-- **Rendering:** `Painter` shapes and paths, offscreen surfaces, bloom and quality settings, Unicode text and layout.
-- **UI:** themes, widgets, backdrops, menu and grid navigation.
-- **Effects:** particles, trails, camera shots and shake, transitions, shockwaves, overlays, hitstop, and slow motion.
-- **Runtime:** scene lifecycle, input, audio, options and saves, live tuning files.
-- **Gameplay helpers:** stat modifiers, timed effects, tiered goals, and weighted picks.
-- **Editor:** a separate-process editor that shows production drawing in live, controllable scenes, with Console,
-  Assets, and Audio Preview panels.
-- **Toolchain:** project-aware commands to create, build, test, edit, and package a game, with generated third-party
-  notices.
+- **Rendering:** Draw shapes, paths, and Unicode text in code, with bloom when you want it.
+- **UI:** Build menus and HUDs from ready-made widgets that play their own sounds.
+- **Collision:** Check what hits what, without setting up a physics world.
+- **Animation:** Make things pop in, glide, and recoil, or play a whole sequence on cue.
+- **Camera:** Follow the player, stay inside the level, or split the screen.
+- **Effects:** Add particles, screen shake, transitions, hitstop, and slow motion.
+- **Runtime:** Scenes, input, audio, and saves are ready to use.
+- **Gameplay helpers:** Drop in stat modifiers, timed effects, tiered goals, and weighted picks.
+- **Editor:** Drag a value in the Inspector and watch it change in the live scene.
+- **Toolchain:** Create, build, test, and package a game from one command line tool.
 
 **Optional modules**, linked only when your game asks for them
 ([all modules](https://github.com/YADIENGINE/engine/blob/main/Docs/Modules/README.md)):
@@ -98,7 +103,12 @@ You are the brain, agents are the muscles!
 - [Using an AI agent](https://github.com/YADIENGINE/engine/blob/main/Docs/ProjectSetup.md#using-an-ai-agent) — connect your agent to a project.
 - [Editor automation](https://github.com/YADIENGINE/engine/blob/main/Docs/Editor/Automation.md) — every command an agent can use to drive the editor.
 - [Editor guide](https://github.com/YADIENGINE/engine/blob/main/Docs/Editor/README.md) — connect live editor scenes and tune your game visually.
-- [Graphics guide](https://github.com/YADIENGINE/engine/blob/main/Docs/Graphics/README.md) — rendering, text, themes, effects, and animation.
+- [Graphics guide](https://github.com/YADIENGINE/engine/blob/main/Docs/Graphics/README.md) — rendering, text, themes, and effects.
+- [UI](https://github.com/YADIENGINE/engine/blob/main/Docs/Ui.md) — menus, dialogs, panels, and HUD.
+- [Collision](https://github.com/YADIENGINE/engine/blob/main/Docs/Collision.md) — shapes, queries, and the collision world.
+- [Animation](https://github.com/YADIENGINE/engine/blob/main/Docs/Animation.md) — curves, timelines, tweens, and clips.
+- [Camera](https://github.com/YADIENGINE/engine/blob/main/Docs/Camera.md) — follow, limits, and split screen.
+- [Simulation](https://github.com/YADIENGINE/engine/blob/main/Docs/Simulation.md) — fixed steps, replays, and scenario tests.
 - [Tuning values](https://github.com/YADIENGINE/engine/blob/main/Docs/Tuning.md) — adjust game feel without rebuilding.
 - [Packaging a release](https://github.com/YADIENGINE/engine/blob/main/Docs/Release.md) — prepare a Windows build and its notices.
 
