@@ -19,6 +19,9 @@
 // list).
 [[nodiscard]] std::string EngineCatalogSource(std::string_view repository);
 
+// Engine releases before 1.0 are GitHub pre-releases: a 0.x engine lists them, from 1.0 only stable ones.
+[[nodiscard]] bool IncludesPrereleases(const EngineVersion& newest);
+
 // The API's answer, newest version first; releases that are not a version tag or have no record are left out.
 [[nodiscard]] Result<std::vector<OnlineEngine>> ParseEngineCatalog(const std::string& json, bool includePrereleases);
 

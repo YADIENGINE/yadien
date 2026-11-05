@@ -14,7 +14,6 @@
 #include "Projects/ProjectScan.h"
 #include "Settings/ProjectList.h"
 #include "System/UserPath.h"
-#include "Update/ReleaseSource.h"
 
 namespace {
 constexpr const char* DevelopmentBranch = "main";
@@ -82,6 +81,7 @@ void LauncherModel::Tick() {
         _updateNotesVersion = update->version;
         _updateNotes = ParseUpdateNotes(update->notes);
     }
+    AnnounceUpdate();
     if (_visibleFilter != _filter) {
         _visibleFilter = _filter;
         _visible = ::VisibleRows(_rows, _filter, _settings.projectSort);
@@ -96,6 +96,19 @@ void LauncherModel::KeepSelectionVisible() {
 }
 
 void LauncherModel::Queue(std::function<void()> action) { _requests.push_back(std::move(action)); }
+
+// A found update opens its panel once per start, as soon as nothing else is open: the top bar's button alone is easy to
+// miss. Later closes it until the next start; Skip this version keeps it closed.
+void LauncherModel::AnnounceUpdate() {
+    const std::optional<AvailableUpdate>& update = _updates.Update();
+    if (!update || update->version == _announcedUpdate || !UpdateOffered()) return;
+    const UpdatePhase phase = _updates.Phase();
+    if (phase != UpdatePhase::Available && phase != UpdatePhase::Ready) return;
+    if (_panel == LauncherPanel::Update) _announcedUpdate = update->version; // Already in front of the user
+    if (_job || _panel != LauncherPanel::None) return;
+    _announcedUpdate = update->version;
+    _panel = LauncherPanel::Update;
+}
 
 // --- Navigation ---
 

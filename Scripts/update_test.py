@@ -5,7 +5,8 @@ Usage, from the launcher repository:
 
 Packs this build twice under a separate id, so the machine's real installation, shortcuts and settings stay out of it,
 installs the first version under <build>/UpdateTest/ and updates it to the second through the launcher's real update
-backend (Tests/UpdateProbe.cpp), its release list served from local files through LAUNCHER_UPDATE_API. Then it checks
+backend (Tests/UpdateProbe.cpp), its release files served from a local folder laid out like GitHub's download
+addresses through LAUNCHER_UPDATE_RELEASES. Then it checks
 what users rely on: the new version is in place, a delta was used, notes arrived, data survived. Uninstalling removes
 everything again. `--keep` stops after the first install and prints how to open that launcher, to see the panel.
 """
@@ -25,7 +26,7 @@ from engine_location import REPOSITORY  # noqa: E402
 from package import launcher_version, pack, setup_name, stage  # noqa: E402
 
 PROBE = "LauncherUpdateProbe.exe"
-API_VARIABLE = "LAUNCHER_UPDATE_API"  # Apps/Ui/Update/VelopackUpdates.cpp
+SOURCE_VARIABLE = "LAUNCHER_UPDATE_RELEASES"  # Apps/Ui/Update/VelopackUpdates.cpp
 PACK_ID_SUFFIX = "UpdateTest"
 VERSION_FILE = "sq.version"  # Velopack's manifest in current/
 MARKER_FILE = "UpdateTestMarker.txt"  # Only in the second version's package
@@ -62,11 +63,19 @@ def file_url(path: Path) -> str:
     return "file:///" + path.resolve().as_posix()
 
 
-def fake_release_list(releases: Path, feed: str = FEED_FILE) -> str:
-    """A GitHub releases answer with one pre-release holding the folder's update files."""
-    names = [feed, *sorted(path.name for path in releases.glob("*.nupkg"))]
-    assets = [{"name": name, "browser_download_url": file_url(releases / name)} for name in names]
-    return json.dumps([{"draft": False, "prerelease": True, "published_at": "2026-01-01T00:00:00Z", "assets": assets}])
+def fake_releases(releases: Path, server: Path, feed: str = FEED_FILE) -> Path:
+    """GitHub's download addresses as folders: the latest feed, and every package the feed names in its version's
+    release (Core/Update/ReleaseSource.h)."""
+    latest = server / "latest" / "download"
+    latest.mkdir(parents=True)
+    shutil.copy2(releases / feed, latest / feed)
+    for asset in json.loads((releases / feed).read_text(encoding="utf-8"))["Assets"]:
+        package = releases / asset["FileName"]
+        if package.is_file():
+            folder = server / "download" / f"v{asset['Version']}"
+            folder.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(package, folder / package.name)
+    return server
 
 
 def installed_version(current: Path) -> str | None:
@@ -89,12 +98,12 @@ def user_path() -> str:
         return winreg.QueryValueEx(key, "Path")[0]
 
 
-def probe(install: Path, mode: str, api: str | None) -> subprocess.CompletedProcess:
-    env = {name: value for name, value in os.environ.items() if name != API_VARIABLE}
-    if api is not None:
-        env[API_VARIABLE] = api
+def probe(install: Path, mode: str, source: str | None) -> subprocess.CompletedProcess:
+    env = {name: value for name, value in os.environ.items() if name != SOURCE_VARIABLE}
+    if source is not None:
+        env[SOURCE_VARIABLE] = source
     command = [str(install / "current" / PROBE), mode]
-    print(f"> {API_VARIABLE}={api} {subprocess.list2cmdline(command)}", flush=True)
+    print(f"> {SOURCE_VARIABLE}={source} {subprocess.list2cmdline(command)}", flush=True)
     result = subprocess.run(command, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     print(result.stdout, end="", flush=True)
     return result
@@ -163,8 +172,7 @@ def run_update_test(engine: Path, tree: Path, keep: bool) -> int:
     output.mkdir(parents=True)
     try:
         setup, releases = build_packages(output, tree / "Release", tree / "Brand", product, executable, first, second)
-        api = output / "api.json"
-        api.write_text(fake_release_list(releases), encoding="utf-8")
+        server = fake_releases(releases, output / "Server")
 
         print(f"> installing {setup.name} into {install}", flush=True)
         if subprocess.run([str(setup), "--silent", "--installto", str(install)]).returncode != 0:
@@ -177,30 +185,31 @@ def run_update_test(engine: Path, tree: Path, keep: bool) -> int:
         if keep:
             launcher = current / f"{executable}.exe"
             print("\nKept. Open the launcher and go through the update yourself:")
-            print(f'  $env:{API_VARIABLE} = "{file_url(api)}"; & "{launcher}"')
+            print(f'  $env:{SOURCE_VARIABLE} = "{file_url(server)}"; & "{launcher}"')
             print(f"Remove it with: {install / 'Update.exe'} --silent --uninstall")
             return 0
 
-        live = probe(install, "check", None)  # The real GitHub API: informative, the network may be down
+        live = probe(install, "check", None)  # The real GitHub releases: informative, the network may be down
         print(f"  live check against GitHub: {live.stdout.strip() or live.stderr.strip()}", flush=True)
-        offline = probe(install, "check", file_url(output / "missing.json"))
-        check(offline.returncode == 1 and offline.stdout.startswith("failed:"), "an unreachable server is an error")
+        offline = probe(install, "check", file_url(output / "Missing"))
+        check(offline.returncode == 1 and offline.stdout.startswith("failed:") and FEED_FILE in offline.stdout,
+              "an unreachable server is an error that names what could not be read")
 
-        checked = probe(install, "check", file_url(api))
+        checked = probe(install, "check", file_url(server))
         update = parse_update_line(checked.stdout)
         check(update is not None and update[0] == second, f"version {second} is found")
         full = releases / f"{product}{PACK_ID_SUFFIX}-{second}-full.nupkg"
         check(update[1] < full.stat().st_size, "the delta package is offered, not the full one")
         check(update[2] > 0, "the release notes arrive with the check")
 
-        applied = probe(install, "update", file_url(api))
+        applied = probe(install, "update", file_url(server))
         check(applied.returncode == 0 and "applying" in applied.stdout, "the download finishes and the updater starts")
         check(wait_until(lambda: installed_version(current) == second and (current / MARKER_FILE).is_file(),
                          APPLY_TIMEOUT_SECONDS), f"version {second} replaced the first")
         check((data_folder(install) / SENTINEL_FILE).is_file(), "the data folder survives the update")
         command = subprocess.run([str(current / f"{executable}.com"), "launcher", "version"], capture_output=True)
         check(command.returncode == 0, "the updated launcher runs")
-        after = probe(install, "check", file_url(api))
+        after = probe(install, "check", file_url(server))
         check(after.stdout.strip() == "up-to-date", "the updated launcher finds nothing newer")
     except UpdateTestFailed as error:
         print(f"error: {error}", file=sys.stderr)

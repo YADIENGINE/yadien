@@ -83,8 +83,11 @@ version again.
 `UpdateController` owns the update state machine: check, download, cancel, restart, dismiss, and per-frame progress. The
 core depends on `UpdateBackend`; only the UI adapter links Velopack, and development builds provide no backend.
 
-`ReleaseSource` combines GitHub release feeds and downloads packages with cancellation and the system proxy. Automatic
-checks stay silent when offline or rate-limited. `CommandActivity` prevents restart while `.com` or a foreground launcher
+`ReleaseSource` reads the latest release's feed and each package from its version's release through github.com
+download addresses, never the rate-limited API, with cancellation and the system proxy. `LAUNCHER_UPDATE_RELEASES`
+points it at a local folder laid out the same way (`Scripts/update_test.py`). A failure reaches the user in the source's
+own words, not Velopack's generic callback error. Automatic checks stay silent when offline; a found update opens the
+update panel once per start when nothing else is open. `CommandActivity` prevents restart while `.com` or a foreground launcher
 job is using the install folder. Settings may disable automatic checks or hide one skipped version until a newer release
 appears.
 

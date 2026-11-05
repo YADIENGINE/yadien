@@ -57,6 +57,8 @@ Status Extract(const std::filesystem::path& archive, const std::filesystem::path
 }
 } // namespace
 
+bool IncludesPrereleases(const EngineVersion& newest) { return newest.major == 0; }
+
 std::string EngineCatalogUrl(std::string_view repository) {
     if (!repository.starts_with(GitHubPrefix)) return {};
     std::string_view path = repository.substr(GitHubPrefix.size());

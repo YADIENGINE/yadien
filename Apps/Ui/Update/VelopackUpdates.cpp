@@ -5,14 +5,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <mutex>
 #include <string>
 #include <utility>
-#include "Engines/EngineVersion.h"
 #include "Platform/Text.h"
 #include "Update/ReleaseSource.h"
 
 namespace {
-constexpr const wchar_t* ApiOverrideVariable = L"LAUNCHER_UPDATE_API";
+constexpr const wchar_t* ReleasesOverrideVariable = L"LAUNCHER_UPDATE_RELEASES"; // Scripts/update_test.py
 constexpr std::size_t MaxVelopackError = 1024;
 constexpr int ProgressComplete = 100;
 constexpr const char* CheckFailed = "Cannot check for updates";
@@ -23,16 +23,12 @@ std::string LastError(const char* fallback) {
     return length == 0 ? std::string(fallback) : std::string(text.data());
 }
 
-std::string ApiUrl() {
+std::string ReleasesSource() {
     std::array<wchar_t, MAX_PATH * 4> value{};
-    const DWORD length = GetEnvironmentVariableW(ApiOverrideVariable, value.data(), static_cast<DWORD>(value.size()));
+    const DWORD length =
+        GetEnvironmentVariableW(ReleasesOverrideVariable, value.data(), static_cast<DWORD>(value.size()));
     if (length > 0 && length < value.size()) return WideToUtf8(value.data());
-    return ReleasesApiUrl(LAUNCHER_REPOSITORY);
-}
-
-bool RunningIsPrerelease() {
-    const std::optional<EngineVersion> version = EngineVersion::Parse(LAUNCHER_VERSION);
-    return version && IncludesPrereleases(*version);
+    return ReleasesUrl(LAUNCHER_REPOSITORY);
 }
 
 std::filesystem::path ScratchFolder() {
@@ -45,19 +41,41 @@ AvailableUpdate Describe(const vpkc_asset_t& asset, std::uint64_t downloadBytes)
     return {asset.Version, downloadBytes, asset.NotesMarkdown != nullptr ? asset.NotesMarkdown : ""};
 }
 
-// Velopack's custom source: its callbacks call this with the object as user data.
+// Velopack's custom source: its callbacks call this with the object as user data. Velopack reports a failed callback
+// only as its own generic error, so the bridge keeps the real one.
 struct SourceBridge {
-    SourceBridge(std::string apiUrl, bool includePrereleases, std::filesystem::path scratchFolder)
-        : releases(std::move(apiUrl), includePrereleases, std::move(scratchFolder)) {}
+    SourceBridge(std::string releasesUrl, std::filesystem::path scratchFolder)
+        : releases(std::move(releasesUrl), std::move(scratchFolder)) {}
+
+    void Begin(const std::atomic<bool>* flag) {
+        cancel = flag;
+        const std::scoped_lock lock(mutex);
+        error.clear();
+    }
+    void Remember(const std::string& text) {
+        const std::scoped_lock lock(mutex);
+        error = text;
+    }
+    // The callback's error when one failed, otherwise Velopack's own.
+    [[nodiscard]] std::string Error(const char* fallback) {
+        const std::scoped_lock lock(mutex);
+        return error.empty() ? LastError(fallback) : error;
+    }
 
     ReleaseSource releases;
     std::atomic<const std::atomic<bool>*> cancel = nullptr;
+    std::mutex mutex; // Velopack may call from its own threads
+    std::string error;
 };
 
 char* ReadFeed(void* bridge, const char* feedName) {
     auto& source = *static_cast<SourceBridge*>(bridge);
     const Result<std::string> feed = source.releases.Feed(feedName, source.cancel.load());
-    return feed.Ok() ? _strdup(feed.Value().c_str()) : nullptr;
+    if (!feed.Ok()) {
+        source.Remember(feed.Error());
+        return nullptr;
+    }
+    return _strdup(feed.Value().c_str());
 }
 
 void FreeFeed(void*, char* feed) { std::free(feed); }
@@ -68,7 +86,10 @@ bool DownloadAsset(void* bridge, const vpkc_asset_t* asset, const char* localPat
         if (total > 0)
             vpkc_source_report_progress(progressId, static_cast<std::int16_t>(done * ProgressComplete / total));
     };
-    return source.releases.DownloadAsset(asset->FileName, Utf8ToPath(localPath), source.cancel.load(), progress).Ok();
+    const Status downloaded = source.releases.DownloadAsset(asset->Version, asset->FileName, Utf8ToPath(localPath),
+                                                            source.cancel.load(), progress);
+    if (!downloaded.Ok()) source.Remember(downloaded.Error());
+    return downloaded.Ok();
 }
 
 void ReportProgress(void* callback, std::size_t percent) {
@@ -98,7 +119,7 @@ public:
 
     Result<std::optional<AvailableUpdate>> Check(const std::atomic<bool>* cancel) override {
         using Outcome = Result<std::optional<AvailableUpdate>>;
-        _bridge->cancel = cancel;
+        _bridge->Begin(cancel);
         if (_info != nullptr) {
             vpkc_free_update_info(_info);
             _info = nullptr;
@@ -107,7 +128,7 @@ public:
         case UPDATE_AVAILABLE   : break;
         case NO_UPDATE_AVAILABLE:
         case REMOTE_IS_EMPTY    : return Outcome(std::optional<AvailableUpdate>{});
-        default                 : return Outcome::Failure(LastError(CheckFailed));
+        default                 : return Outcome::Failure(_bridge->Error(CheckFailed));
         }
         std::uint64_t bytes = 0;
         for (std::size_t index = 0; index < _info->DeltasToTargetCount; ++index)
@@ -118,10 +139,10 @@ public:
 
     Status Download(const std::function<void(int)>& progress, const std::atomic<bool>* cancel) override {
         if (_info == nullptr) return Status::Failure("No update to download");
-        _bridge->cancel = cancel;
+        _bridge->Begin(cancel);
         std::function<void(int)> report = progress;
         if (!vpkc_download_updates(_manager, _info, &ReportProgress, &report))
-            return Status::Failure(LastError("Cannot download the update"));
+            return Status::Failure(_bridge->Error("Cannot download the update"));
         return Status::Success();
     }
 
@@ -148,7 +169,7 @@ private:
 } // namespace
 
 std::unique_ptr<UpdateBackend> CreateVelopackUpdates() {
-    auto bridge = std::make_unique<SourceBridge>(ApiUrl(), RunningIsPrerelease(), ScratchFolder());
+    auto bridge = std::make_unique<SourceBridge>(ReleasesSource(), ScratchFolder());
     vpkc_update_source_t* source = vpkc_new_source_custom_callback(&ReadFeed, &FreeFeed, &DownloadAsset, bridge.get());
     if (source == nullptr) return nullptr;
     vpkc_update_manager_t* manager = nullptr;

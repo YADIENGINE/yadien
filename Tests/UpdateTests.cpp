@@ -80,75 +80,34 @@ UpdateController MakeController(FakeState& state, const std::function<bool()>& b
 }
 } // namespace
 
-TEST_CASE("Releases API URL comes from the repository") {
-    CHECK(ReleasesApiUrl("https://github.com/owner/repo")
-              .starts_with("https://api.github.com/repos/owner/repo/releases"));
-    CHECK(ReleasesApiUrl("https://github.com/owner/repo/") == ReleasesApiUrl("https://github.com/owner/repo"));
-    CHECK(ReleasesApiUrl("https://github.com/owner/repo.git") == ReleasesApiUrl("https://github.com/owner/repo"));
-    CHECK(ReleasesApiUrl("https://example.com/owner/repo").empty());
+TEST_CASE("Releases URL comes from the repository") {
+    CHECK(ReleasesUrl("https://github.com/owner/repo") == "https://github.com/owner/repo/releases");
+    CHECK(ReleasesUrl("https://github.com/owner/repo/") == ReleasesUrl("https://github.com/owner/repo"));
+    CHECK(ReleasesUrl("https://github.com/owner/repo.git") == ReleasesUrl("https://github.com/owner/repo"));
+    CHECK(ReleasesUrl("https://example.com/owner/repo").empty());
 }
 
-TEST_CASE("Only versions before 1.0 read pre-releases") {
-    CHECK(IncludesPrereleases({0, 9, 0}));
-    CHECK_FALSE(IncludesPrereleases({1, 0, 0}));
-}
-
-TEST_CASE("Parsing releases skips drafts and, unless asked, pre-releases") {
-    const std::string json = R"([
-        {"draft": true, "prerelease": false, "published_at": null, "assets": []},
-        {"draft": false, "prerelease": true, "published_at": "2026-01-01T00:00:00Z",
-         "assets": [{"name": "old", "browser_download_url": "u1"}]},
-        {"draft": false, "prerelease": false, "published_at": "2026-02-01T00:00:00Z",
-         "assets": [{"name": "new", "browser_download_url": "u2"}]}])";
-    const auto all = ParseReleases(json, true);
-    REQUIRE(all.Ok());
-    REQUIRE(all.Value().size() == 2);
-    CHECK(all.Value()[0].assets[0].name == "new"); // Newest first
-    const auto stable = ParseReleases(json, false);
-    REQUIRE(stable.Ok());
-    REQUIRE(stable.Value().size() == 1);
-    CHECK(stable.Value()[0].assets[0].name == "new");
-    CHECK_FALSE(ParseReleases(R"({"message": "API rate limit exceeded"})", true).Ok());
-}
-
-TEST_CASE("Merging feeds keeps every asset once and skips broken feeds") {
-    const std::string merged = MergeFeeds({R"({"Assets":[{"FileName":"a"},{"FileName":"b"}]})", "not json",
-                                           R"({"Assets":[{"FileName":"b"},{"FileName":"c"}]})"});
-    CHECK(merged == R"({"Assets":[{"FileName":"a"},{"FileName":"b"},{"FileName":"c"}]})");
-    CHECK(MergeFeeds({}) == R"({"Assets":[]})");
-}
-
-TEST_CASE("Release source merges the feeds and downloads named assets") {
+TEST_CASE("Release source reads the latest feed and each package from its version") {
     TempFolder temp;
-    temp.Write("Server/new.json", R"({"Assets":[{"FileName":"App-2-full.nupkg"}]})");
-    temp.Write("Server/old.json", R"({"Assets":[{"FileName":"App-1-full.nupkg"}]})");
-    temp.Write("Server/App-2-full.nupkg", "package");
-    const auto server = temp.Path() / "Server";
-    temp.Write("Server/api.json", R"([
-        {"prerelease": true, "published_at": "2", "assets": [
-            {"name": "releases.win.json", "browser_download_url": ")" +
-                                      FileUrl(server / "new.json") + R"("},
-            {"name": "App-2-full.nupkg", "browser_download_url": ")" +
-                                      FileUrl(server / "App-2-full.nupkg") + R"("}]},
-        {"prerelease": true, "published_at": "1", "assets": [
-            {"name": "releases.win.json", "browser_download_url": ")" +
-                                      FileUrl(server / "old.json") + R"("}]}])");
-
-    ReleaseSource source(FileUrl(server / "api.json"), true, temp.Path() / "Scratch");
+    temp.Write("Releases/latest/download/releases.win.json", R"({"Assets":[{"FileName":"App-2-full.nupkg"}]})");
+    temp.Write("Releases/download/v2.0.0/App-2-full.nupkg", "package");
+    ReleaseSource source(FileUrl(temp.Path() / "Releases"), temp.Path() / "Scratch");
     const auto feed = source.Feed("releases.win.json", nullptr);
     REQUIRE(feed.Ok());
-    CHECK(feed.Value() == R"({"Assets":[{"FileName":"App-2-full.nupkg"},{"FileName":"App-1-full.nupkg"}]})");
+    CHECK(feed.Value() == R"({"Assets":[{"FileName":"App-2-full.nupkg"}]})");
     CHECK_FALSE(std::filesystem::exists(temp.Path() / "Scratch"));
 
-    REQUIRE(source.DownloadAsset("App-2-full.nupkg", temp.Path() / "Package.nupkg", nullptr, {}).Ok());
+    REQUIRE(source.DownloadAsset("2.0.0", "App-2-full.nupkg", temp.Path() / "Package.nupkg", nullptr, {}).Ok());
     CHECK(temp.Read("Package.nupkg") == "package");
-    CHECK_FALSE(source.DownloadAsset("Missing.nupkg", temp.Path() / "Missing.nupkg", nullptr, {}).Ok());
+    CHECK_FALSE(source.DownloadAsset("1.0.0", "App-2-full.nupkg", temp.Path() / "Missing.nupkg", nullptr, {}).Ok());
 }
 
 TEST_CASE("Release source reports an unreachable server") {
     TempFolder temp;
-    ReleaseSource source(FileUrl(temp.Path() / "missing.json"), true, temp.Path() / "Scratch");
-    CHECK_FALSE(source.Feed("releases.win.json", nullptr).Ok());
+    ReleaseSource source(FileUrl(temp.Path() / "Missing"), temp.Path() / "Scratch");
+    const auto feed = source.Feed("releases.win.json", nullptr);
+    REQUIRE_FALSE(feed.Ok());
+    CHECK(feed.Error().find("releases.win.json") != std::string::npos);
 }
 
 TEST_CASE("Update notes tell headings, items and breaking changes apart") {

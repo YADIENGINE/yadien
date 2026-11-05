@@ -272,6 +272,7 @@ private:
     void FinishJobs();
     void ReloadRows();
     void KeepSelectionVisible();
+    void AnnounceUpdate();
     void StartDetails();
     void StartProjectScan(const std::filesystem::path& folder);
     void StartSystemCheck();
@@ -340,6 +341,7 @@ private:
     std::size_t _jobLine = 0;
     std::vector<UpdateNote> _updateNotes;
     std::string _updateNotesVersion; // The version _updateNotes were parsed for
+    std::string _announcedUpdate;    // The version whose panel was shown this start
     // Jobs last: destroyed (canceled and joined) before the state they report into.
     std::unique_ptr<Job<std::vector<ProjectDetails>>> _details;
     std::unique_ptr<Job<SystemReport>> _systemJob;

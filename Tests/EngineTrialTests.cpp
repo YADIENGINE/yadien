@@ -171,6 +171,11 @@ TEST_CASE("An engine this launcher cannot drive is refused", "[engine-trial]") {
     CHECK(plan.Error().find("newer launcher") != std::string::npos);
 }
 
+TEST_CASE("Only engines before 1.0 list pre-releases", "[engine-catalog]") {
+    CHECK(IncludesPrereleases({0, 9, 0}));
+    CHECK_FALSE(IncludesPrereleases({1, 0, 0}));
+}
+
 TEST_CASE("The catalog lists releases with a record, newest version first", "[engine-catalog]") {
     const std::string answer = R"([
       {"tag_name": "v0.2.0", "prerelease": true, "tarball_url": "a2",

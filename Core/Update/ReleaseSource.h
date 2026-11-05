@@ -1,52 +1,38 @@
 #pragma once
 
-#include "Engines/EngineVersion.h"
 #include "Platform/Download.h"
 #include "Platform/Result.h"
 #include <atomic>
 #include <filesystem>
-#include <mutex>
 #include <string>
 #include <string_view>
-#include <vector>
 
-// Where launcher updates come from: the GitHub releases of the launcher's repository, downloaded with DownloadFile so
+// Where launcher updates come from: the launcher repository's GitHub release files, downloaded with DownloadFile so
 // that a transfer can be canceled and uses the system's proxy settings. Velopack reads through it (Velopack's own
 // GitHub source cannot be canceled). Verifying a package against the feed's SHA-256 stays Velopack's job.
-struct ReleaseAsset {
-    std::string name;
-    std::string url;
-};
+//
+// Only github.com download addresses are read, never the API: the API allows 60 requests an hour per address, which a
+// shared network uses up. The latest release's feed lists every version's packages (the release workflow packs on top
+// of the previous release), and each package lies in its own version's release.
 
-struct PublishedRelease {
-    std::string publishedAt;
-    std::vector<ReleaseAsset> assets;
-};
-
-// "https://github.com/owner/repo" → its releases API URL; empty when `repository` is not a github.com repository.
-[[nodiscard]] std::string ReleasesApiUrl(std::string_view repository);
-// A 0.x launcher also reads pre-releases (older releases and engine releases are marked so); from 1.0 only stable.
-[[nodiscard]] bool IncludesPrereleases(const EngineVersion& running);
-// The API's answer, newest first, without drafts and (unless asked) pre-releases.
-[[nodiscard]] Result<std::vector<PublishedRelease>> ParseReleases(const std::string& json, bool includePrereleases);
-// One feed from several releases' feeds; an asset listed twice is kept once and unreadable feeds are skipped.
-[[nodiscard]] std::string MergeFeeds(const std::vector<std::string>& feeds);
+// "https://github.com/owner/repo" → "https://github.com/owner/repo/releases"; empty when it is not a github.com
+// repository.
+[[nodiscard]] std::string ReleasesUrl(std::string_view repository);
 
 class ReleaseSource {
 public:
-    // `apiUrl`: https, or file for tests. `scratchFolder` holds what is read and is removed afterwards.
-    ReleaseSource(std::string apiUrl, bool includePrereleases, std::filesystem::path scratchFolder);
+    // `releasesUrl`: https, or file for tests, holding <releasesUrl>/latest/download/<feed> and
+    // <releasesUrl>/download/v<version>/<package>. `scratchFolder` holds what is read and is removed afterwards.
+    ReleaseSource(std::string releasesUrl, std::filesystem::path scratchFolder);
 
-    // Reads the release list and merges every release's `feedName` (Velopack's releases.win.json).
-    [[nodiscard]] Result<std::string> Feed(const std::string& feedName, const std::atomic<bool>* cancel);
-    // Downloads a file named in the feed; the releases are the ones the last Feed() read.
-    [[nodiscard]] Status DownloadAsset(const std::string& fileName, const std::filesystem::path& file,
-                                       const std::atomic<bool>* cancel, const DownloadProgress& progress);
+    // The latest release's `feedName` (Velopack's releases.win.json).
+    [[nodiscard]] Result<std::string> Feed(const std::string& feedName, const std::atomic<bool>* cancel) const;
+    // Downloads a package the feed names from the release of its version.
+    [[nodiscard]] Status DownloadAsset(const std::string& version, const std::string& fileName,
+                                       const std::filesystem::path& file, const std::atomic<bool>* cancel,
+                                       const DownloadProgress& progress) const;
 
 private:
-    const std::string _apiUrl;
-    const bool _includePrereleases;
+    const std::string _releasesUrl;
     const std::filesystem::path _scratchFolder;
-    std::mutex _mutex; // Velopack may call from its own threads
-    std::vector<PublishedRelease> _releases;
 };
