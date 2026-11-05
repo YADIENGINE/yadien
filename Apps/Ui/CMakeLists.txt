@@ -16,8 +16,8 @@ add_library(LauncherUiPresentation STATIC
     Screens/UpdatePanel.cpp
     Screens/Confirmation.cpp)
 target_include_directories(LauncherUiPresentation PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-# MSVC searches a library only where it first appears: raylib must follow Engine (its PlaySound, not winmm's) and come
-# before user32 / winmm (raylib's CloseWindow, ShowCursor). The engine editor links the same way.
+# MSVC searches a library only where it first appears: raylib must follow Engine and come before user32 / winmm
+# (raylib's CloseWindow, ShowCursor). The engine editor links the same way.
 target_link_libraries(LauncherUiPresentation PUBLIC LauncherCore EngineToolUi Engine raylib ole32 shell32)
 engine_warnings(LauncherUiPresentation)
 # Velopack (installer, design D15): its prebuilt C library from ToolCache (Scripts/fetch_toolchain.py,
