@@ -1,9 +1,14 @@
 {
-  "version": "0.6.0",
+  "version": "0.7.0",
   "repository": "https://github.com/YADIENGINE/yadien",
-  "engine": "0.6.0",
+  "engine": "0.7.0",
   "engineRepository": "https://github.com/YADIENGINE/engine",
   "notes": [
+    {
+      "version": "0.7.0",
+      "date": "2026-11-05",
+      "changes": ["Ships engine 0.7.0."]
+    },
     {
       "version": "0.6.0",
       "date": "2026-11-03",
