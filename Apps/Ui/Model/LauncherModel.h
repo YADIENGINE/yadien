@@ -58,13 +58,14 @@ struct Notice {
 // New project panel fields, edited by the UI directly.
 struct NewProjectForm {
     std::string name;
-    std::string location;   // UTF-8 folder; the project is created at location / name
-    std::size_t engine = 0; // Index into NewProjectEngines()
+    std::string location; // UTF-8 folder; the project is created at location / name
+    std::string engine;   // EngineChoice::id the user picked; empty or gone: the newest
 };
 
 // One choice of the New project panel's engine list: a stable copy, or "dev (main)" in developer mode.
 struct EngineChoice {
-    std::string label;                       // "0.2.0", "dev (main)"
+    std::string label;                       // "0.2.0", "0.3.0 (download)", "dev (main)"
+    std::string id;                          // "0.2.0", "dev": stays while the list grows
     const AvailableEngine* stable = nullptr; // On this computer
     const OnlineEngine* online = nullptr; // Downloaded when the project is created; both null: the development engine
 };
@@ -162,6 +163,8 @@ public:
     // --- New project panel ---
     [[nodiscard]] NewProjectForm& NewProject() { return _newProject; }
     [[nodiscard]] std::vector<EngineChoice> NewProjectEngines() const;
+    // The form's choice in `choices`: the one it picked, or the newest; `choices.size()` when there is none.
+    [[nodiscard]] std::size_t NewProjectEngine(const std::vector<EngineChoice>& choices) const;
     // Live validation of the form: why it cannot be created (empty when it can), and the folder it would create.
     [[nodiscard]] std::string NewProjectProblem() const;
     [[nodiscard]] std::filesystem::path NewProjectFolder() const;

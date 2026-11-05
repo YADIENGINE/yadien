@@ -7,7 +7,10 @@ The manifests are the desired state. A version without its pushed tag (engine) o
 (launcher) is released; everything else is left alone, so a run that stopped halfway continues when run again:
 
     EngineManifest.json    version + notes
-    LauncherManifest.json  version + notes + engine (the exact engine version the installer ships)
+    LauncherManifest.json  version + notes + engine (the exact engine version the installer ships) + toolsContracts
+
+An engine version alone needs no launcher release: launchers offer it online (Docs/Engines.md). Only an engine whose
+tools contract the published launcher cannot drive has to wait for a launcher that can.
 
 Every engine tag also gets a GitHub release holding its EngineCopy.json: that is what the launcher lists and checks
 its downloads against (Docs/Engines.md).
@@ -78,12 +81,16 @@ def read_json(path: Path) -> dict:
 
 def manifest_problems(data: dict) -> list[str]:
     """The launcher manifest's rules: `version` is the newest note, notes newest first with a date and changes, and
-    `engine` is one exact version."""
+    `engine` is one exact version, `toolsContracts` the contracts this launcher drives."""
     problems = []
     if parse_version(str(data.get("version"))) is None:
         problems.append(f"version '{data.get('version')}' is not MAJOR.MINOR.PATCH")
     if parse_version(str(data.get("engine"))) is None:
         problems.append(f"engine '{data.get('engine')}' is not MAJOR.MINOR.PATCH")
+    contracts = data.get("toolsContracts")
+    if (not isinstance(contracts, list) or not contracts
+            or not all(type(item) is int and item > 0 for item in contracts)):
+        problems.append("toolsContracts must be a non-empty list of positive whole numbers")
     notes = data.get("notes")
     if not isinstance(notes, list) or not notes:
         return problems + ["notes: at least the current version's note is required"]
@@ -104,6 +111,20 @@ def manifest_problems(data: dict) -> list[str]:
     if isinstance(notes[0], dict) and notes[0].get("version") != data.get("version"):
         problems.append(f"notes[0] is {notes[0].get('version')}; the newest note must be version {data.get('version')}")
     return problems
+
+
+def contract_problem(engine_version: str, contract: object, launcher_name: str, launcher: dict | None) -> str | None:
+    """Why `launcher_name` (described by `launcher`, None when none is published) cannot drive the engine version."""
+    if launcher is None:
+        return f"no launcher is published yet; release one with engine {engine_version}"
+    contracts = launcher.get("toolsContracts")
+    if not isinstance(contracts, list):
+        return f"{launcher_name} does not list the tools contracts it drives; raise the launcher's version"
+    if contract not in contracts:
+        return (f"engine {engine_version} uses tools contract {contract}, which {launcher_name} cannot drive "
+                f"(it drives {', '.join(map(str, contracts))}); add it to toolsContracts and raise the launcher's "
+                "version so both are released together")
+    return None
 
 
 def release_notes(launcher: dict) -> str:
@@ -265,6 +286,18 @@ def release_state(repository: Path, tag: str) -> str:
             return "none"
         raise ReleaseFailed(f"gh release view {tag}: {result.stderr.strip()}")
     return "draft" if json.loads(result.stdout)["isDraft"] else "published"
+
+
+def published_launcher(repository: Path) -> tuple[str, dict | None]:
+    """The newest published launcher and its manifest: the one every installed launcher updates to."""
+    tag = latest_release_tag(repository)
+    if tag is None:
+        return "no launcher", None
+    git(repository, "fetch", "--tags", "origin")
+    try:
+        return f"launcher {tag}", json.loads(git(repository, "show", f"{tag}:{LAUNCHER_MANIFEST}"))
+    except ValueError as error:
+        raise ReleaseFailed(f"{LAUNCHER_MANIFEST} at {tag}: {error}") from error
 
 
 def restore_previous_package(repository: Path, releases: Path, product: str, previous_tag: str | None) -> None:
@@ -499,6 +532,10 @@ def release(engine: Path, repository: Path = REPOSITORY, dry_run: bool = False) 
               "online.")
     if plan.engine:
         check_engine(engine, plan.engine)
+        name, driver = (f"launcher {plan.launcher}", launcher) if plan.launcher else published_launcher(repository)
+        problem = contract_problem(plan.engine, engine_data.get("toolsContract"), name, driver)
+        if problem:
+            raise ReleaseFailed(problem)
     if plan.launcher:
         check_launcher(repository, engine, launcher, plan.engine)
     if dry_run:

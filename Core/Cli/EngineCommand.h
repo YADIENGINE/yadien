@@ -13,7 +13,7 @@
 // Running the project's own engine tools (design D6, D7): the launcher's Python runs <project>/Engine with the
 // arguments unchanged; the launcher has no build logic and does not know the engine's commands.
 
-// The tools contracts (engine Docs/ToolsContract.md) this launcher can drive.
+// The tools contracts (engine Docs/ToolsContract.md) this launcher can drive: LauncherManifest.json toolsContracts.
 [[nodiscard]] bool SupportsToolsContract(int contract);
 
 // `python -X utf8 <root>/Engine --project <root> <arguments...>` with the toolchain first on PATH and, when the

@@ -8,6 +8,14 @@ The launcher uses engines in three distinct ways:
   works offline.
 - **Downloaded engines:** all other stable versions, fetched on demand and cached in the persistent data folder.
 
+A new engine version does not need a launcher release. New Project lists every known version newest first, with
+versions that are not downloaded yet marked "(download)", and selects the newest; opening the panel reads the engine
+list. The shipped engine changes only with a launcher release.
+
+The tools contracts this launcher drives are listed in `LauncherManifest.json` `toolsContracts`; the build passes them to
+the code and the release workflow reads the same list. An engine whose contract the published launcher does not drive is
+released together with a launcher that does.
+
 ## Project types and modes
 
 Files determine project type; launcher mode determines which operations are allowed.
@@ -34,7 +42,7 @@ Offline or rate-limited launchers continue to offer local versions. `LAUNCHER_EN
 for tests.
 
 To publish a new stable version, update the engine manifest and release note, then follow
-[Packaging → Publish](Packaging.md#publish). Patch releases from older series may be tagged on their own branch;
+[Packaging → Publish](Packaging.md#publish); leave `LauncherManifest.json` unchanged unless the launcher changes too. Patch releases from older series may be tagged on their own branch;
 `python Scripts/dev.py engine-releases` publishes records missing from existing tags. Published engine releases should
 be immutable.
 

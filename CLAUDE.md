@@ -22,6 +22,8 @@ sözleşme engine `Docs/ToolsContract.md` (komutlar, çıkış kodları, manifes
 - Launcher tek stable engine taşır (`LauncherManifest.json` `engine`; `dev.py` tag'inden `build/Engines/`'e alır, repoda
   yok); diğer sürümleri GitHub'dan indirir ve dosyalarını kayda göre denetler. Proje sürümü değiştirirken önce projenin
   geçici kopyasında dener (`Docs/Engines.md`).
+- Yeni engine sürümü launcher sürümü istemez: launcher onu online sunar. `LauncherManifest.json` (`engine`,
+  `toolsContracts`) yalnız launcher yayınında değişir (`Docs/Packaging.md` → Publish).
 
 ## Build ve test
 Build almak kullanıcıya bırakılır (kod bitince kullanıcı derler, uyarı / hata paylaşır).

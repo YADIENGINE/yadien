@@ -113,6 +113,8 @@ void LauncherModel::OpenPanel(LauncherPanel panel) {
             return;
         _panel = panel;
         if (panel == LauncherPanel::Settings) ReadPathState();
+        // New engine versions come without a launcher release: the list offers the newest published one
+        if (panel == LauncherPanel::NewProject) StartEngineCatalog();
     });
 }
 
@@ -430,19 +432,27 @@ std::vector<EngineChoice> LauncherModel::NewProjectEngines() const {
     std::vector<EngineChoice> choices;
     for (const EngineVersion& version : _engines.KnownVersions()) {
         if (const AvailableEngine* local = _engines.Find(version))
-            choices.push_back({version.ToString(), local, nullptr});
+            choices.push_back({version.ToString(), version.ToString(), local, nullptr});
         else
-            choices.push_back({version.ToString() + " (download)", nullptr, _engines.FindOnline(version)});
+            choices.push_back(
+                {version.ToString() + " (download)", version.ToString(), nullptr, _engines.FindOnline(version)});
     }
     if (DevelopmentEngineAvailable())
-        choices.push_back({std::string("dev (") + DevelopmentBranch + ")", nullptr, nullptr});
+        choices.push_back({std::string("dev (") + DevelopmentBranch + ")", "dev", nullptr, nullptr});
     return choices;
+}
+
+std::size_t LauncherModel::NewProjectEngine(const std::vector<EngineChoice>& choices) const {
+    if (choices.empty()) return 0;
+    const auto picked = std::ranges::find(choices, _newProject.engine, &EngineChoice::id);
+    return picked == choices.end() ? 0 : static_cast<std::size_t>(picked - choices.begin());
 }
 
 std::string LauncherModel::NewProjectProblem() const {
     const std::vector<EngineChoice> choices = NewProjectEngines();
-    if (_newProject.engine >= choices.size()) return "No engine to create the project with";
-    const EngineChoice& choice = choices[_newProject.engine];
+    const std::size_t index = NewProjectEngine(choices);
+    if (index >= choices.size()) return "No engine to create the project with";
+    const EngineChoice& choice = choices[index];
     NewProjectRequest request{_newProject.name, Utf8ToPath(_newProject.location), {}};
     if (choice.stable)
         request.engine = *choice.stable;
@@ -470,7 +480,8 @@ void LauncherModel::CreateProject() {
         const std::string failure = "Could not create " + _newProject.name;
         const std::optional<Toolchain> toolchain = RequireToolchain(failure);
         if (!toolchain) return;
-        const EngineChoice choice = NewProjectEngines()[_newProject.engine];
+        const std::vector<EngineChoice> choices = NewProjectEngines();
+        const EngineChoice choice = choices[NewProjectEngine(choices)];
         NewProjectRequest request{_newProject.name, Utf8ToPath(_newProject.location), {}};
         if (choice.stable)
             request.engine = *choice.stable;

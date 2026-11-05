@@ -17,6 +17,7 @@ constexpr float PreviewTile = 40.0f;
 void DrawNewProjectPanel(LauncherModel& model) {
     auto& form = model.NewProject();
     const auto engines = model.NewProjectEngines();
+    const std::size_t picked = model.NewProjectEngine(engines);
     const std::string problem = model.NewProjectProblem();
     bool submitted = false;
     if (ImGui::BeginChild("##new-project-form", {0, -LauncherFooterHeight()})) {
@@ -38,18 +39,18 @@ void DrawNewProjectPanel(LauncherModel& model) {
         if (ToolButton(browse)) model.BrowseNewProjectLocation();
         ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
         LauncherFieldLabel("ENGINE");
-        const char* preview = form.engine < engines.size() ? engines[form.engine].label.c_str() : "Select an engine";
+        const char* preview = picked < engines.size() ? engines[picked].label.c_str() : "Select an engine";
         ImGui::SetNextItemWidth(-1);
         if (ToolBeginCombo("##engine", preview)) {
             for (std::size_t index = 0; index < engines.size(); ++index) {
-                const bool selected = form.engine == index;
-                if (ImGui::Selectable(engines[index].label.c_str(), selected)) form.engine = index;
+                const bool selected = picked == index;
+                if (ImGui::Selectable(engines[index].label.c_str(), selected)) form.engine = engines[index].id;
                 if (selected) ImGui::SetItemDefaultFocus();
             }
             ImGui::EndCombo();
         }
         if (engines.empty()) LauncherToneText("No engines are available. Check the installation.", ToolTone::Warning);
-        if (form.engine < engines.size() && engines[form.engine].online)
+        if (picked < engines.size() && engines[picked].online)
             LauncherMutedText("This version is downloaded when the project is created.");
         ImGui::Dummy({0, ToolMetrics::Gap * ToolUiScale()});
         if (form.name.empty()) {

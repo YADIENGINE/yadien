@@ -34,6 +34,15 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/LauncherManifest.json" launcherOwnManifest)
 string(JSON LAUNCHER_VERSION GET "${launcherOwnManifest}" version)
 string(JSON LAUNCHER_REPOSITORY GET "${launcherOwnManifest}" repository)
+# The engine tools contracts this launcher drives; the release script reads the same list (Docs/Engines.md).
+string(JSON contractCount LENGTH "${launcherOwnManifest}" toolsContracts)
+set(LAUNCHER_TOOLS_CONTRACTS "")
+math(EXPR contractLast "${contractCount} - 1")
+foreach(index RANGE ${contractLast})
+    string(JSON contract GET "${launcherOwnManifest}" toolsContracts ${index})
+    list(APPEND LAUNCHER_TOOLS_CONTRACTS "${contract}")
+endforeach()
+string(REPLACE ";" "," LAUNCHER_TOOLS_CONTRACTS "${LAUNCHER_TOOLS_CONTRACTS}")
 
 # build/<Config>/: <engine>.com, the UI's <engine>.exe and the tests side by side
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")

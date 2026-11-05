@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from Scripts.import_engine import import_engine
 from Scripts.release import (LAUNCHER_MANIFEST, REPOSITORY, ReleaseFailed, check_clean, commit_launcher,
-                             commit_project_pointers, engine_release_body, engine_release_tags, make_plan,
+                             commit_project_pointers, contract_problem, engine_release_body, engine_release_tags, make_plan,
                              manifest_problems, prepare_worktree, release_engine, release_files, release_notes,
                              remove_release_trees, unpackaged_engine_tags)
 from Scripts.release import capture as real_capture
@@ -31,7 +31,8 @@ def note(version: str, change: str = "x") -> dict:
 
 
 def launcher(version: str = "1.1.0", engine: str = "0.3.1") -> dict:
-    return {"version": version, "engine": engine, "notes": [note(version, "launcher change")]}
+    return {"version": version, "engine": engine, "toolsContracts": [1, 2],
+            "notes": [note(version, "launcher change")]}
 
 
 def engine_manifest(*versions: str) -> dict:
@@ -51,6 +52,20 @@ class RulesTests(unittest.TestCase):
 
     def test_the_shipped_engine_must_be_an_exact_version(self):
         self.assertTrue(manifest_problems(launcher(engine="0.3")))
+
+    def test_the_tools_contracts_are_listed(self):
+        for contracts in (None, [], [0], ["2"], [True]):
+            data = launcher()
+            data["toolsContracts"] = contracts
+            self.assertTrue(manifest_problems(data), contracts)
+
+    def test_an_engine_needs_a_launcher_that_drives_its_contract(self):
+        self.assertIsNone(contract_problem("0.4.0", 2, "launcher v1.1.0", launcher()))
+        self.assertIn("raise the launcher", contract_problem("0.4.0", 3, "launcher v1.1.0", launcher()))
+        older = launcher()
+        del older["toolsContracts"]
+        self.assertIn("does not list", contract_problem("0.4.0", 2, "launcher v1.0.0", older))
+        self.assertIn("no launcher", contract_problem("0.4.0", 2, "no launcher", None))
 
     def test_a_note_needs_a_date_and_changes(self):
         data = launcher()

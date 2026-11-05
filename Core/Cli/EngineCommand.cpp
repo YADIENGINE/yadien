@@ -6,7 +6,7 @@
 #include "Settings/LauncherLayout.h"
 
 namespace {
-constexpr std::array SupportedContracts = {1, 2};
+constexpr std::array SupportedContracts = {LAUNCHER_TOOLS_CONTRACTS}; // LauncherManifest.json toolsContracts
 } // namespace
 
 bool SupportsToolsContract(int contract) {

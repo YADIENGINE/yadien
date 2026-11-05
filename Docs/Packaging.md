@@ -54,8 +54,10 @@ runs this test automatically.
 
 ## Publish
 
-Update the engine manifest and release note when publishing an engine, and update `LauncherManifest.json` when publishing
-the launcher or changing its shipped engine. Preview or execute the desired state with:
+Update the engine manifest and release note when publishing an engine, and update `LauncherManifest.json` only when
+publishing the launcher. A launcher release is needed for launcher changes, a new tools contract, `ToolUi` changes the
+launcher should show, or a different shipped engine; a new engine version alone is not a reason. Preview or execute the
+desired state with:
 
 ```powershell
 python Scripts/dev.py release --dry-run
@@ -74,7 +76,8 @@ The workflow is resumable: after fixing a failure, run the same command again. I
 6. When this repository is a game submodule, commit only the released engine and launcher pointers in the game; do not
    push that repository.
 
-An engine-only release stops after publishing the engine and updating applicable game pointers. Existing release output
+An engine-only release stops after publishing the engine and updating applicable game pointers. It is refused when the
+newest published launcher does not list the engine's `toolsContract`. Existing release output
 is reused when its commits and notes have not changed; completed releases are never overwritten.
 
 Launcher release notes come from the newest `LauncherManifest.json` note and are used unchanged for the package, GitHub
