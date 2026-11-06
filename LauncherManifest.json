@@ -1,10 +1,18 @@
 {
-  "version": "0.8.1",
+  "version": "0.8.2",
   "repository": "https://github.com/YADIENGINE/yadien",
-  "engine": "0.8.0",
+  "engine": "0.9.5",
   "engineRepository": "https://github.com/YADIENGINE/engine",
   "toolsContracts": [1, 2],
   "notes": [
+    {
+      "version": "0.8.2",
+      "date": "2026-11-06",
+      "changes": [
+        "Ships engine 0.9.5.",
+        "New Project explains an invalid name while you type."
+      ]
+    },
     {
       "version": "0.8.1",
       "date": "2026-11-05",
