@@ -14,12 +14,16 @@ struct DevelopmentEngine {
 };
 
 struct NewProjectRequest {
-    std::string name;               // The engine's `new --name` checks the rules (letters, digits, '_')
-    std::filesystem::path location; // The project is created at location / name
+    std::string name;                                        // See ProjectNameProblem
+    std::filesystem::path location;                          // The project is created at location / name
     std::variant<AvailableEngine, DevelopmentEngine> engine; // A stable copy (user mode) or the development engine
 };
 
-// The folder a request creates, and why it cannot be used (exists and is not empty); for live UI validation.
+// Why the engine's `new --name` would refuse `name` (a letter, then letters, digits or '_'; at most 64), as one short
+// sentence; empty when it is accepted. The rule is the engine's Tools contract, so the form can say it while typing.
+[[nodiscard]] std::string ProjectNameProblem(const std::string& name);
+// The folder a request creates, and why it cannot be used (a bad name, no location, a folder that exists and is not
+// empty); for live UI validation.
 [[nodiscard]] std::filesystem::path NewProjectFolder(const NewProjectRequest& request);
 [[nodiscard]] Status CheckNewProjectFolder(const NewProjectRequest& request);
 

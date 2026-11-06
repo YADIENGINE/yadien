@@ -55,7 +55,9 @@ void DrawNewProjectPanel(LauncherModel& model) {
         ImGui::Dummy({0, ToolMetrics::Gap * ToolUiScale()});
         if (form.name.empty()) {
             // Nothing is wrong yet: say what the name may hold, not that it is missing.
-            LauncherMutedText("Letters, digits and _. The project gets a folder of this name in the location above.");
+            LauncherMutedText(
+                "A letter, then letters, digits or _ (no spaces). The project gets a folder of this name in the "
+                "location above.");
         } else {
             // What will exist on disk: the same tile the list will show.
             ToolPixelTile(form.name, PreviewTile);

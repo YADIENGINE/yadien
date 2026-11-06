@@ -46,7 +46,7 @@ Progress is expressed as named steps and live output, not a synthetic percentage
 | Filtering | `VisibleRows`, `ActionsFor` | Apply search, sort, mode, project type, and engine availability |
 | Discovery | `FindProjects` | Find `Project.json` up to `MaxScanDepth`, skipping projects, hidden folders, and build output |
 | Launch | `OpenProject`, `RunProject` | Invoke the project's engine tools; the launcher contains no build logic |
-| Creation | `CheckNewProjectFolder`, `CreateProject` | Validate the destination, create through engine `new`, and remove partial output on failure |
+| Creation | `ProjectNameProblem`, `CheckNewProjectFolder`, `CreateProject` | Validate the name (the engine `new` rule) and destination while typing, create through engine `new`, and remove partial output on failure |
 | Engine change | `PlanEngineUpdate`, `ApplyEngineUpdate` | Plan losses before confirmation; copy beside the old engine and swap only when ready |
 | Cleanup | `CleanProjectBuild`, `RemoveDownloadedEngine` | Remove only the requested build output or cached engine |
 

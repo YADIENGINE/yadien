@@ -1,10 +1,16 @@
 #include "Projects/NewProject.h"
+#include <algorithm>
+#include <string>
 #include "Developer/DeveloperGit.h"
 #include "Platform/FileSystem.h"
 #include "Platform/Text.h"
 #include "Projects/ProjectInfo.h"
 
 namespace {
+constexpr std::size_t MaxProjectNameLength = 64;
+
+bool IsAsciiLetter(char c) { return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'); }
+
 bool IsEmptyFolder(const std::filesystem::path& folder) {
     std::error_code error;
     return std::filesystem::is_directory(folder, error) && std::filesystem::is_empty(folder, error);
@@ -40,12 +46,20 @@ std::filesystem::path NewProjectFolder(const NewProjectRequest& request) {
     return request.location / Utf8ToPath(request.name);
 }
 
+std::string ProjectNameProblem(const std::string& name) {
+    // The engine's `new --name` rule (engine Docs/ToolsContract.md): checked here so the form says it while typing
+    if (name.empty()) return "Enter a project name";
+    if (!IsAsciiLetter(name.front())) return "Start the name with a letter (A-Z)";
+    if (name.find(' ') != std::string::npos) return "No spaces: write MyGame or My_Game";
+    if (!std::ranges::all_of(name, [](char c) { return IsAsciiLetter(c) || (c >= '0' && c <= '9') || c == '_'; }))
+        return "Use only letters A-Z, digits and _";
+    if (name.size() > MaxProjectNameLength) return "At most " + std::to_string(MaxProjectNameLength) + " characters";
+    return {};
+}
+
 Status CheckNewProjectFolder(const NewProjectRequest& request) {
-    if (request.name.empty()) return Status::Failure("Enter a project name");
-    // Only what keeps the folder a single, valid Windows name; the engine checks its own naming rules
-    if (request.name.find_first_of("<>:\"/\\|?*") != std::string::npos || request.name.back() == '.' ||
-        request.name.back() == ' ')
-        return Status::Failure("The name cannot be used as a folder name");
+    if (std::string problem = ProjectNameProblem(request.name); !problem.empty())
+        return Status::Failure(std::move(problem));
     if (request.location.empty()) return Status::Failure("Choose a location");
     const std::filesystem::path folder = NewProjectFolder(request);
     std::error_code error;

@@ -57,4 +57,19 @@ TEST_CASE("New projects need an empty or new folder with a usable name", "[proje
     CHECK_FALSE(CheckNewProjectFolder({"a/b", temp.Path(), engine}).Ok());
     CHECK_FALSE(CheckNewProjectFolder({"", temp.Path(), engine}).Ok());
     CHECK(CheckNewProjectFolder({"Fresh", temp.Path(), engine}).Ok());
+    CHECK_FALSE(CheckNewProjectFolder({"Space Game", temp.Path(), engine}).Ok());
+}
+
+TEST_CASE("Project names follow the engine's new command while typing", "[projects]") {
+    for (const char* valid : {"MyGame", "my_game2", "G"})
+        CHECK(ProjectNameProblem(valid).empty());
+    CHECK(ProjectNameProblem(std::string(64, 'x')).empty());
+    // The engine's own invalid examples: each one gets a reason
+    for (const std::string invalid : {"", "2Game", "Space Game", "Oyun-1",
+                                      "\xC3\x87"
+                                      "ay",
+                                      "_Game", "a/b"})
+        CHECK_FALSE(ProjectNameProblem(invalid).empty());
+    CHECK_FALSE(ProjectNameProblem(std::string(65, 'x')).empty());
+    CHECK(ProjectNameProblem("Space Game").starts_with("No spaces"));
 }
