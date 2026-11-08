@@ -32,6 +32,17 @@ the result in the live editor, looks at it, and fixes what it sees.
 
 That is it!
 
+## 🎬 Pick a loading screen
+
+From engine 0.11, a game opens with a ready-made loading screen. Choose one in `Game/Game.settings.json`, for example
+`"loadingScreen": "Horror"`, or let your game show its own.
+
+| Default | Horror | Rpg |
+| --- | --- | --- |
+| ![Default loading screen](Docs/LoadingScreens/Default.png) | ![Horror loading screen](Docs/LoadingScreens/Horror.png) | ![Rpg loading screen](Docs/LoadingScreens/Rpg.png) |
+| **SciFi** | **Arcade** | **Cozy** |
+| ![SciFi loading screen](Docs/LoadingScreens/SciFi.png) | ![Arcade loading screen](Docs/LoadingScreens/Arcade.png) | ![Cozy loading screen](Docs/LoadingScreens/Cozy.png) |
+
 ## 🤖 YADIEN is agentic!
 
 An agent usually works blind: it edits code and hopes. YADIEN closes the loop. You keep the editor open and ask
