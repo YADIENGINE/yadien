@@ -89,14 +89,6 @@ std::string EngineLibrary::Label(const EngineVersion& version) const {
     return note ? EngineNoteTitle(*note) : version.ToString();
 }
 
-std::vector<EngineNote> EngineLibrary::NotesOf(const EngineVersion& version) const {
-    if (const AvailableEngine* engine = Find(version)) return engine->manifest.notes;
-    std::vector<EngineNote> notes;
-    for (const EngineNote& note : _onlineNotes)
-        if (note.version <= version) notes.push_back(note);
-    return notes;
-}
-
 const EngineNote* EngineLibrary::NewVersionNote() const {
     if (_online.empty() || (Newest() && _online.front().version <= Newest()->manifest.version)) return nullptr;
     const EngineNote* note = NoteFor(_online.front().version);

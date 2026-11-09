@@ -127,6 +127,13 @@ void DetailFact(const char* label, const std::string& value) {
     ImGui::TextUnformatted(value.c_str());
 }
 
+// Only what this version brings: the history before it belongs to the versions that brought it.
+void DrawOwnNote(const EngineLibrary& library, const EngineVersion& version) {
+    const EngineNote* note = library.NoteFor(version);
+    if (ToolSectionHeader("Release notes"))
+        DrawLauncherNotes(note ? std::vector<EngineNote>{*note} : std::vector<EngineNote>{});
+}
+
 void DrawVersionDetails(LauncherModel& model, const EngineVersion& version, bool latest) {
     const auto& library = model.Engines();
     const AvailableEngine* engine = library.Find(version);
@@ -147,7 +154,7 @@ void DrawVersionDetails(LauncherModel& model, const EngineVersion& version, bool
         if (const std::string size = SizeText(model, version); !size.empty()) DetailFact("Size", size);
         ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
         LauncherPathText(engine->folder);
-        if (ToolSectionHeader("Release notes")) DrawLauncherNotes(engine->manifest.notes);
+        DrawOwnNote(library, version);
         const std::string problem = model.EngineRemovalProblem(version);
         ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
         ImGui::Separator();
@@ -161,8 +168,7 @@ void DrawVersionDetails(LauncherModel& model, const EngineVersion& version, bool
     } else {
         ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
         LauncherMutedText("Not on this computer. A project choosing it downloads it.");
-        const std::vector<EngineNote> notes = library.NotesOf(version);
-        if (!notes.empty() && ToolSectionHeader("Release notes")) DrawLauncherNotes(notes);
+        DrawOwnNote(library, version);
     }
 }
 } // namespace

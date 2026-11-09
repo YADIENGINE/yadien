@@ -148,9 +148,7 @@ TEST_CASE("Versions not downloaded show their name and notes from the online lis
                             {{0, 11, 0}, "", "", "2026-01-01", {"Online"}, {}}});
     CHECK(library.Label({0, 12, 0}) == "0.12.0 Dogs");
     CHECK(library.NoteFor({0, 11, 0})->changes == std::vector<std::string>{"Here"}); // This computer's copy first
-    const std::vector<EngineNote> notes = library.NotesOf({0, 11, 1});
-    REQUIRE(notes.size() == 2);
-    CHECK(notes[0].name == "Cats");
+    CHECK(library.NoteFor({0, 11, 1})->changes == std::vector<std::string>{"B"});    // Not downloaded: the online note
     REQUIRE(library.NewVersionNote());
     CHECK(library.NewVersionNote()->summary == "Twelve.");
 }

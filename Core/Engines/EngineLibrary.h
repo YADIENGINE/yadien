@@ -64,8 +64,6 @@ public:
     [[nodiscard]] const EngineNote* NoteFor(const EngineVersion& version) const;
     // "0.11.1 Cats" (EngineNoteTitle), or the bare version while no note names it.
     [[nodiscard]] std::string Label(const EngineVersion& version) const;
-    // The release notes to show for a version, newest first: its own folder's, else the online ones up to it.
-    [[nodiscard]] std::vector<EngineNote> NotesOf(const EngineVersion& version) const;
     // The newest version online that is newer than every engine on this computer and has a summary to announce.
     [[nodiscard]] const EngineNote* NewVersionNote() const;
 
