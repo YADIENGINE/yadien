@@ -1,10 +1,17 @@
 {
-  "version": "0.9.0",
+  "version": "0.9.1",
   "repository": "https://github.com/YADIENGINE/yadien",
   "engine": "0.11.1",
   "engineRepository": "https://github.com/YADIENGINE/engine",
   "toolsContracts": [1, 2],
   "notes": [
+    {
+      "version": "0.9.1",
+      "date": "2026-11-09",
+      "changes": [
+        "The Engines tab shows only the selected version's own release notes, not every version before it."
+      ]
+    },
     {
       "version": "0.9.0",
       "date": "2026-11-09",
