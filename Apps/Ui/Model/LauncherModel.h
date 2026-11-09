@@ -42,8 +42,8 @@ struct TrialStepView {
     std::optional<double> seconds; // Known once it has run; the time so far while it runs
 };
 // Update: another stable version, the newest by default; Repair: the same version back over edits; Replace: a stable
-// engine for an unregistered / missing one.
-enum class EngineChange { Update, Repair, Replace };
+// engine for an unregistered / missing one; Restore: the version Project.json names (RestoreTarget).
+enum class EngineChange { Update, Repair, Replace, Restore };
 // The dot in the top bar: Checking until the first report; Ready, Warning (works), NotReady (cannot build).
 enum class SystemState { Checking, Ready, Warning, NotReady };
 enum class NoticeLevel { Info, Warning, Error };
@@ -191,8 +191,8 @@ public:
         return _engines.Find(version) != nullptr;
     }
     void ChooseChangeVersion(const EngineVersion& version);
-    // Update / Replace: job, the project is tried in a temporary copy and moves only if it passes. Repair: moves at
-    // once.
+    // Update / Replace: job, the project is tried in a temporary copy and moves only if it passes. Repair and Restore:
+    // move at once.
     void ConfirmEngineChange();
     // The last trial, shown until the panel closes; why moving the project failed afterwards (close the editor).
     [[nodiscard]] const std::optional<EngineTrial>& Trial() const { return _trial; }

@@ -15,6 +15,7 @@ struct ProjectInfo {
     std::string name; // Project.json "name" (folder name when absent)
     EngineKind kind = EngineKind::Missing;
     std::optional<EngineManifest> manifest; // Set unless kind is Missing
+    std::optional<EngineVersion> recorded;  // Project.json "engine": {"version"} (ProjectEngineVersion.h)
     std::string problem; // Why the project cannot be used as is (no Project.json, broken manifest ...); empty if fine
 
     [[nodiscard]] std::filesystem::path EngineFolder() const { return root / EngineFolderName; }

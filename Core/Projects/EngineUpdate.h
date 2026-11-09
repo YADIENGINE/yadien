@@ -13,7 +13,7 @@
 // without an engine; never for git-managed engines, nor for an engine this launcher cannot drive.
 struct EngineUpdatePlan {
     std::filesystem::path projectRoot;
-    std::optional<EngineVersion> from; // Unknown for unregistered / missing engines
+    std::optional<EngineVersion> from; // Unknown for unregistered engines and missing ones Project.json does not name
     AvailableEngine target;
     std::vector<std::string> overwritten; // Files whose current content is lost (edits in a copy; any file otherwise)
     std::vector<std::string> deleted;     // Files not from the engine (user-added) that the new copy does not have
@@ -31,8 +31,8 @@ struct EngineUpdatePlan {
 [[nodiscard]] std::vector<std::filesystem::path> ProjectBuildFolders(const std::filesystem::path& root);
 [[nodiscard]] std::optional<std::filesystem::path> ProjectReleaseFolder(const std::filesystem::path& root);
 
-// Copies the target beside Engine/, removes the build folders, then swaps the folders; on failure the old engine stays
-// in place. A build tree left in place would be wrong: the files of a copy can be older than its objects, so a build
-// would report success without compiling anything. Close the project's editor and game first: Windows does not move
-// folders with open files.
+// Copies the target beside Engine/, removes the build folders, swaps the folders, then records the version in
+// Project.json (ProjectEngineVersion.h); on failure the old engine stays in place. A build tree left in place would be
+// wrong: the files of a copy can be older than its objects, so a build would report success without compiling anything.
+// Close the project's editor and game first: Windows does not move folders with open files.
 [[nodiscard]] Status ApplyEngineUpdate(const EngineUpdatePlan& plan);

@@ -3,6 +3,7 @@
 #include "Engines/EngineLibrary.h"
 #include "Projects/CopyIntegrity.h"
 #include "Projects/EngineUpdate.h"
+#include "Projects/ProjectEngineVersion.h"
 #include "Projects/ProjectInfo.h"
 #include "Support/FakeEngine.h"
 #include "Support/TempFolder.h"
@@ -118,4 +119,44 @@ TEST_CASE("An unregistered or missing engine can be replaced with a stable copy"
     CHECK(plan.Value().mayBreak);
     REQUIRE(ApplyEngineUpdate(plan.Value()).Ok());
     CHECK(InspectProject(temp.Path() / "Game").kind == EngineKind::Copy);
+    CHECK(InspectProject(temp.Path() / "Game").recorded == EngineVersion{0, 2, 0}); // A clone can restore it
+}
+
+TEST_CASE("A missing engine that Project.json names starts from that version", "[projects]") {
+    TempFolder temp;
+    temp.Write("Game/Project.json", R"({"version": 1, "name": "Game", "engine": {"version": "0.2.0"}})");
+    const AvailableEngine same = Stable(temp.Path() / "Engines", {.version = "0.2.0", .breakingIn = {"0.2.0"}});
+    Result<EngineUpdatePlan> plan = PlanEngineUpdate(InspectProject(temp.Path() / "Game"), same);
+    REQUIRE(plan.Ok());
+    CHECK(plan.Value().from == EngineVersion{0, 2, 0});
+    CHECK_FALSE(plan.Value().mayBreak);
+    CHECK(plan.Value().notes.empty());
+}
+
+TEST_CASE("Recording the engine version changes only that value in Project.json", "[projects]") {
+    TempFolder temp;
+    const EngineVersion version{0, 12, 0};
+    const auto recorded = [&](const std::string& before) {
+        temp.Write("Game/Project.json", before);
+        REQUIRE(RecordProjectEngine(temp.Path() / "Game", version).Ok());
+        return temp.Read("Game/Project.json");
+    };
+    // The template's inline objects stay inline; a new section goes last with the file's indent
+    CHECK(recorded("{\n  \"version\": 1,\n  \"game\": { \"buildPresets\": { \"Debug\": \"debug\" } }\n}\n") ==
+          "{\n  \"version\": 1,\n  \"game\": { \"buildPresets\": { \"Debug\": \"debug\" } },\n"
+          "  \"engine\": { \"version\": \"0.12.0\" }\n}\n");
+    CHECK(recorded("{\n  \"name\": \"A\",\n  \"engine\": { \"version\": \"0.11.1\" }\n}\n") ==
+          "{\n  \"name\": \"A\",\n  \"engine\": { \"version\": \"0.12.0\" }\n}\n");
+    CHECK(recorded("{ \"engine\": { \"build\": \"source\" } }") ==
+          "{ \"engine\": { \"version\": \"0.12.0\", \"build\": \"source\" } }");
+    CHECK(recorded("{ \"engine\": {} }") == "{ \"engine\": { \"version\": \"0.12.0\" } }");
+    CHECK(recorded("{ \"engine\": \"x\" }") == "{ \"engine\": { \"version\": \"0.12.0\" } }");
+    CHECK(recorded("{}") == "{\n  \"engine\": { \"version\": \"0.12.0\" }\n}");
+    CHECK(recorded("{\r\n  \"name\": \"A\"\r\n}\r\n") ==
+          "{\r\n  \"name\": \"A\",\r\n  \"engine\": { \"version\": \"0.12.0\" }\r\n}\r\n");
+    CHECK(recorded("{ \"name\": \"a \\\" engine\", \"engine\": { \"version\": \"0.12.0\" } }") ==
+          "{ \"name\": \"a \\\" engine\", \"engine\": { \"version\": \"0.12.0\" } }"); // Already named: kept
+
+    temp.Write("Broken/Project.json", "[1]");
+    CHECK_FALSE(RecordProjectEngine(temp.Path() / "Broken", version).Ok());
 }

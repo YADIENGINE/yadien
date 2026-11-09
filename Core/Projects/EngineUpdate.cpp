@@ -5,6 +5,7 @@
 #include "Platform/FileSystem.h"
 #include "Platform/Text.h"
 #include "Projects/CopyIntegrity.h"
+#include "Projects/ProjectEngineVersion.h"
 
 namespace {
 constexpr const char* StagingFolder = ".Engine.updating"; // Beside Engine/: same volume, so the swap is a rename
@@ -96,6 +97,15 @@ Result<EngineUpdatePlan> PlanEngineUpdate(const ProjectInfo& project, const Avai
         if (!differing.Ok()) return Plan::Failure(differing.Error());
         plan.overwritten = std::move(differing).Value();
         plan.notes = target.manifest.notes;
+        // A clone without Engine/ (git leaves it out) still names its engine: the step starts from that version
+        if (project.kind == EngineKind::Missing && project.recorded) {
+            const EngineVersion from = *project.recorded;
+            plan.from = from;
+            plan.wentBack = target.manifest.version < from;
+            plan.notes = plan.wentBack ? std::vector<EngineNote>{} : NotesSince(target.manifest, from);
+            plan.mayBreak =
+                plan.wentBack ? MayBreak(target.manifest.version, from) : MayBreak(from, target.manifest.version);
+        }
     }
     // Engine files the new version dropped go silently; anything else that disappears is listed
     for (const std::string& file : current) {
@@ -137,5 +147,8 @@ Status ApplyEngineUpdate(const EngineUpdatePlan& plan) {
         return placed;
     }
     (void)RemoveTree(retired); // A leftover is removed by the next update
+    const EngineVersion version = plan.target.manifest.version;
+    if (Status recorded = RecordProjectEngine(plan.projectRoot, version); !recorded.Ok())
+        return Status::Failure("Engine " + version.ToString() + " is in place, but " + recorded.Error());
     return Status::Success();
 }

@@ -21,6 +21,7 @@ add_library(LauncherCore STATIC
     Projects/EngineUpdate.cpp
     Projects/NewProject.cpp
     Projects/ProjectDetails.cpp
+    Projects/ProjectEngineVersion.cpp
     Projects/ProjectInfo.cpp
     Projects/ProjectLaunch.cpp
     Projects/ProjectRow.cpp

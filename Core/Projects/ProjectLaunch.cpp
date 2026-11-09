@@ -1,6 +1,7 @@
 #include "Projects/ProjectLaunch.h"
 #include "Engines/EngineCopyRecord.h"
 #include "Projects/CopyIntegrity.h"
+#include "Projects/ProjectEngineVersion.h"
 
 namespace {
 constexpr const char* CanceledError = "Canceled";
@@ -24,6 +25,20 @@ void ReportCopyIntegrity(const ProjectInfo& project, JobContext& job) {
                " added); the engine is read-only, repair it from the project list");
 }
 
+// A project from before Project.json named its engine gets the copy's version, so a clone can restore it. A different
+// version stays as it is: Project.json is the one a teammate committed, and the project list offers to restore it.
+void CheckRecordedVersion(const ProjectInfo& project, JobContext& job) {
+    const EngineVersion version = project.manifest->version;
+    if (!project.recorded) {
+        if (Status recorded = RecordProjectEngine(project.root, version); !recorded.Ok())
+            job.Output("warning: " + recorded.Error());
+        return;
+    }
+    if (*project.recorded != version)
+        job.Output("warning: " + std::string(ProjectFile) + " names engine " + project.recorded->ToString() +
+                   " but Engine/ is " + version.ToString() + "; restore it from the project list");
+}
+
 Status ProcessFailure(const ProcessResult& result, const std::string& what) {
     if (result.canceled) return Status::Failure(CanceledError);
     if (!result.Started()) return Status::Failure(result.startError);
@@ -34,7 +49,10 @@ Status ProcessFailure(const ProcessResult& result, const std::string& what) {
 Status OpenProject(const ProjectInfo& project, const Toolchain& toolchain, const EngineRunner& runEngine,
                    const ProcessStarter& start, JobContext& job) {
     job.Step("Checking engine files");
-    if (project.kind == EngineKind::Copy) ReportCopyIntegrity(project, job);
+    if (project.kind == EngineKind::Copy) {
+        ReportCopyIntegrity(project, job);
+        CheckRecordedVersion(project, job);
+    }
     if (job.CancelRequested()) return Status::Failure(CanceledError);
 
     job.Step("Building editor");

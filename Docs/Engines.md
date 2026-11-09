@@ -31,7 +31,7 @@ Files determine project type; launcher mode determines which operations are allo
 | `Copy` | `Engine/EngineCopy.json` | Yes | Any published stable version in both modes |
 | `Git` | `Engine/.git` | No | Git operations in developer mode only |
 | `Unregistered` | Neither marker | Warning only | Replace with a stable version |
-| `Missing` | No usable `Engine/` | — | Replace when `Project.json` exists |
+| `Missing` | No usable `Engine/` | — | Install the version `Project.json` names; otherwise Replace when `Project.json` exists |
 
 Build, run, and editor commands work for every type. User mode never runs git. Developer mode is an unprotected Settings
 toggle with a warning; it adds `dev (main)` projects, engine update/publish actions for git projects, and git checks to
@@ -72,6 +72,13 @@ Stable engine changes use this workflow:
    the swap fails without changing the project and can be retried without repeating the trial.
 4. **Failure:** leave the real project untouched and show errors and migration steps. The user may copy the report, retry,
    or explicitly change anyway to perform required migrations in the real project.
+
+Applying a change writes the version into `Project.json` (`"engine": {"version": "0.11.1"}`, engine
+`Docs/ProjectSetup.md`), editing only that value so the rest of the hand-formatted file stays as it is; opening a copy
+whose `Project.json` names no version writes it too. `Engine/` stays out of git, so this field is what a clone has.
+**Restore** installs the named version without a trial when `Engine/` is missing (a fresh clone) or holds a copy of
+another version (a teammate moved the project): the project is already made for that version. Repair and Restore apply
+at once; Replace is not offered for a missing engine that Restore covers.
 
 Non-build failures such as a missing compiler are reported as “not tested,” not as project incompatibility. Selecting an
 older version additionally warns that newer save data may be incompatible. Repair reapplies the current version without

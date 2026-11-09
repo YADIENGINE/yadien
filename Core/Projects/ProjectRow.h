@@ -45,6 +45,7 @@ struct ProjectActions {
     bool updateEngine = false;  // Copy with a newer stable engine (confirmation panel)
     bool changeEngine = false;  // Copy, and another version to choose from, newer or older (confirmation panel)
     bool repairEngine = false;  // Copy whose exact version is known (same version back; confirmation panel)
+    bool restoreEngine = false; // The version Project.json names, missing or not the copy's (no trial)
     bool replaceEngine = false; // Unregistered or missing engine, a version to offer (confirmation panel)
     bool engineGit = false;     // Developer mode and a git-managed engine: Update from remote, Publish changes
     bool remove = true;         // Remove from list (never touches the disk)
@@ -55,5 +56,9 @@ struct ProjectActions {
 [[nodiscard]] std::optional<EngineVersion> UpdateTarget(const ProjectRow& row, const EngineLibrary& engines);
 [[nodiscard]] std::optional<EngineVersion> RepairTarget(const ProjectRow& row, const EngineLibrary& engines);
 [[nodiscard]] std::optional<EngineVersion> ReplaceTarget(const ProjectRow& row, const EngineLibrary& engines);
+// Restore puts in the engine Project.json names: Engine/ is missing (a fresh clone) or a copy of another version (a
+// teammate moved the project). The project was already made for that version, so nothing is tried first. Replace is
+// not offered for a missing engine that Restore covers.
+[[nodiscard]] std::optional<EngineVersion> RestoreTarget(const ProjectRow& row, const EngineLibrary& engines);
 // The versions a project can be moved to by choice, newest first: everything known but its own.
 [[nodiscard]] std::vector<EngineVersion> ChangeChoices(const ProjectRow& row, const EngineLibrary& engines);

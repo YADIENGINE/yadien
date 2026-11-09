@@ -341,9 +341,10 @@ void LauncherModel::ChangeEngine(std::size_t row, EngineChange change) {
     Queue([this, row, change] {
         const ProjectRow* found = RowAt(row);
         if (!found || _job) return;
-        const std::optional<EngineVersion> target = change == EngineChange::Update   ? UpdateTarget(*found, _engines)
-                                                    : change == EngineChange::Repair ? RepairTarget(*found, _engines)
-                                                                                     : ReplaceTarget(*found, _engines);
+        const std::optional<EngineVersion> target = change == EngineChange::Update    ? UpdateTarget(*found, _engines)
+                                                    : change == EngineChange::Repair  ? RepairTarget(*found, _engines)
+                                                    : change == EngineChange::Restore ? RestoreTarget(*found, _engines)
+                                                                                      : ReplaceTarget(*found, _engines);
         std::optional<EngineVersion> version = target;
         if (!version && change == EngineChange::Update) { // Nothing newer: the panel offers the other versions
             const std::vector<EngineVersion> choices = ChangeChoices(*found, _engines);
@@ -541,7 +542,7 @@ const ProjectRow* LauncherModel::ChangeProject() const { return RowFor(_changeRo
 void LauncherModel::ConfirmEngineChange() {
     Queue([this] {
         if (_job || !_plan) return;
-        if (_change == EngineChange::Repair) {
+        if (_change == EngineChange::Repair || _change == EngineChange::Restore) {
             SwitchEngine();
             return;
         }

@@ -3,6 +3,7 @@
 #include "Engines/EngineCopyRecord.h"
 #include "Platform/FileSystem.h"
 #include "Platform/Text.h"
+#include "Projects/ProjectEngineVersion.h"
 
 ProjectInfo InspectProject(const std::filesystem::path& root) {
     ProjectInfo info;
@@ -15,6 +16,7 @@ ProjectInfo InspectProject(const std::filesystem::path& root) {
         info.problem = project.Error();
     } else if (project.Value().is_object()) {
         info.name = project.Value().value("name", info.name);
+        info.recorded = RecordedEngineVersion(project.Value());
     }
 
     const std::filesystem::path engine = info.EngineFolder();

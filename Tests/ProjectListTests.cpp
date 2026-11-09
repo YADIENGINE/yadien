@@ -67,6 +67,7 @@ TEST_CASE("Opening checks a copy, builds the editor, then starts it", "[projects
     const std::vector<std::string> lines = job.LinesFrom(next);
     REQUIRE_FALSE(lines.empty());
     CHECK(lines.front().starts_with("warning: the engine copy differs")); // Edited copy: warned, still opened
+    CHECK(InspectProject(temp.Path() / "MyGame").recorded == project.manifest->version); // Named for a clone
 }
 
 TEST_CASE("A failed editor build does not start the editor", "[projects]") {
@@ -142,6 +143,36 @@ TEST_CASE("Rows offer updates and actions by engine kind and mode", "[projects]"
     CHECK_FALSE(actions.showInFolder);
     CHECK_FALSE(actions.replaceEngine);
     CHECK(actions.remove);
+}
+
+TEST_CASE("A project naming its engine restores that version instead of replacing", "[projects]") {
+    TempFolder temp;
+    WriteFakeEngine(temp.Path() / "Engines/Engine0.1.1", {.version = "0.1.1"});
+    WriteFakeEngine(temp.Path() / "Engines/Engine0.2.0", {.version = "0.2.0"});
+    const EngineLibrary engines = EngineLibrary::Scan(temp.Path() / "Engines");
+    const std::string named = R"({"version": 1, "name": "Clone", "engine": {"version": "0.1.1"}})";
+
+    temp.Write("Clone/Project.json", named); // A fresh clone: git left Engine/ out
+    const ProjectRow clone = InspectProjectRow(Entry(temp.Path() / "Clone"), engines);
+    CHECK(clone.info.kind == EngineKind::Missing);
+    CHECK(RestoreTarget(clone, engines) == EngineVersion{0, 1, 1});
+    ProjectActions actions = ActionsFor(clone, engines, LauncherMode::User);
+    CHECK(actions.restoreEngine);
+    CHECK_FALSE(actions.replaceEngine);
+
+    WriteFakeProject(temp.Path() / "Moved", "Moved", {.version = "0.2.0"}); // A teammate went back to 0.1.1
+    temp.Write("Moved/Project.json", named);
+    CHECK(RestoreTarget(InspectProjectRow(Entry(temp.Path() / "Moved"), engines), engines) == EngineVersion{0, 1, 1});
+
+    WriteFakeProject(temp.Path() / "Same", "Same", {.version = "0.1.1"});
+    temp.Write("Same/Project.json", named);
+    CHECK_FALSE(RestoreTarget(InspectProjectRow(Entry(temp.Path() / "Same"), engines), engines));
+
+    temp.Write("Unknown/Project.json", R"({"version": 1, "engine": {"version": "9.0.0"}})"); // Not available
+    const ProjectRow unknown = InspectProjectRow(Entry(temp.Path() / "Unknown"), engines);
+    actions = ActionsFor(unknown, engines, LauncherMode::User);
+    CHECK_FALSE(actions.restoreEngine);
+    CHECK(actions.replaceEngine);
 }
 
 TEST_CASE("An engine the launcher cannot drive blocks opening", "[projects]") {

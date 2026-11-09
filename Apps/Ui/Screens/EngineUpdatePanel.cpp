@@ -38,8 +38,19 @@ void DrawProjectHeader(const LauncherModel& model) {
     }
 }
 
+// Repair and Restore move to one known version; there is nothing to choose.
+bool FixedVersion(EngineChange change) { return change == EngineChange::Repair || change == EngineChange::Restore; }
+
+const char* ConfirmLabel(EngineChange change) {
+    switch (change) {
+    case EngineChange::Repair : return "Repair engine";
+    case EngineChange::Restore: return "Install engine";
+    default                   : return "Test and change";
+    }
+}
+
 void DrawVersionChoice(LauncherModel& model) {
-    if (model.PendingChange() == EngineChange::Repair) return;
+    if (FixedVersion(model.PendingChange())) return;
     ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
     LauncherFieldLabel("VERSION");
     const std::string current = VersionLabel(model, model.ChangeVersion());
@@ -67,17 +78,26 @@ void DrawReview(LauncherModel& model) {
         } else if (!model.PlanError().empty()) {
             LauncherToneText(model.PlanError().c_str(), ToolTone::Error);
         } else if (plan) {
-            const std::string from = plan->from ? plan->from->ToString() : "Unknown engine";
-            ImGui::Text("%s  " ICON_FA_ARROW_RIGHT "  %s", from.c_str(),
-                        plan->target.manifest.version.ToString().c_str());
+            const bool restore = model.PendingChange() == EngineChange::Restore;
+            const std::string to = plan->target.manifest.version.ToString();
+            if (restore && model.ChangeProject() && model.ChangeProject()->info.kind == EngineKind::Missing) {
+                ImGui::Text("Engine %s", to.c_str());
+            } else {
+                const std::string from = plan->from ? plan->from->ToString() : "Unknown engine";
+                ImGui::Text("%s  " ICON_FA_ARROW_RIGHT "  %s", from.c_str(), to.c_str());
+            }
             if (!model.SwitchError().empty()) LauncherToneText(model.SwitchError().c_str(), ToolTone::Error);
-            if (plan->wentBack)
+            if (restore)
+                LauncherMutedText("Project.json names this engine version: the project is already made for it, so "
+                                  "it is installed without a trial. Engine/ is not kept in git, so a cloned project "
+                                  "starts without it.");
+            else if (plan->wentBack)
                 LauncherToneText("This is an older engine. Saves and settings written by the newer one may not load.",
                                  ToolTone::Warning);
             else if (plan->mayBreak)
                 ToolStatusBadge(ICON_FA_TRIANGLE_EXCLAMATION " May require project changes",
                                 ToolToneColor(ToolTone::Warning));
-            if (model.PendingChange() == EngineChange::Repair)
+            if (FixedVersion(model.PendingChange()))
                 LauncherMutedText("Close the project's editor and game before applying this change.");
             else
                 LauncherMutedText("A temporary copy of the project is built with this engine first: game, editor and "
@@ -88,14 +108,14 @@ void DrawReview(LauncherModel& model) {
                 LauncherMutedText("No changes of yours in the engine files will be lost.");
             DrawAffectedFiles("Overwritten files", plan->overwritten);
             DrawAffectedFiles("Deleted files", plan->deleted);
-            if (ToolSectionHeader(plan->wentBack ? "What this version does not have" : "Release notes"))
+            if (!restore && ToolSectionHeader(plan->wentBack ? "What this version does not have" : "Release notes"))
                 DrawLauncherNotes(plan->notes);
         }
     }
     ImGui::EndChild();
     ImGui::Separator();
     const bool ready = !model.PlanRunning() && plan && model.PlanError().empty();
-    const char* confirm = model.PendingChange() == EngineChange::Repair ? "Repair engine" : "Test and change";
+    const char* confirm = ConfirmLabel(model.PendingChange());
     const std::array buttons{LauncherFooterButton{"Back"}, LauncherFooterButton{confirm, true, ready}};
     const int pressed = DrawLauncherFooter(buttons);
     if (pressed == 0) model.ClosePanel();

@@ -15,7 +15,7 @@ using ProcessStarter = std::function<std::string(const ProcessCommand&)>;
 
 // "Open" (design D15) as one job body, OpenProjectSteps steps:
 // 1. "Checking engine files": a copy's read-only check; changed files are reported as a warning line, the opening
-//    goes on (the Projects row offers Repair).
+//    goes on (the Projects row offers Repair). A Project.json that names no engine gets the copy's version.
 // 2. "Building editor": the engine's `editor --build-only`, output streamed.
 // 3. "Starting editor": the engine's `editor` started detached (already built, so it opens at once).
 // The caller records the opening (MarkProjectOpened + save) on success and closes the launcher.

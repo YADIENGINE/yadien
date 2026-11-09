@@ -299,6 +299,15 @@ void DrawProjectActions(LauncherModel& model) {
         if (ToolSingleLineButton(label.c_str())) model.ChangeEngine(index, EngineChange::Update);
         if (row.updateMayBreak) LauncherToneText("This update has breaking changes.", ToolTone::Warning);
     }
+    if (actions.restoreEngine && row.info.recorded) {
+        const std::string version = model.Engines().Label(*row.info.recorded);
+        const bool missing = row.info.kind == EngineKind::Missing;
+        const std::string label =
+            missing ? ICON_FA_DOWNLOAD " Install engine " + version : ICON_FA_ARROWS_ROTATE " Use engine " + version;
+        if (ToolSingleLineButton(label.c_str())) model.ChangeEngine(index, EngineChange::Restore);
+        LauncherMutedText(missing ? "Project.json names this version; Engine/ is not kept in git."
+                                  : "Project.json names this version; Engine/ holds another one.");
+    }
     ImGui::Dummy({0, ToolMetrics::Space * scale});
     DrawDetailFacts(model, index);
     if (const auto* details = model.DetailsFor(index); details && details->git && details->git->pointerChanged)
