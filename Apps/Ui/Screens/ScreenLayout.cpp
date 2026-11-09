@@ -97,11 +97,18 @@ void DrawLauncherNotes(const std::vector<EngineNote>& notes) {
         ImGui::PushID(static_cast<int>(index));
         if (index > 0) ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
         ImGui::PushFont(ToolFont(ToolFontRole::Medium), ToolMetrics::BodySize);
-        ImGui::TextUnformatted(note.version.ToString().c_str());
+        ImGui::TextUnformatted(EngineNoteTitle(note).c_str());
         ImGui::PopFont();
         if (!note.date.empty()) {
             ImGui::SameLine();
             ImGui::TextColored(ToolPalette::Muted, "%s", note.date.c_str());
+        }
+        if (!note.summary.empty()) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ToolPalette::Secondary);
+            ImGui::PushTextWrapPos(0);
+            ImGui::TextUnformatted(note.summary.c_str());
+            ImGui::PopTextWrapPos();
+            ImGui::PopStyleColor();
         }
         for (const auto& breaking : note.breaking) {
             ToolStatusBadge(ICON_FA_TRIANGLE_EXCLAMATION " Breaking change", ToolToneColor(ToolTone::Warning));

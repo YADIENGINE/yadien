@@ -13,7 +13,7 @@ namespace {
 constexpr float StepNameOffset = 20.0f; // Past the step's state mark
 
 std::string VersionLabel(const LauncherModel& model, const EngineVersion& version) {
-    return version.ToString() + (model.VersionDownloaded(version) ? "" : " (download)");
+    return model.Engines().Label(version) + (model.VersionDownloaded(version) ? "" : " (download)");
 }
 
 void DrawAffectedFiles(const char* title, const std::vector<std::string>& files) {

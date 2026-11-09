@@ -445,10 +445,10 @@ std::vector<EngineChoice> LauncherModel::NewProjectEngines() const {
     std::vector<EngineChoice> choices;
     for (const EngineVersion& version : _engines.KnownVersions()) {
         if (const AvailableEngine* local = _engines.Find(version))
-            choices.push_back({version.ToString(), version.ToString(), local, nullptr});
+            choices.push_back({_engines.Label(version), version.ToString(), local, nullptr});
         else
             choices.push_back(
-                {version.ToString() + " (download)", version.ToString(), nullptr, _engines.FindOnline(version)});
+                {_engines.Label(version) + " (download)", version.ToString(), nullptr, _engines.FindOnline(version)});
     }
     if (DevelopmentEngineAvailable())
         choices.push_back({std::string("dev (") + DevelopmentBranch + ")", "dev", nullptr, nullptr});
@@ -671,13 +671,20 @@ void LauncherModel::StartEngineCatalog() {
     const bool prereleases = !newest || IncludesPrereleases(newest->manifest.version);
     const bool removeTrial = std::exchange(_removeLeftoverTrial, false);
     _catalogError.clear();
-    _catalogJob = std::make_unique<Job<std::vector<OnlineEngine>>>(
-        "Reading the engine list", 1,
+    _catalogJob = std::make_unique<Job<OnlineCatalog>>(
+        "Reading the engine list", 2,
         [url = std::move(url), prereleases, removeTrial, trial = _layout.EngineTrialFolder(),
          scratch = _layout.dataFolder / "EngineCatalog"](JobContext& context) {
             if (removeTrial) (void)RemoveTree(trial);
             context.Step("Reading the engine list");
-            return FetchEngineCatalog(url, prereleases, scratch, context.CancelFlag());
+            Result<std::vector<OnlineEngine>> engines =
+                FetchEngineCatalog(url, prereleases, scratch, context.CancelFlag());
+            if (!engines.Ok()) return Result<OnlineCatalog>::Failure(engines.Error());
+            context.Step("Reading the release notes");
+            // Without notes the versions still work, unnamed: a failure here is not the list's failure.
+            Result<std::vector<EngineNote>> notes = FetchEngineNotes(engines.Value(), scratch, context.CancelFlag());
+            return Result<OnlineCatalog>(OnlineCatalog{
+                std::move(engines).Value(), notes.Ok() ? std::move(notes).Value() : std::vector<EngineNote>{}});
         });
 }
 
@@ -716,6 +723,29 @@ std::optional<EngineVersion> LauncherModel::ShownEngine() const {
 
 void LauncherModel::SelectEngine(const EngineVersion& version) {
     Queue([this, version] { _shownEngine = version; });
+}
+
+const EngineNote* LauncherModel::NewEngineAnnouncement() const {
+    const EngineNote* note = _engines.NewVersionNote();
+    return note && note->version.ToString() != _settings.seenEngine ? note : nullptr;
+}
+
+void LauncherModel::ShowNewEngine() {
+    Queue([this] {
+        if (const EngineNote* note = _engines.NewVersionNote()) {
+            _tab = LauncherTab::Engines;
+            _shownEngine = note->version;
+        }
+    });
+}
+
+void LauncherModel::DismissNewEngine() {
+    Queue([this] {
+        if (const EngineNote* note = _engines.NewVersionNote()) {
+            _settings.seenEngine = note->version.ToString();
+            Save();
+        }
+    });
 }
 
 std::optional<std::uintmax_t> LauncherModel::EngineSize(const EngineVersion& version) const {
@@ -769,8 +799,10 @@ void LauncherModel::ShowEngineFolder(const EngineVersion& version) {
 
 void LauncherModel::RescanEngines() {
     std::vector<OnlineEngine> online = _engines.Online();
+    std::vector<EngineNote> notes = _engines.OnlineNotes();
     _engines = EngineLibrary::Scan(_layout.enginesFolder, _layout.EngineCacheFolder());
     _engines.SetOnline(std::move(online));
+    _engines.SetOnlineNotes(std::move(notes));
 }
 
 // --- System ---
@@ -1115,7 +1147,8 @@ void LauncherModel::FinishJobs() {
     }
     if (_catalogJob && _catalogJob->Finished()) {
         if (_catalogJob->State() == JobState::Succeeded) {
-            _engines.SetOnline(_catalogJob->Outcome()->Value());
+            _engines.SetOnline(_catalogJob->Outcome()->Value().engines);
+            _engines.SetOnlineNotes(_catalogJob->Outcome()->Value().notes);
             _catalogRead = true;
             ReloadRows();
         } else {

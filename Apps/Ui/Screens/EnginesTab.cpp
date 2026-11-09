@@ -11,14 +11,14 @@
 
 namespace {
 constexpr float DetailsWidth = 340.0f;
-constexpr float ListMinWidth = 360.0f;
+constexpr float ListMinWidth = 400.0f;
 constexpr float ListPadding = 12.0f;
 constexpr float DetailsPadding = 16.0f;
 constexpr float NarrowListShare = 0.42f;
 constexpr float RowHeight = 40.0f;
 constexpr float RowInset = 12.0f;
-constexpr float StatusColumn = 96.0f; // From the row's start
-constexpr float UsageColumn = 226.0f;
+constexpr float StatusColumn = 176.0f; // From the row's start; past "0.10.0 Pre-Release"
+constexpr float UsageColumn = 276.0f;
 constexpr float SizeColumnWidth = 84.0f;
 constexpr float DetailLabelWidth = 76.0f;
 
@@ -75,7 +75,7 @@ void DrawVersionRow(LauncherModel& model, const EngineVersion& version, bool lat
     const float inset = RowInset * scale;
     const float width = ImGui::GetContentRegionAvail().x;
     const auto start = ImGui::GetCursorScreenPos();
-    const std::string text = version.ToString();
+    const std::string text = model.Engines().Label(version);
     ImGui::PushID(text.c_str());
     if (ImGui::Selectable("##engine", selected, 0, {0, height})) model.SelectEngine(version);
     ImGui::PopID();
@@ -131,7 +131,7 @@ void DrawVersionDetails(LauncherModel& model, const EngineVersion& version, bool
     const auto& library = model.Engines();
     const AvailableEngine* engine = library.Find(version);
     ImGui::PushFont(ToolFont(ToolFontRole::Heading), ToolMetrics::HeadingSize);
-    ImGui::Text("Engine %s", version.ToString().c_str());
+    ImGui::Text("Engine %s", library.Label(version).c_str());
     ImGui::PopFont();
     if (engine) {
         if (ToolSingleLineButton(ICON_FA_FOLDER_OPEN " Show in folder")) model.ShowEngineFolder(version);
@@ -160,7 +160,9 @@ void DrawVersionDetails(LauncherModel& model, const EngineVersion& version, bool
         if (remove) model.AskRemoveEngine(version);
     } else {
         ImGui::Dummy({0, ToolMetrics::Space * ToolUiScale()});
-        LauncherMutedText("Not on this computer. A project choosing it downloads it. Its release notes come with it.");
+        LauncherMutedText("Not on this computer. A project choosing it downloads it.");
+        const std::vector<EngineNote> notes = library.NotesOf(version);
+        if (!notes.empty() && ToolSectionHeader("Release notes")) DrawLauncherNotes(notes);
     }
 }
 } // namespace

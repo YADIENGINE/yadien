@@ -14,7 +14,9 @@ struct BreakingChange {
 
 struct EngineNote {
     EngineVersion version;
-    std::string date; // YYYY-MM-DD
+    std::string name;    // "Cats"; empty before 0.11.1, which the launcher calls Pre-Release
+    std::string summary; // One sentence: what the version brings
+    std::string date;    // YYYY-MM-DD
     std::vector<std::string> changes;
     std::vector<BreakingChange> breaking;
 };
@@ -33,6 +35,12 @@ inline constexpr const char* EngineNotesFolder = "ReleaseNotes";
 // Reads <engineFolder>/EngineManifest.json and the notes in <engineFolder>/ReleaseNotes/<version>.json; engines before
 // that folder keep them in the manifest's "notes". Notes are optional for reading.
 [[nodiscard]] Result<EngineManifest> LoadEngineManifest(const std::filesystem::path& engineFolder);
+
+// "0.11.1 Cats", or "0.10.0 Pre-Release" for a version that has no name.
+[[nodiscard]] std::string EngineNoteTitle(const EngineNote& note);
+
+// A release's ReleaseNotes.json (engine Docs/ToolsContract.md → Manifest): every note of its tag, newest first.
+[[nodiscard]] Result<std::vector<EngineNote>> ParseEngineNotes(const std::string& json);
 
 // Notes of the versions after `from` up to and including the manifest's own version, newest first: what an update
 // from `from` brings, including skipped versions (cumulative notes).

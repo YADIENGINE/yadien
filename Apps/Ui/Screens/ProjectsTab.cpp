@@ -119,7 +119,8 @@ void DrawProjectRow(LauncherModel& model, std::size_t index) {
         if (ImGui::MenuItem("Remove from list", nullptr, false, actions.remove)) model.AskRemove(index);
         ImGui::EndPopup();
     }
-    const std::string update = row.update ? "\nEngine update available: " + row.update->ToString() : std::string();
+    const std::string update =
+        row.update ? "\nEngine update available: " + model.Engines().Label(*row.update) : std::string();
     const std::string tooltip =
         row.info.name + "\n" + path + (row.info.problem.empty() ? "" : "\n" + row.info.problem) + update;
     ToolTooltip(tooltip.c_str());
@@ -293,7 +294,8 @@ void DrawProjectActions(LauncherModel& model) {
     if (const auto* details = model.DetailsFor(index); details && !details->error.empty())
         LauncherToneText(details->error.c_str(), ToolTone::Warning);
     if (row.update && actions.updateEngine) {
-        const std::string label = std::string(ICON_FA_ARROW_UP " Update engine to ") + row.update->ToString();
+        const std::string label =
+            std::string(ICON_FA_ARROW_UP " Update engine to ") + model.Engines().Label(*row.update);
         if (ToolSingleLineButton(label.c_str())) model.ChangeEngine(index, EngineChange::Update);
         if (row.updateMayBreak) LauncherToneText("This update has breaking changes.", ToolTone::Warning);
     }

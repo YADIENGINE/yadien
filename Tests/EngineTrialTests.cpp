@@ -203,6 +203,7 @@ TEST_CASE("A release's compiled engine is listed only with its digest", "[engine
     constexpr const char* answer = R"([
       {"tag_name": "v0.2.0", "tarball_url": "a",
        "assets": [{"name": "EngineCopy.json", "browser_download_url": "r"},
+                  {"name": "ReleaseNotes.json", "browser_download_url": "n"},
                   {"name": "EnginePrebuilt.zip", "browser_download_url": "p", "digest": "sha256:abc"}]},
       {"tag_name": "v0.1.0", "tarball_url": "a",
        "assets": [{"name": "EngineCopy.json", "browser_download_url": "r"},
@@ -214,6 +215,8 @@ TEST_CASE("A release's compiled engine is listed only with its digest", "[engine
     CHECK(all.Value()[0].prebuiltUrl == "p");
     CHECK(all.Value()[0].prebuiltSha256 == "abc");
     CHECK(all.Value()[1].prebuiltUrl.empty());
+    CHECK(all.Value()[0].notesUrl == "n");
+    CHECK(all.Value()[1].notesUrl.empty());
 }
 
 TEST_CASE("A compiled engine enters its folder only when its digest matches", "[engine-catalog]") {

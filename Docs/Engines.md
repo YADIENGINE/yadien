@@ -12,6 +12,12 @@ A new engine version does not need a launcher release. New Project lists every k
 versions that are not downloaded yet marked "(download)", and selects the newest; opening the panel reads the engine
 list. The shipped engine changes only with a launcher release.
 
+Versions show with their name, `0.11.1 Cats`; versions before names show as `Pre-Release`. With the list the launcher
+reads the newest release's `ReleaseNotes.json` (every version's notes), so the Engines tab shows the name and release
+notes of versions not downloaded yet. While a version online is newer than every engine on this computer, a "New engine
+version!" strip under the top bar shows its one-sentence summary; closing it hides it until a newer version comes
+(`seenEngine` in the settings).
+
 The tools contracts this launcher drives are listed in `LauncherManifest.json` `toolsContracts`; the build passes them to
 the code and the release workflow reads the same list. An engine whose contract the published launcher does not drive is
 released together with a launcher that does.

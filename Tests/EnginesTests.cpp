@@ -102,3 +102,55 @@ TEST_CASE("The library lists valid versions newest first and reports broken fold
     CHECK(library.UpdateFor({0, 1, 2}) == EngineVersion{0, 2, 0});
     CHECK_FALSE(library.UpdateFor({0, 2, 0}).has_value());
 }
+
+TEST_CASE("Notes carry a name and summary; versions without a name are Pre-Release", "[engines]") {
+    TempFolder temp;
+    WriteFakeEngine(temp.Path(), {.version = "0.11.1"});
+    temp.Write("ReleaseNotes/0.11.0.json", R"({"date": "2026-01-01", "changes": ["Older"], "breaking": []})");
+    temp.Write("ReleaseNotes/0.11.1.json", R"({"name": "Cats", "summary": "One sentence.", "date": "2026-01-02",
+                                              "changes": ["Newer"], "breaking": []})");
+    Result<EngineManifest> manifest = LoadEngineManifest(temp.Path());
+    REQUIRE(manifest.Ok());
+    REQUIRE(manifest.Value().notes.size() == 2);
+    CHECK(manifest.Value().notes[0].summary == "One sentence.");
+    CHECK(EngineNoteTitle(manifest.Value().notes[0]) == "0.11.1 Cats");
+    CHECK(EngineNoteTitle(manifest.Value().notes[1]) == "0.11.0 Pre-Release");
+}
+
+TEST_CASE("A release's notes list parses newest first and refuses other answers", "[engines]") {
+    Result<std::vector<EngineNote>> notes = ParseEngineNotes(R"([
+      {"version": "0.9.0", "date": "2026-01-01", "changes": ["A"], "breaking": []},
+      {"version": "0.11.1", "name": "Cats", "summary": "S.", "date": "2026-01-02", "changes": ["B"], "breaking": []},
+      {"version": "next", "changes": []}
+    ])");
+    REQUIRE(notes.Ok());
+    REQUIRE(notes.Value().size() == 2);
+    CHECK(notes.Value()[0].name == "Cats");
+    CHECK(notes.Value()[1].version == EngineVersion{0, 9, 0});
+    CHECK_FALSE(ParseEngineNotes("{}").Ok());
+    CHECK_FALSE(ParseEngineNotes(R"([{"version": 3}])").Ok());
+}
+
+TEST_CASE("Versions not downloaded show their name and notes from the online list", "[engines]") {
+    TempFolder temp;
+    WriteFakeEngine(temp.Path() / "Engines/Engine0.11.0", {.version = "0.11.0"});
+    temp.Write("Engines/Engine0.11.0/ReleaseNotes/0.11.0.json",
+               R"({"date": "2026-01-01", "changes": ["Here"], "breaking": []})");
+    EngineLibrary library = EngineLibrary::Scan(temp.Path() / "Engines");
+    CHECK(library.Label({0, 11, 0}) == "0.11.0 Pre-Release");
+    CHECK(library.Label({0, 12, 0}) == "0.12.0"); // No note names it yet
+    CHECK_FALSE(library.NewVersionNote());
+
+    library.SetOnline({{{0, 12, 0}, "v0.12.0", "r", "a"}, {{0, 11, 1}, "v0.11.1", "r", "a"}});
+    CHECK_FALSE(library.NewVersionNote()); // Nothing to announce without the notes
+    library.SetOnlineNotes({{{0, 12, 0}, "Dogs", "Twelve.", "2026-01-03", {"C"}, {}},
+                            {{0, 11, 1}, "Cats", "Eleven.", "2026-01-02", {"B"}, {}},
+                            {{0, 11, 0}, "", "", "2026-01-01", {"Online"}, {}}});
+    CHECK(library.Label({0, 12, 0}) == "0.12.0 Dogs");
+    CHECK(library.NoteFor({0, 11, 0})->changes == std::vector<std::string>{"Here"}); // This computer's copy first
+    const std::vector<EngineNote> notes = library.NotesOf({0, 11, 1});
+    REQUIRE(notes.size() == 2);
+    CHECK(notes[0].name == "Cats");
+    REQUIRE(library.NewVersionNote());
+    CHECK(library.NewVersionNote()->summary == "Twelve.");
+}

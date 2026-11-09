@@ -45,6 +45,7 @@ STAGE_FOLDER = "Stage"  # build/Package/<this>/: what the package step installs 
 STAMP_FILE = "Release.json"  # build/Package/<this>: what the installer in Releases/ was built from
 NOTES_FILE = "ReleaseNotes.md"  # build/Package/<this>: the notes of the package and of the GitHub release
 UPDATE_FILES = ("releases.win.json", "RELEASES", "assets.win.json")
+NOTES_ASSET = "ReleaseNotes.json"  # An engine release's notes of every version (Core/Engines/EngineCatalog.cpp)
 
 
 class ReleaseFailed(Exception):
@@ -410,7 +411,14 @@ def unpublished_engine_tags(engine: Path) -> list[str]:
 def engine_release_body(manifest: dict) -> str:
     note = manifest["notes"][0]
     lines = [f"- Breaking: {item['change']} Migrate: {item['migrate']}" for item in note.get("breaking", [])]
-    return "\n".join(lines + [f"- {change}" for change in note["changes"]]) + "\n"
+    summary = [note["summary"], ""] if note.get("summary") else []
+    return "\n".join(summary + lines + [f"- {change}" for change in note["changes"]]) + "\n"
+
+
+def engine_release_title(manifest: dict) -> str:
+    """"YADIEN 0.11.1 Cats"; versions before names keep "YADIEN 0.10.0"."""
+    name = manifest["notes"][0].get("name")
+    return f"{manifest['name']} {manifest['version']}" + (f" {name}" if name else "")
 
 
 def publish_engine_release(engine: Path, tag: str) -> None:
@@ -427,8 +435,11 @@ def publish_engine_release(engine: Path, tag: str) -> None:
         file.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8", newline="\n")
         body = Path(folder) / "Notes.md"
         body.write_text(engine_release_body(manifest), encoding="utf-8", newline="\n")
-        command = ["gh", "release", "create", tag, str(file), "--repo", url, "--verify-tag", "--draft", "--title",
-                   f"{manifest['name']} {manifest['version']}", "--notes-file", str(body)]
+        notes = Path(folder) / NOTES_ASSET  # The launcher shows versions it has not downloaded from these
+        notes.write_text(json.dumps(manifest["notes"], indent=2, ensure_ascii=False) + "\n", encoding="utf-8",
+                         newline="\n")
+        command = ["gh", "release", "create", tag, str(file), str(notes), "--repo", url, "--verify-tag", "--draft",
+                   "--title", engine_release_title(manifest), "--notes-file", str(body)]
         if parse_version(manifest["version"])[0] == 0:
             command.append("--prerelease")
         run(command, engine)

@@ -14,8 +14,18 @@ std::vector<std::string> Strings(const nlohmann::json& value) {
     return texts;
 }
 
+std::string Text(const nlohmann::json& note, const char* key) {
+    const auto found = note.find(key);
+    return found != note.end() && found->is_string() ? found->get<std::string>() : std::string();
+}
+
 EngineNote ReadNote(const nlohmann::json& note, const EngineVersion& version) {
-    EngineNote entry{version, note.value("date", ""), Strings(note.value("changes", nlohmann::json())), {}};
+    EngineNote entry{version,
+                     Text(note, "name"),
+                     Text(note, "summary"),
+                     Text(note, "date"),
+                     Strings(note.value("changes", nlohmann::json())),
+                     {}};
     for (const nlohmann::json& breaking : note.value("breaking", nlohmann::json::array()))
         if (breaking.is_object())
             entry.breaking.push_back({breaking.value("change", ""), breaking.value("migrate", "")});
@@ -72,6 +82,23 @@ Result<EngineManifest> LoadEngineManifest(const std::filesystem::path& engineFol
                          ? ReadNoteFiles(notesFolder)
                          : ReadManifestNotes(data.value("notes", nlohmann::json()));
     return manifest;
+}
+
+std::string EngineNoteTitle(const EngineNote& note) {
+    return note.version.ToString() + " " + (note.name.empty() ? "Pre-Release" : note.name);
+}
+
+Result<std::vector<EngineNote>> ParseEngineNotes(const std::string& json) {
+    const nlohmann::json data = nlohmann::json::parse(json, nullptr, false);
+    if (!data.is_array()) return Result<std::vector<EngineNote>>::Failure("Unexpected release notes");
+    std::vector<EngineNote> notes;
+    try {
+        notes = ReadManifestNotes(data);
+    } catch (const nlohmann::json::exception& error) { // A field of the wrong type
+        return Result<std::vector<EngineNote>>::Failure(std::string("Unexpected release notes: ") + error.what());
+    }
+    std::ranges::sort(notes, [](const EngineNote& a, const EngineNote& b) { return b.version < a.version; });
+    return notes;
 }
 
 std::vector<EngineNote> NotesSince(const EngineManifest& manifest, const EngineVersion& from) {

@@ -7,7 +7,7 @@ and notices; screen functions only read the model and queue actions. The window 
 
 | Function | File | Responsibility |
 | --- | --- | --- |
-| `DrawLauncher` / `DrawTopBar` / `DrawNotice` | `LauncherFrame.cpp` | Window frame, tabs, global state, notices, panels, and confirmations |
+| `DrawLauncher` / `DrawTopBar` / `DrawNotice` | `LauncherFrame.cpp` | Window frame, tabs, global state, new engine strip, notices, panels, and confirmations |
 | `DrawProjectsTab` | `ProjectsTab.cpp` | Project search, sorting, list, selection, details, and first-run actions |
 | `DrawEnginesTab` | `EnginesTab.cpp` | Engine versions, local state, usage, release notes, download, and removal |
 | `DrawNewProjectPanel` | `NewProjectPanel.cpp` | Name, location, engine selection, validation, and creation |

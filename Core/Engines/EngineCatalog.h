@@ -30,6 +30,18 @@
                                                                    const std::filesystem::path& scratchFolder,
                                                                    const std::atomic<bool>* cancel);
 
+// What the catalog job reads: the versions and the newest release's notes.
+struct OnlineCatalog {
+    std::vector<OnlineEngine> engines;
+    std::vector<EngineNote> notes;
+};
+
+// The notes of every version, read from the newest release that carries ReleaseNotes.json (engine
+// Docs/ToolsContract.md → Manifest); empty when none does. `scratchFolder` is removed afterwards.
+[[nodiscard]] Result<std::vector<EngineNote>> FetchEngineNotes(const std::vector<OnlineEngine>& engines,
+                                                               const std::filesystem::path& scratchFolder,
+                                                               const std::atomic<bool>* cancel);
+
 // Downloads the version, checks every file against its record and adds <cacheFolder>/Engine<version>/. Nothing is left
 // behind on failure; a version already there is returned as it is.
 [[nodiscard]] Result<AvailableEngine>

@@ -74,6 +74,35 @@ void EngineLibrary::SetOnline(std::vector<OnlineEngine> online) {
     _online = std::move(online);
 }
 
+void EngineLibrary::SetOnlineNotes(std::vector<EngineNote> notes) { _onlineNotes = std::move(notes); }
+
+const EngineNote* EngineLibrary::NoteFor(const EngineVersion& version) const {
+    for (const AvailableEngine& engine : _engines)
+        for (const EngineNote& note : engine.manifest.notes)
+            if (note.version == version) return &note;
+    const auto found = std::ranges::find(_onlineNotes, version, &EngineNote::version);
+    return found == _onlineNotes.end() ? nullptr : &*found;
+}
+
+std::string EngineLibrary::Label(const EngineVersion& version) const {
+    const EngineNote* note = NoteFor(version);
+    return note ? EngineNoteTitle(*note) : version.ToString();
+}
+
+std::vector<EngineNote> EngineLibrary::NotesOf(const EngineVersion& version) const {
+    if (const AvailableEngine* engine = Find(version)) return engine->manifest.notes;
+    std::vector<EngineNote> notes;
+    for (const EngineNote& note : _onlineNotes)
+        if (note.version <= version) notes.push_back(note);
+    return notes;
+}
+
+const EngineNote* EngineLibrary::NewVersionNote() const {
+    if (_online.empty() || (Newest() && _online.front().version <= Newest()->manifest.version)) return nullptr;
+    const EngineNote* note = NoteFor(_online.front().version);
+    return note && !note->summary.empty() ? note : nullptr;
+}
+
 const OnlineEngine* EngineLibrary::FindPublished(const EngineVersion& version) const {
     const auto found = std::ranges::find(_published, version, &OnlineEngine::version);
     return found == _published.end() ? nullptr : &*found;

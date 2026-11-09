@@ -12,7 +12,8 @@ from unittest.mock import patch
 
 from Scripts.import_engine import import_engine
 from Scripts.release import (LAUNCHER_MANIFEST, REPOSITORY, ReleaseFailed, check_clean, commit_launcher,
-                             commit_project_pointers, contract_problem, engine_release_body, engine_release_tags, make_plan,
+                             commit_project_pointers, contract_problem, engine_release_body, engine_release_tags,
+                             engine_release_title, make_plan,
                              manifest_problems, prepare_worktree, release_engine, release_files, release_notes,
                              remove_release_trees, unpackaged_engine_tags)
 from Scripts.release import capture as real_capture
@@ -256,6 +257,13 @@ class GitTests(TempFolderTests):
         data = engine_manifest("0.3.0")
         data["notes"][0]["breaking"] = [{"change": "A renamed.", "migrate": "Use B."}]
         self.assertEqual(engine_release_body(data), "- Breaking: A renamed. Migrate: Use B.\n- engine change 0.3.0\n")
+
+    def test_a_named_release_carries_its_name_and_summary(self):
+        data = engine_manifest("0.3.0")
+        self.assertEqual(engine_release_title(data), f"{data['name']} 0.3.0")
+        data["notes"][0].update(name="Cats", summary="One sentence.")
+        self.assertEqual(engine_release_title(data), f"{data['name']} 0.3.0 Cats")
+        self.assertEqual(engine_release_body(data), "One sentence.\n\n- engine change 0.3.0\n")
 
     def test_unchanged_pointers_make_no_commit(self):
         project = self.repository("project")

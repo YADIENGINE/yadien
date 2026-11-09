@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Engines/EngineCatalog.h"
 #include "Engines/EngineLibrary.h"
 #include "Jobs/Job.h"
 #include "Projects/EngineTrial.h"
@@ -151,6 +152,10 @@ public:
     // The version the tab's details show: the chosen one while it is still known, else the newest.
     [[nodiscard]] std::optional<EngineVersion> ShownEngine() const;
     void SelectEngine(const EngineVersion& version);
+    // A version online newer than every engine here, until its strip is closed: the strip's note, else null.
+    [[nodiscard]] const EngineNote* NewEngineAnnouncement() const;
+    void ShowNewEngine();    // Engines tab on the announced version
+    void DismissNewEngine(); // Remembered in the settings
     // Bytes on disk; measured in the background while the tab is open, nullopt until then.
     [[nodiscard]] std::optional<std::uintmax_t> EngineSize(const EngineVersion& version) const;
     // Why this version cannot be removed, empty when it can.
@@ -346,7 +351,7 @@ private:
     std::unique_ptr<Job<std::vector<ProjectDetails>>> _details;
     std::unique_ptr<Job<SystemReport>> _systemJob;
     std::unique_ptr<Job<EngineUpdatePlan>> _planJob;
-    std::unique_ptr<Job<std::vector<OnlineEngine>>> _catalogJob;
+    std::unique_ptr<Job<OnlineCatalog>> _catalogJob;
     std::unique_ptr<Job<std::uintmax_t>> _engineSizeJob;
     std::optional<ForegroundJob> _job;
     UpdateController _updates;

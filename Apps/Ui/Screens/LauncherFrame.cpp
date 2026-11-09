@@ -188,6 +188,50 @@ void DrawNoticeCard(const char* id, const char* title, const char* message, Tool
     ImGui::PopID();
 }
 
+// "New engine version!" under the top bar while a version online is newer than every engine here; its button opens
+// the version in the Engines tab, the cross hides it until a newer one comes.
+void DrawNewEngineStrip(LauncherModel& model) {
+    const EngineNote* note = model.NewEngineAnnouncement();
+    if (!note) return;
+    const float scale = ToolUiScale();
+    const std::string message = EngineNoteTitle(*note) + " - " + note->summary;
+    constexpr const char* Open = ICON_FA_BOOK_OPEN " Release notes";
+    ImGui::PushID("new-engine");
+    const float margin = NoticeMargin * scale;
+    ImGui::SetCursorPos({margin, ImGui::GetCursorPosY() + margin});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {NoticePadding * scale, NoticePadding * scale});
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {ToolMetrics::Gap * scale, ToolMetrics::Space * scale});
+    const float width = ImGui::GetContentRegionAvail().x - margin;
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ToolPalette::Elevated);
+    ImGui::PushStyleColor(ImGuiCol_Border, ToolToneColor(ToolTone::Accent));
+    if (ImGui::BeginChild("##strip", {width, 0},
+                          ImGuiChildFlags_AlwaysUseWindowPadding | ImGuiChildFlags_AutoResizeY |
+                              ImGuiChildFlags_Borders)) {
+        ImGui::PushFont(ToolFont(ToolFontRole::Medium), ToolMetrics::BodySize);
+        const float openWidth = ImGui::CalcTextSize(Open).x + ImGui::GetStyle().FramePadding.x * 2;
+        ImGui::PopFont();
+        if (ImGui::BeginTable("##strip-layout", 3)) {
+            ImGui::TableSetupColumn("Message", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Open", ImGuiTableColumnFlags_WidthFixed, openWidth);
+            ImGui::TableSetupColumn("Dismiss", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFrameHeight());
+            ImGui::TableNextColumn();
+            LauncherToneText(ICON_FA_STAR " New engine version!", ToolTone::Accent);
+            ImGui::PushTextWrapPos(0);
+            ImGui::TextUnformatted(message.c_str());
+            ImGui::PopTextWrapPos();
+            ImGui::TableNextColumn();
+            if (ToolButton(Open)) model.ShowNewEngine();
+            ImGui::TableNextColumn();
+            if (ToolIconButton("dismiss", ICON_FA_XMARK, "Hide until a newer engine")) model.DismissNewEngine();
+            ImGui::EndTable();
+        }
+    }
+    ImGui::EndChild();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(2);
+    ImGui::PopID();
+}
+
 // Text and a state mark that opens the System check; only the mark when `compact`.
 void DrawSystemState(LauncherModel& model, bool compact) {
     const float scale = ToolUiScale();
@@ -233,6 +277,7 @@ void DrawLauncher(LauncherModel& model) {
         const bool covered = model.Panel() != LauncherPanel::None || model.Pending() != Confirmation::None;
         ImGui::BeginDisabled(covered);
         DrawTopBar(model);
+        DrawNewEngineStrip(model);
         DrawNotice(model);
         ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 0);
         if (ImGui::BeginChild("##tab", {0, 0})) {

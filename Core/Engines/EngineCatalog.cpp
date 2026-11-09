@@ -23,6 +23,7 @@ constexpr const char* FilesFolder = "files";
 constexpr std::string_view TagPrefix = "v";
 constexpr const char* DownloadSuffix = ".downloading";
 constexpr const char* PrebuiltAsset = "EnginePrebuilt.zip"; // Scripts/package.py PREBUILT_ASSET
+constexpr const char* NotesAsset = "ReleaseNotes.json";     // Scripts/release.py NOTES_ASSET
 constexpr const char* PrebuiltDescription = "Prebuilt.json";
 constexpr std::string_view DigestPrefix = "sha256:";
 
@@ -93,6 +94,7 @@ Result<std::vector<OnlineEngine>> ParseEngineCatalog(const std::string& json, bo
             if (!asset.is_object()) continue;
             const std::string name = asset.value("name", "");
             if (name == EngineCopyFile) engine.recordUrl = asset.value("browser_download_url", "");
+            if (name == NotesAsset) engine.notesUrl = asset.value("browser_download_url", "");
             if (const std::string digest = asset.value("digest", "");
                 name == PrebuiltAsset && digest.starts_with(DigestPrefix)) {
                 engine.prebuiltUrl = asset.value("browser_download_url", "");
@@ -116,6 +118,21 @@ Result<std::vector<OnlineEngine>> FetchEngineCatalog(const std::string& apiUrl, 
     (void)RemoveTree(scratchFolder);
     if (!text.Ok()) return Answer::Failure(text.Error());
     return ParseEngineCatalog(text.Value(), includePrereleases);
+}
+
+Result<std::vector<EngineNote>> FetchEngineNotes(const std::vector<OnlineEngine>& engines,
+                                                 const std::filesystem::path& scratchFolder,
+                                                 const std::atomic<bool>* cancel) {
+    using Answer = Result<std::vector<EngineNote>>;
+    const auto newest =
+        std::ranges::find_if(engines, [](const OnlineEngine& engine) { return !engine.notesUrl.empty(); });
+    if (newest == engines.end()) return Answer(std::vector<EngineNote>{});
+    const std::filesystem::path file = scratchFolder / NotesAsset;
+    const Status downloaded = DownloadFile(newest->notesUrl, file, cancel);
+    Result<std::string> text = downloaded.Ok() ? ReadTextFile(file) : Result<std::string>::Failure(downloaded.Error());
+    (void)RemoveTree(scratchFolder);
+    if (!text.Ok()) return Answer::Failure(text.Error());
+    return ParseEngineNotes(text.Value());
 }
 
 Result<AvailableEngine> DownloadEngine(const OnlineEngine& engine, const std::filesystem::path& cacheFolder,

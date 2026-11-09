@@ -23,6 +23,7 @@ struct LauncherSettings {
     ProjectSort projectSort = ProjectSort::LastOpened;
     bool checkForUpdates = true; // At every start of the window
     std::string skippedUpdate;   // The version "Skip this version" hides; a newer one is offered again
+    std::string seenEngine;      // The newest engine version whose "New engine version" strip was closed
 };
 
 inline constexpr int LauncherSettingsFormat = 1;

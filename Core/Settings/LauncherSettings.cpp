@@ -25,6 +25,7 @@ Result<LauncherSettings> LoadLauncherSettings(const std::filesystem::path& file)
     settings.projectsFolder = Utf8ToPath(data.value("projectsFolder", ""));
     settings.checkForUpdates = data.value("checkForUpdates", true);
     settings.skippedUpdate = data.value("skippedUpdate", "");
+    settings.seenEngine = data.value("seenEngine", "");
     const std::string sort = data.value("projectSort", SortNames[0]);
     for (std::size_t i = 0; i < SortNames.size(); ++i)
         if (sort == SortNames[i]) settings.projectSort = static_cast<ProjectSort>(i);
@@ -46,6 +47,7 @@ Status SaveLauncherSettings(const std::filesystem::path& file, const LauncherSet
         {"projectSort", SortNames[static_cast<std::size_t>(settings.projectSort)]},
         {"checkForUpdates", settings.checkForUpdates},
         {"skippedUpdate", settings.skippedUpdate},
+        {"seenEngine", settings.seenEngine},
         {"projects", projects},
     };
     return WriteJsonFileAtomic(file, data);
