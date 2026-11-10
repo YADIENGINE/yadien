@@ -1,15 +1,15 @@
 {
   "version": "0.9.2",
   "repository": "https://github.com/YADIENGINE/yadien",
-  "engine": "0.11.2",
+  "engine": "0.11.7",
   "engineRepository": "https://github.com/YADIENGINE/engine",
   "toolsContracts": [1, 2],
   "notes": [
     {
       "version": "0.9.2",
-      "date": "2026-11-09",
+      "date": "2026-11-10",
       "changes": [
-        "Ships engine 0.11.2 Cats.",
+        "Ships engine 0.11.7 Cats.",
         "A project cloned from git without Engine/ gets Install engine: the launcher puts in the version Project.json names, without a trial or a list of breaking changes.",
         "When Project.json names another version than the project's engine copy (a teammate moved the project), the project list offers to use that version.",
         "Changing a project's engine writes the version into Project.json; opening an older project writes it too."
